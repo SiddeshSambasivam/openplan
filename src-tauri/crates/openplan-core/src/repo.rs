@@ -5,28 +5,53 @@
 use git2::{Repository, Signature};
 use std::path::Path;
 
-/// Who made a change. Agents commit under their own name so `git log` answers
-/// "who wrote this" without any metadata of our own.
+/// One person, as git records them. The email is what tells two people
+/// apart once a base is shared, so it carries the identity and the name is
+/// only what gets displayed.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Identity {
+    pub name: String,
+    pub email: String,
+}
+
+/// Who made a change. Agents commit under their own name so `git log`
+/// answers "which tool wrote this", while the email answers "for whom".
 #[derive(Debug, Clone, PartialEq)]
 pub struct Author {
     pub name: String,
+    pub email: String,
 }
+
+/// Used when nobody has said who they are. Anything committed under this
+/// stays anonymous forever, since history is never rewritten.
+pub const ANONYMOUS: &str = "user";
 
 impl Author {
     pub fn user() -> Author {
-        Author {
-            name: "user".to_string(),
-        }
+        Author::agent(ANONYMOUS)
     }
 
     pub fn agent(name: &str) -> Author {
         Author {
             name: name.to_string(),
+            email: format!("{name}@openplan.local"),
         }
     }
 
-    fn email(&self) -> String {
-        format!("{}@openplan.local", self.name)
+    pub fn person(identity: &Identity) -> Author {
+        Author {
+            name: identity.name.clone(),
+            email: identity.email.clone(),
+        }
+    }
+
+    /// An agent working on one person's behalf: the name says which tool ran,
+    /// the email says whose base it ran against.
+    pub fn agent_for(tool: &str, identity: &Identity) -> Author {
+        Author {
+            name: tool.to_string(),
+            email: identity.email.clone(),
+        }
     }
 }
 
@@ -102,7 +127,7 @@ pub fn commit_all(root: &Path, author: &Author, message: &str) -> Result<Option<
         }
     }
 
-    let signature = Signature::now(&author.name, &author.email())
+    let signature = Signature::now(&author.name, &author.email)
         .map_err(|e| format!("Couldn't sign the change: {e}"))?;
     let parents: Vec<&git2::Commit> = parent.iter().collect();
     let oid = repo

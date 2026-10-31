@@ -3,7 +3,7 @@
 //! talking to each other.
 
 use crate::base::{default_base_path, ensure_base, Base};
-use crate::repo::{self, Author};
+use crate::repo::{self, Author, Identity, ANONYMOUS};
 use crate::fs::atomic_write;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -19,9 +19,59 @@ pub struct Settings {
     /// What the person asked to be called, from onboarding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// How this person is told apart from their teammates once a base is
+    /// shared. Absent until they set one, in which case git's own config
+    /// answers instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
     /// Whether onboarding has been walked through on this machine.
     #[serde(default)]
     pub onboarded: bool,
+}
+
+/// A blank setting is the same as an unset one; git configs in particular
+/// are easy to leave empty.
+fn filled(value: Option<String>) -> Option<String> {
+    value.filter(|v| !v.trim().is_empty())
+}
+
+/// Settings win over git's config, and an anonymous fallback covers the
+/// machine where neither is set. Name and email resolve separately so a
+/// half-configured git still contributes what it has.
+pub fn resolve_identity(
+    settings_name: Option<String>,
+    settings_email: Option<String>,
+    git_name: Option<String>,
+    git_email: Option<String>,
+) -> Identity {
+    Identity {
+        name: filled(settings_name)
+            .or(filled(git_name))
+            .unwrap_or_else(|| ANONYMOUS.to_string()),
+        email: filled(settings_email)
+            .or(filled(git_email))
+            .unwrap_or_else(|| format!("{ANONYMOUS}@openplan.local")),
+    }
+}
+
+/// Who this machine's changes belong to, from this machine's real settings.
+pub fn current_identity() -> Identity {
+    let settings = settings_path()
+        .ok()
+        .and_then(|path| read_settings(&path).ok().flatten());
+    let git = git2::Config::open_default().ok();
+    let get = |key: &str| git.as_ref().and_then(|c| c.get_string(key).ok());
+    resolve_identity(
+        settings.as_ref().and_then(|s| s.name.clone()),
+        settings.as_ref().and_then(|s| s.email.clone()),
+        get("user.name"),
+        get("user.email"),
+    )
+}
+
+/// The author for anything this person does themselves.
+pub fn me() -> Author {
+    Author::person(&current_identity())
 }
 
 /// `~/.config/openplan/settings.json`, or the platform's equivalent.
@@ -108,15 +158,16 @@ pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
         )?;
     }
 
-    let (standards, name, onboarded) = existing
-        .map(|s| (s.standards, s.name, s.onboarded))
-        .unwrap_or((None, None, false));
+    let (standards, name, email, onboarded) = existing
+        .map(|s| (s.standards, s.name, s.email, s.onboarded))
+        .unwrap_or((None, None, None, false));
     write_settings(
         settings_file,
         &Settings {
             base_path: base.root.clone(),
             standards,
             name,
+            email,
             onboarded,
         },
     )?;
@@ -125,6 +176,44 @@ pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn what_someone_set_beats_what_git_guessed() {
+        let id = resolve_identity(
+            Some("Sid".into()),
+            Some("sid@hypotenuse.ai".into()),
+            Some("git name".into()),
+            Some("git@example.com".into()),
+        );
+        assert_eq!(id.name, "Sid");
+        assert_eq!(id.email, "sid@hypotenuse.ai");
+    }
+
+    #[test]
+    fn git_answers_for_whatever_settings_leave_out() {
+        let id = resolve_identity(
+            None,
+            None,
+            Some("Sid Sambasivam".into()),
+            Some("sid@hypotenuse.ai".into()),
+        );
+        assert_eq!(id.name, "Sid Sambasivam");
+        assert_eq!(id.email, "sid@hypotenuse.ai");
+    }
+
+    #[test]
+    fn a_blank_git_config_counts_as_unset() {
+        let id = resolve_identity(None, None, Some("  ".into()), Some("".into()));
+        assert_eq!(id.name, "user");
+        assert_eq!(id.email, "user@openplan.local");
+    }
+
+    #[test]
+    fn a_name_without_an_email_still_gets_an_identity() {
+        let id = resolve_identity(Some("Sid".into()), None, None, None);
+        assert_eq!(id.name, "Sid");
+        assert_eq!(id.email, "user@openplan.local");
+    }
+
     use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
@@ -151,6 +240,7 @@ mod tests {
             base_path: PathBuf::from("/somewhere/plans"),
             standards: Some("Name the reviewer.".to_string()),
             name: Some("Sid".to_string()),
+            email: Some("sid@hypotenuse.ai".to_string()),
             onboarded: true,
         };
 
@@ -190,6 +280,7 @@ mod tests {
                 base_path: default_base_path(&home),
                 standards: Some("Name the reviewer.".to_string()),
                 name: None,
+                email: None,
                 onboarded: false,
             },
         )
@@ -251,6 +342,7 @@ mod tests {
                 base_path: elsewhere.clone(),
                 standards: None,
                 name: None,
+                email: None,
                 onboarded: false,
             },
         )

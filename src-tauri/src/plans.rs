@@ -3,7 +3,6 @@
 //! thin edge that turns it into something the interface can call.
 
 use openplan_core::base::Base;
-use openplan_core::repo::Author;
 use openplan_core::{comments, library, plan, repo, settings, standards};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -92,6 +91,7 @@ pub async fn set_standards_overrides(text: String) -> Result<(), String> {
         base_path: Default::default(),
         standards: None,
         name: None,
+        email: None,
         onboarded: false,
     });
     if saved.base_path.as_os_str().is_empty() {
@@ -145,7 +145,7 @@ pub async fn set_plan_tags(path: String, tags: Vec<String>) -> Result<(), String
     let base = base()?;
     let _ = repo::commit_all(
         &base.root,
-        &Author::user(),
+        &settings::me(),
         &format!("tags: {}", parsed.meta.id),
     );
     Ok(())
@@ -156,7 +156,7 @@ pub async fn set_plan_tags(path: String, tags: Vec<String>) -> Result<(), String
 #[tauri::command]
 pub async fn commit_base(message: String) -> Result<Option<String>, String> {
     let base = base()?;
-    repo::commit_all(&base.root, &Author::user(), &message)
+    repo::commit_all(&base.root, &settings::me(), &message)
 }
 
 #[derive(Serialize)]
@@ -188,7 +188,7 @@ pub async fn rename_plan(path: String, new_title: String) -> Result<PathBuf, Str
     let base = base()?;
     openplan_core::import::rename_plan(
         &base,
-        &openplan_core::repo::Author::user(),
+        &openplan_core::settings::me(),
         std::path::Path::new(&path),
         &new_title,
     )
@@ -199,7 +199,7 @@ pub async fn rename_document(path: String, new_name: String) -> Result<PathBuf, 
     let base = base()?;
     openplan_core::import::rename_document(
         &base,
-        &openplan_core::repo::Author::user(),
+        &openplan_core::settings::me(),
         std::path::Path::new(&path),
         &new_name,
     )
@@ -223,7 +223,7 @@ pub async fn save_comment_threads(
         .and_then(|s| s.to_str())
         .unwrap_or("plan")
         .to_string();
-    let _ = repo::commit_all(&base.root, &Author::user(), &format!("comments: {name}"));
+    let _ = repo::commit_all(&base.root, &settings::me(), &format!("comments: {name}"));
     Ok(())
 }
 
@@ -274,7 +274,7 @@ pub async fn restore_plan_revision(path: String, revision: String) -> Result<Str
         .to_string();
     let _ = repo::commit_all(
         &base.root,
-        &Author::user(),
+        &settings::me(),
         &format!("restore: {name} to {short}"),
     );
     Ok(text)

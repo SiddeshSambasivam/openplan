@@ -120,6 +120,7 @@ fn doctor(ctx: &Context) -> String {
     let entries = library::scan(ctx.base);
     let mut lines = vec![
         format!("base       {}", ctx.base.root.display()),
+        format!("you        {} <{}>", ctx.author.name, ctx.author.email),
         format!(
             "history    {}",
             if repo::has_commits(&ctx.base.root) {
@@ -345,6 +346,7 @@ mod tests {
 
         assert!(out.contains(&base.root.display().to_string()));
         assert!(out.contains("plans      1"));
+        assert!(out.contains("you        user <user@openplan.local>"));
         assert!(out.contains("search"));
         let _ = std::fs::remove_dir_all(&base.root);
     }

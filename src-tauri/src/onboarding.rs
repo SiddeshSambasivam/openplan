@@ -132,9 +132,9 @@ pub struct Imported {
 pub async fn import_source(path: String, source: String) -> Result<Imported, String> {
     let base = settings::resolve_default_base()?;
     let author = if source == "import" {
-        Author::user()
+        settings::me()
     } else {
-        Author::agent(&source)
+        Author::agent_for(&source, &settings::current_identity())
     };
     let now = iso_from_unix(
         std::time::SystemTime::now()

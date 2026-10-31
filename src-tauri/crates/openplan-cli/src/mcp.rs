@@ -182,7 +182,7 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
     }
     if let Err(e) = repo::commit_all(
         &base.root,
-        &Author::agent(author),
+        &Author::agent_for(author, &openplan_core::settings::current_identity()),
         &format!("agent({author}): create {id}"),
     ) {
         return text_result(e, true);
@@ -238,7 +238,7 @@ fn tag_plan(base: &Base, author: &str, args: &Value) -> Value {
     }
     if let Err(e) = repo::commit_all(
         &base.root,
-        &Author::agent(author),
+        &Author::agent_for(author, &openplan_core::settings::current_identity()),
         &format!("agent({author}): tag {id}"),
     ) {
         return text_result(e, true);
@@ -298,7 +298,7 @@ fn reply_comment(base: &Base, author: &str, args: &Value) -> Value {
     }
     let _ = repo::commit_all(
         &base.root,
-        &Author::agent(author),
+        &Author::agent_for(author, &openplan_core::settings::current_identity()),
         &format!("agent({author}): reply on {}", entry.meta.id),
     );
     text_result("Replied.", false)
@@ -317,7 +317,7 @@ fn resolve_comment(base: &Base, author: &str, args: &Value) -> Value {
     }
     let _ = repo::commit_all(
         &base.root,
-        &Author::agent(author),
+        &Author::agent_for(author, &openplan_core::settings::current_identity()),
         &format!("agent({author}): resolve thread on {}", entry.meta.id),
     );
     text_result("Resolved.", false)

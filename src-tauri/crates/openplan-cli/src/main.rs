@@ -22,7 +22,7 @@ fn main() {
     }
     let ctx = Context {
         base: &base,
-        author: Author::user(),
+        author: openplan_core::settings::me(),
         now: now_iso(),
     };
     match run(&args, &ctx) {
