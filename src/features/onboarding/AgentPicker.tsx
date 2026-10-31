@@ -6,16 +6,19 @@ import { choiceCard, ChoiceCardBody } from "./ChoiceCard";
 
 /**
  * The agent tools as logo cards. Installed ones can be picked, and show the
- * number key that toggles them. Missing ones are greyed out.
+ * number key that toggles them unless `keys` is off. Missing ones are
+ * greyed out.
  */
 export function AgentPicker({
   agents,
   picked,
   onToggle,
+  keys = true,
 }: {
   agents: AgentOption[];
   picked: string[];
   onToggle: (id: string) => void;
+  keys?: boolean;
 }) {
   return (
     <div role="group" aria-label="Your agents" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -42,7 +45,7 @@ export function AgentPicker({
               }
               label={agent.name}
               hint={agent.installed ? `Found on this ${isMac ? "Mac" : "computer"}` : "Not installed"}
-              keyHint={agent.installed ? String(index + 1) : undefined}
+              keyHint={keys && agent.installed ? String(index + 1) : undefined}
               checked={checked}
             />
           </button>

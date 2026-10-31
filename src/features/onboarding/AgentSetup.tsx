@@ -1,20 +1,20 @@
-import { Check, LoaderCircle } from "lucide-react";
+import { Check, CircleAlert, LoaderCircle } from "lucide-react";
 import { AgentMark } from "@/components/AgentIcons";
 import { Button } from "@/components/ui/button";
 import type { SetupRow, SetupStatus } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
 
-const STATUS_TEXT: Record<SetupStatus, string> = {
+const STATUS_TEXT: Record<Exclude<SetupStatus, "failed">, string> = {
   waiting: "Waiting",
   running: "Setting up",
   ready: "Ready",
-  failed: "Didn't finish",
 };
 
 /**
  * One row per tool being set up: a dot while it waits, a spinner while it
- * runs, then a tick with the steps it took. A row that fails says why and
- * offers Retry, and the other rows carry on.
+ * runs, then a tick with the steps it took. A row that fails says so in
+ * plain words with Retry, keeps the error underneath, and the other rows
+ * carry on.
  */
 export function AgentSetup({
   rows,
@@ -33,27 +33,25 @@ export function AgentSetup({
             <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted">
               <AgentMark id={row.tool} className="size-4 text-foreground" />
             </span>
-            {agentName(row.tool)}
-            <span
-              className={cn(
-                "ml-auto flex items-center gap-2 text-xs font-normal text-muted-foreground",
-                row.status === "ready" && "text-success",
-                row.status === "failed" && "text-destructive",
-              )}
-            >
-              <StatusMark status={row.status} />
-              {STATUS_TEXT[row.status]}
-              {row.status === "failed" && (
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => onRetry(row.tool)}
-                  className="text-foreground"
-                >
+            {row.status === "failed" ? `Couldn't set up ${agentName(row.tool)}.` : agentName(row.tool)}
+            {row.status === "failed" ? (
+              <span className="ml-auto flex items-center gap-2">
+                <CircleAlert className="size-3.5 text-destructive" />
+                <Button variant="outline" size="xs" onClick={() => onRetry(row.tool)}>
                   Retry
                 </Button>
-              )}
-            </span>
+              </span>
+            ) : (
+              <span
+                className={cn(
+                  "ml-auto flex items-center gap-2 text-xs font-normal text-muted-foreground",
+                  row.status === "ready" && "text-success",
+                )}
+              >
+                <StatusMark status={row.status} />
+                {STATUS_TEXT[row.status]}
+              </span>
+            )}
           </div>
           {row.error && (
             <p className="mt-1.5 ml-9.5 line-clamp-2 text-xs text-muted-foreground" title={row.error}>
@@ -86,13 +84,10 @@ export function AgentSetup({
   );
 }
 
-function StatusMark({ status }: { status: SetupStatus }) {
+function StatusMark({ status }: { status: Exclude<SetupStatus, "failed"> }) {
   if (status === "waiting") return <Dot />;
   if (status === "running") return <LoaderCircle className="size-3.5 animate-spin" />;
-  if (status === "ready") {
-    return <Check className="size-3.5 animate-in zoom-in-50 fade-in duration-300" strokeWidth={3} />;
-  }
-  return null;
+  return <Check className="size-3.5 animate-in zoom-in-50 fade-in duration-300" strokeWidth={3} />;
 }
 
 function Dot() {

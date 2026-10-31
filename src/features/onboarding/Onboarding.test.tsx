@@ -76,6 +76,14 @@ describe("AgentPicker", () => {
   it("checks only the picked tools", () => {
     expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
   });
+
+  it("drops the keys where they do nothing", () => {
+    const settings = renderToStaticMarkup(
+      <AgentPicker agents={AGENTS} picked={[]} onToggle={() => {}} keys={false} />,
+    );
+    expect(settings).toContain("Claude Code");
+    expect(settings).not.toContain("<kbd");
+  });
 });
 
 describe("AgentSetup", () => {
@@ -88,9 +96,11 @@ describe("AgentSetup", () => {
     <AgentSetup rows={rows} agentName={(id) => AGENTS.find((a) => a.id === id)!.name} onRetry={() => {}} />,
   );
 
-  it("offers Retry only on the row that failed, with its error", () => {
+  it("says plainly which tool failed, offers Retry on it, and keeps the error as detail", () => {
+    expect(html).toContain("Couldn&#x27;t set up Claude Code.");
     expect(html.match(/Retry/g)).toHaveLength(1);
-    expect(html).toContain("Couldn&#x27;t find the `claude` command on this machine.");
+    expect(html).toMatch(/text-muted-foreground[^>]*>Couldn&#x27;t find the `claude` command on this machine\./);
+    expect(html).not.toContain("Didn&#x27;t finish");
   });
 
   it("shows each finished tool as ready with the steps it took", () => {
