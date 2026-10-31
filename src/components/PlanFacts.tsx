@@ -181,7 +181,7 @@ export function RepoMark({ repo, className }: { repo: Repo; className?: string }
         src={avatar}
         alt=""
         onError={() => setFailed(avatar)}
-        className={cn("shrink-0 rounded-sm object-cover", className)}
+        className={cn("shrink-0 rounded-sm bg-muted object-cover", className)}
       />
     );
   }
