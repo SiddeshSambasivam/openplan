@@ -200,6 +200,7 @@ export function Viewer({
           body={previewContent ?? ""}
           title={doc.path === plan.path ? plan.title : ""}
           type={doc.path === plan.path ? plan.type : null}
+          work={doc.path === plan.path ? plan : null}
           docPath={doc.path}
           dark={dark}
         />

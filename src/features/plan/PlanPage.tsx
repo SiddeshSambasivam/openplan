@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Markdown } from "@/components/Markdown";
+import type { PlanSummary } from "@/lib/planBase";
 import {
   KIND_NAMES,
   missingSections,
@@ -7,6 +8,8 @@ import {
   splitSections,
   type PlanSection,
 } from "@/lib/sections";
+import { PlanWork } from "./PlanWork";
+import { useWorkRecord } from "./useWorkRecord";
 
 /** The canonical name for a section, when the heading says it differently.
  * "## Overview" reads as Summary; "## Summary" needs nothing said twice. */
@@ -73,24 +76,30 @@ interface PlanPageProps {
   title: string;
   /** What kind of work the plan is, from its frontmatter. */
   type: string | null;
+  /** The plan whose work record heads the page. Null for one document of a
+   * set that is not the plan's own. */
+  work: PlanSummary | null;
   docPath?: string;
   dark: boolean;
 }
 
 /**
- * A plan read as a page: a lead, then a block per section laid out by what
- * the section is. Every block still renders through the markdown renderer,
- * so the source-line stamps comments anchor to are untouched.
+ * A plan read as a page: the work record, a lead, then a block per section
+ * laid out by what the section is. Every block still renders through the
+ * markdown renderer, so the source-line stamps comments anchor to are
+ * untouched.
  */
-export function PlanPage({ body, title, type, docPath, dark }: PlanPageProps) {
+export function PlanPage({ body, title, type, work, docPath, dark }: PlanPageProps) {
   const plan = useMemo(() => splitSections(body, title), [body, title]);
   const missing = useMemo(
     () => missingSections(type, plan.sections.map((section) => section.heading)),
     [type, plan.sections],
   );
+  const record = useWorkRecord(work?.path ?? null);
 
   return (
     <div className="plan-page">
+      {work && <PlanWork key={work.path} record={record} status={work.status} />}
       {plan.lead && (
         <div className="plan-section" data-kind="lead">
           <Body

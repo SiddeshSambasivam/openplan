@@ -187,6 +187,10 @@ function FileLink({ src, label }: { src?: string; label?: string }) {
   );
 }
 
+/** The rendered article's typography. Text the app writes itself wears it
+ * too, so it reads like the plan around it. */
+export const ARTICLE_CLASSES = "markdown-body prose prose-neutral dark:prose-invert max-w-none";
+
 interface MarkdownProps {
   content: string;
   /** Absolute path of the doc on disk — used to resolve relative image paths. */
@@ -276,12 +280,7 @@ export const Markdown = memo(function Markdown({
   };
 
   return (
-    <article
-      className={cn(
-        "markdown-body prose prose-neutral dark:prose-invert max-w-none",
-        className,
-      )}
-    >
+    <article className={cn(ARTICLE_CLASSES, className)}>
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins(lineOffset)}
