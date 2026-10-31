@@ -153,6 +153,9 @@ export function PlanList({
   onSelectDocument,
 }: PlanListProps) {
   const groups = useMemo(() => groupByStatus(plans), [plans]);
+  // A set follows whatever is being read until someone says otherwise, and
+  // then it stays where they put it.
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
 
   if (plans.length === 0) {
     return (
@@ -175,8 +178,9 @@ export function PlanList({
           <ul className="flex flex-col gap-px">
             {group.map((plan) => {
               const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
-              const isOpenSet =
-                plan.documents.length > 1 && !!activePath?.startsWith(folder);
+              const isSet = plan.documents.length > 1;
+              const expanded =
+                isSet && (toggled[plan.path] ?? !!activePath?.startsWith(folder));
               return (
               <li key={plan.path}>
                 <Tooltip>
@@ -185,13 +189,43 @@ export function PlanList({
                       onClick={() => onSelect(plan)}
                       className={cn(
                         "flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-                        (plan.path === activePath || isOpenSet) &&
+                        (plan.path === activePath || expanded) &&
                           "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
                       )}
                     >
-                      <FileText className="size-4 shrink-0 text-muted-foreground" />
+                      {isSet ? (
+                        <>
+                          {/* Toggling a set is its own target, so opening the
+                              plan and folding it away stay separate. */}
+                          <span
+                            role="button"
+                            tabIndex={-1}
+                            aria-label={expanded ? "Collapse" : "Expand"}
+                            aria-expanded={expanded}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setToggled((t) => ({ ...t, [plan.path]: !expanded }));
+                            }}
+                            className="-ml-1 flex size-4 shrink-0 items-center justify-center rounded hover:bg-sidebar-accent"
+                          >
+                            <ChevronRight
+                              className={cn(
+                                "size-3 text-muted-foreground transition-transform duration-150",
+                                expanded && "rotate-90",
+                              )}
+                            />
+                          </span>
+                          {expanded ? (
+                            <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <Folder className="size-4 shrink-0 text-muted-foreground" />
+                          )}
+                        </>
+                      ) : (
+                        <FileText className="size-4 shrink-0 text-muted-foreground" />
+                      )}
                       <MarqueeText text={plan.title} className="flex-1" />
-                      {plan.documents.length > 1 && (
+                      {isSet && (
                         <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
                           {plan.documents.length}
                         </span>
@@ -208,7 +242,7 @@ export function PlanList({
 
                 {/* A set opens at its entry point; the rest of it is only
                     reachable if the documents are listed. */}
-                {isOpenSet && (
+                {expanded && (
                   <div className="mb-1">
                     <SetBranch
                       nodes={buildSetTree(plan.documents)}
