@@ -61,6 +61,10 @@ export function useComments(path: string | null, identity: Identity | null) {
           lineStart,
           lineEnd,
           resolved: false,
+          pending: false,
+          resolvedBy: null,
+          resolvedAt: null,
+          sentAt: null,
           comments: [newCommentEntry(text, identity)],
         },
       ]);

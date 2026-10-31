@@ -112,36 +112,51 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     assert!(text.contains("status: in-review"), "{text}");
     assert!(text.contains("pr: https://github.com/acme/api/pull/4"), "{text}");
 
-    // The user leaves a review comment the way the app writes one...
+    // The user starts a review the way the app writes one: on disk at once,
+    // and pending until they send it.
     // Whichever build this is, the server puts its base where that
     // build looks for it.
     let base_root = home.join(openplan_core::profile::base_dir_name());
     let plan_path = base_root.join("plans/auth-refactor.md");
-    openplan_core::comments::write_threads(
-        &plan_path,
-        &[openplan_core::comments::CommentThread {
-            id: "t1".to_string(),
-            quote: "why".to_string(),
-            line_start: 10,
-            line_end: 10,
-            resolved: false,
-            comments: vec![openplan_core::comments::CommentEntry {
-                id: "c1".to_string(),
-                text: "explain this choice".to_string(),
-                created_at: "2026-08-16T12:00:00Z".to_string(),
-                edited_at: None,
-                author: "user".to_string(),
-                author_name: Some("Sid".to_string()),
-                author_email: Some("sid@hypotenuse.ai".to_string()),
-            }],
+    let mut written = openplan_core::comments::CommentThread {
+        id: "t1".to_string(),
+        quote: "why".to_string(),
+        line_start: 10,
+        line_end: 10,
+        resolved: false,
+        pending: true,
+        resolved_by: None,
+        resolved_at: None,
+        sent_at: None,
+        comments: vec![openplan_core::comments::CommentEntry {
+            id: "c1".to_string(),
+            text: "explain this choice".to_string(),
+            created_at: "2026-08-16T12:00:00Z".to_string(),
+            edited_at: None,
+            author: "user".to_string(),
+            author_name: Some("Sid".to_string()),
+            author_email: Some("sid@hypotenuse.ai".to_string()),
         }],
-    )
-    .unwrap();
+    };
+    openplan_core::comments::write_threads(&plan_path, std::slice::from_ref(&written)).unwrap();
 
-    // ...and the agent reads it, replies, and resolves it.
+    // Half-written feedback is nobody else's business yet.
+    let unsent = ask(r##"{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"get_comments","arguments":{"id":"auth-refactor"}}}"##);
+    let unsent_text = unsent["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(
+        unsent_text.contains("No open review comments"),
+        "{unsent_text}"
+    );
+
+    // Send is what clears pending and stamps the time it went out.
+    written.pending = false;
+    written.sent_at = Some("2026-08-16T12:05:00Z".to_string());
+    openplan_core::comments::write_threads(&plan_path, std::slice::from_ref(&written)).unwrap();
+
+    // ...and now the agent reads it, replies, and resolves it.
     let review = ask(r##"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"get_comments","arguments":{"id":"auth-refactor"}}}"##);
     let review_text = review["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(review_text.contains("thread t1"), "{review_text}");
+    assert!(review_text.contains("(thread t1) [open]"), "{review_text}");
     assert!(review_text.contains("explain this choice"));
     // The agent is told who is asking, by name rather than by role.
     assert!(review_text.contains("**Comment (Sid):**"), "{review_text}");
@@ -149,11 +164,22 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let replied = ask(r##"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"reply_comment","arguments":{"id":"auth-refactor","thread_id":"t1","text":"Because the schema owns the wire shape."}}}"##);
     assert_eq!(replied["result"]["isError"], false, "{replied}");
 
+    // Its own reply is what makes the thread answered: it now waits on Sid.
+    let answered = ask(r##"{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"get_comments","arguments":{"id":"auth-refactor"}}}"##);
+    let answered_text = answered["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(
+        answered_text.contains("(thread t1) [answered]"),
+        "{answered_text}"
+    );
+
     let resolved = ask(r##"{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"resolve_comment","arguments":{"id":"auth-refactor","thread_id":"t1"}}}"##);
     assert_eq!(resolved["result"]["isError"], false, "{resolved}");
 
     let threads = openplan_core::comments::read_threads(&plan_path);
     assert!(threads[0].resolved);
+    assert_eq!(threads[0].resolved_by.as_deref(), Some("claude-code"));
+    assert!(threads[0].resolved_at.is_some(), "closed at a known time");
+    assert_eq!(threads[0].sent_at.as_deref(), Some("2026-08-16T12:05:00Z"));
     assert_eq!(threads[0].comments[1].author, "claude-code");
     // The tool signs its own name, against the person whose base it ran on.
     assert!(threads[0].comments[1].author_name.is_none());
