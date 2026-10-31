@@ -429,7 +429,8 @@ fn resolve_comment(base: &Base, author: &str, args: &Value) -> Value {
     let Some(thread_id) = args.get("thread_id").and_then(Value::as_str) else {
         return text_result("resolve_comment needs a thread_id.", true);
     };
-    if let Err(e) = comments::set_resolved(&entry.path, thread_id, true) {
+    // The agent signs the close with its own name, the way it signs a reply.
+    if let Err(e) = comments::resolve(&entry.path, thread_id, author, &now_iso()) {
         return text_result(e, true);
     }
     let _ = repo::commit_all(

@@ -56,11 +56,14 @@ pub async fn send_comments(path: String, thread_ids: Vec<String>) -> Result<usiz
 }
 
 /// The named threads, each as its newest comment: that is what is being sent,
-/// and earlier replies are already in the plan's sidecar.
+/// and earlier replies are already in the plan's sidecar. A thread still
+/// marked pending has not been sent, so naming it does not send it: the write
+/// that clears `pending` is what makes it sendable.
 fn notes(threads: &[CommentThread], wanted: &[String]) -> Vec<CommentNote> {
     wanted
         .iter()
         .filter_map(|id| threads.iter().find(|thread| &thread.id == id))
+        .filter(|thread| !thread.pending)
         .filter_map(|thread| {
             let last = thread.comments.last()?;
             Some(CommentNote {
@@ -136,6 +139,10 @@ mod tests {
             line_start: 4,
             line_end: 6,
             resolved: false,
+            pending: false,
+            resolved_by: None,
+            resolved_at: None,
+            sent_at: None,
             comments,
         }
     }
@@ -172,6 +179,14 @@ mod tests {
 
         assert_eq!(sent[0].text, "Then say so in the plan.");
         assert_eq!(sent[0].author, "Sid");
+    }
+
+    #[test]
+    fn a_thread_still_being_written_is_not_sent_even_when_it_is_named() {
+        let mut unsent = thread("t1", vec![entry("user", Some("Sid"), "half a thought")]);
+        unsent.pending = true;
+
+        assert!(notes(&[unsent], &["t1".to_string()]).is_empty());
     }
 
     #[test]

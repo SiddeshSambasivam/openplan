@@ -3,12 +3,14 @@ import type { ReviewSummary } from "./board";
 import type { Identity } from "./comments";
 import { isTauri } from "./platform";
 
-/** Where a plan came from — an agent's name, or the person using OpenPlan. */
+/** Who did something: an agent by its tool name, or the person using
+ * OpenPlan. Also names whoever wrote a revision or closed a comment thread. */
 export const SOURCE_LABELS: Record<string, string> = {
   "claude-code": "Claude Code",
   codex: "Codex",
   cursor: "Cursor",
   manual: "You",
+  user: "You",
   import: "Imported",
 };
 

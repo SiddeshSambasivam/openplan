@@ -16,8 +16,13 @@ pub struct ReviewSummary {
 }
 
 /// An open thread an agent spoke last in is one the person has not answered.
+/// A pending thread is nobody's business but the person writing it, so it is
+/// not counted as review work either.
 fn summarise(threads: &[CommentThread]) -> (usize, bool) {
-    let open: Vec<&CommentThread> = threads.iter().filter(|t| !t.resolved).collect();
+    let open: Vec<&CommentThread> = threads
+        .iter()
+        .filter(|t| !t.resolved && !t.pending)
+        .collect();
     let answered = open
         .iter()
         .any(|t| t.comments.last().is_some_and(|c| c.author != "user"));
@@ -75,6 +80,10 @@ mod tests {
             line_start: 1,
             line_end: 1,
             resolved,
+            pending: false,
+            resolved_by: None,
+            resolved_at: None,
+            sent_at: None,
             comments: authors.iter().map(|a| entry(a)).collect(),
         }
     }
@@ -98,6 +107,15 @@ mod tests {
         let threads = vec![thread(true, &["user", "claude-code"])];
 
         assert_eq!(summarise(&threads), (0, false));
+    }
+
+    #[test]
+    fn a_thread_still_being_written_is_not_review_work() {
+        let mut unsent = thread(false, &["user"]);
+        unsent.pending = true;
+        let threads = vec![unsent, thread(false, &["user"])];
+
+        assert_eq!(summarise(&threads), (1, false));
     }
 
     #[test]

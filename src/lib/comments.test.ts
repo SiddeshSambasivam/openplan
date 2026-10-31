@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   formatThreadsForAgent,
+  groupThreads,
+  markSent,
   parseCommentsSidecar,
+  reopenThread,
+  resolveThread,
   serializeCommentsSidecar,
+  threadState,
+  type CommentEntry,
   type CommentThread,
 } from "./comments";
+
+function entry(author: string, text = "done"): CommentEntry {
+  return { id: `c-${author}-${text}`, text, createdAt: "2026-09-22T10:00:00Z", author };
+}
 
 function thread(overrides: Partial<CommentThread> = {}): CommentThread {
   return {
@@ -13,6 +23,10 @@ function thread(overrides: Partial<CommentThread> = {}): CommentThread {
     lineStart: 3,
     lineEnd: 3,
     resolved: false,
+    pending: false,
+    resolvedBy: null,
+    resolvedAt: null,
+    sentAt: null,
     comments: [
       {
         id: "c1",
@@ -50,6 +64,71 @@ describe("parseCommentsSidecar", () => {
     expect(parseCommentsSidecar(v1)[0].comments[0].author).toBe("user");
   });
 
+  it("treats threads saved before reviews existed as already sent", () => {
+    const before = JSON.stringify({
+      version: 2,
+      threads: [
+        {
+          id: "t1",
+          quote: "q",
+          lineStart: 1,
+          lineEnd: 1,
+          resolved: false,
+          comments: [{ id: "c1", text: "hi", createdAt: "x", author: "user" }],
+        },
+      ],
+    });
+
+    expect(parseCommentsSidecar(before)[0]).toMatchObject({
+      pending: false,
+      resolvedBy: null,
+      resolvedAt: null,
+      sentAt: null,
+    });
+  });
+
+  it("keeps who closed a thread and when", () => {
+    const threads = [
+      thread({
+        resolved: true,
+        resolvedBy: "claude-code",
+        resolvedAt: "2026-09-22T12:00:00Z",
+        sentAt: "2026-09-22T11:00:00Z",
+      }),
+    ];
+
+    expect(parseCommentsSidecar(serializeCommentsSidecar(threads))).toEqual(threads);
+  });
+});
+
+describe("threadState", () => {
+  it("is open until somebody other than the person answers", () => {
+    expect(threadState(thread())).toBe("open");
+    expect(threadState(thread({ comments: [entry("user", "ask")] }))).toBe("open");
+  });
+
+  it("is answered while an agent had the last word", () => {
+    expect(
+      threadState(thread({ comments: [entry("user", "ask"), entry("claude-code")] })),
+    ).toBe("answered");
+  });
+
+  it("goes back to open when the person replies again", () => {
+    expect(
+      threadState(
+        thread({
+          comments: [entry("user", "ask"), entry("claude-code"), entry("user", "again")],
+        }),
+      ),
+    ).toBe("open");
+  });
+
+  it("is resolved whoever spoke last", () => {
+    expect(
+      threadState(thread({ resolved: true, comments: [entry("claude-code")] })),
+    ).toBe("resolved");
+  });
+
   it("keeps the agent that wrote a comment", () => {
     const threads = parseCommentsSidecar(
       serializeCommentsSidecar([
@@ -79,6 +158,74 @@ describe("parseCommentsSidecar", () => {
   });
 });
 
+describe("markSent", () => {
+  it("sends everything pending at once, stamped with one time", () => {
+    const sent = markSent(
+      [
+        thread({ id: "a", pending: true }),
+        thread({ id: "b", pending: true }),
+        thread({ id: "old", sentAt: "2026-09-01T10:00:00Z" }),
+      ],
+      "2026-09-22T10:00:00Z",
+    );
+
+    expect(sent.map((t) => t.pending)).toEqual([false, false, false]);
+    expect(sent[0].sentAt).toBe("2026-09-22T10:00:00Z");
+    expect(sent[1].sentAt).toBe("2026-09-22T10:00:00Z");
+    // A thread already out keeps the time it actually went.
+    expect(sent[2].sentAt).toBe("2026-09-01T10:00:00Z");
+  });
+
+  it("leaves the list alone when nothing is waiting", () => {
+    const threads = [thread()];
+
+    expect(markSent(threads, "2026-09-22T10:00:00Z")).toEqual(threads);
+  });
+});
+
+describe("resolveThread and reopenThread", () => {
+  it("closing from the app is the person's own doing", () => {
+    const closed = resolveThread(thread(), "2026-09-22T10:00:00Z");
+
+    expect(closed.resolved).toBe(true);
+    expect(closed.resolvedBy).toBe("user");
+    expect(closed.resolvedAt).toBe("2026-09-22T10:00:00Z");
+  });
+
+  it("reopening clears every trace of the close", () => {
+    const closed = resolveThread(thread(), "2026-09-22T10:00:00Z");
+
+    expect(reopenThread(closed)).toMatchObject({
+      resolved: false,
+      resolvedBy: null,
+      resolvedAt: null,
+    });
+  });
+});
+
+describe("groupThreads", () => {
+  it("splits what is not sent, what is live, and what is closed", () => {
+    const groups = groupThreads([
+      thread({ id: "live" }),
+      thread({ id: "unsent", pending: true }),
+      thread({ id: "closed", resolved: true }),
+      thread({ id: "answered", comments: [entry("user", "ask"), entry("codex")] }),
+    ]);
+
+    expect(groups.pending.map((t) => t.id)).toEqual(["unsent"]);
+    expect(groups.open.map((t) => t.id)).toEqual(["live", "answered"]);
+    expect(groups.resolved.map((t) => t.id)).toEqual(["closed"]);
+  });
+
+  it("puts a thread in one group only, closed winning over unsent", () => {
+    const groups = groupThreads([thread({ id: "x", pending: true, resolved: true })]);
+
+    expect(groups.pending).toEqual([]);
+    expect(groups.open).toEqual([]);
+    expect(groups.resolved.map((t) => t.id)).toEqual(["x"]);
+  });
+});
+
 describe("formatThreadsForAgent", () => {
   it("gives an agent the file, the lines, the quote, and the discussion", () => {
     const output = formatThreadsForAgent(
@@ -103,7 +250,8 @@ describe("formatThreadsForAgent", () => {
     );
 
     expect(output).toContain("plans/auth.md");
-    expect(output).toContain("### Lines 3-5 (thread t1)");
+    // The state tells the agent whether it already spoke in this thread.
+    expect(output).toContain("### Lines 3-5 (thread t1) [answered]");
     // A person is named; an agent is its tool, whoever it ran for.
     expect(output).toContain("- **Comment (Sid):** why this order?");
     expect(output).toContain("  - **Reply (claude-code):** because of X");
@@ -116,6 +264,16 @@ describe("formatThreadsForAgent", () => {
     expect(formatThreadsForAgent([thread({ resolved: true })], "plans/auth.md")).toContain(
       "No open review comments",
     );
+  });
+
+  it("leaves out a thread that has not been sent", () => {
+    const output = formatThreadsForAgent(
+      [thread({ id: "sent" }), thread({ id: "unsent", lineStart: 9, pending: true })],
+      "plans/auth.md",
+    );
+
+    expect(output).toContain("thread sent");
+    expect(output).not.toContain("unsent");
   });
 
   it("orders threads the way they are read, not the way they were made", () => {
