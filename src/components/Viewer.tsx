@@ -200,7 +200,7 @@ export function Viewer({
       ref={articleRef}
       className={
         alignment
-          ? "mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-10 pt-4 pb-4"
+          ? "mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-10 pb-4"
           : "mx-auto w-full px-10 py-10 transition-[max-width] duration-200 ease-in-out"
       }
       style={alignment ? undefined : { maxWidth: "var(--content-max-width, 48rem)" }}

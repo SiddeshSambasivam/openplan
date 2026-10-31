@@ -19,7 +19,6 @@ import { Header } from "./components/Header";
 import { ShortcutSheet } from "./components/ShortcutSheet";
 import { Sidebar } from "./components/Sidebar";
 import { PlanMetaBar } from "./components/PlanMetaBar";
-import { Segmented } from "./components/Segmented";
 import { HistoryPanel } from "./features/history/HistoryPanel";
 import { SettingsDialog, type SettingsSection } from "./features/settings/SettingsDialog";
 import { Onboarding } from "./features/onboarding/Onboarding";
@@ -123,15 +122,17 @@ import {
   listWorkProgress,
   offersCompletion,
   progress,
+  pendingQuestions,
   showsWorkPanel,
   type PlanProgress,
 } from "./lib/work";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
 import { WORK_PANEL_PX, WORK_RAIL_PX, WorkPanel } from "./features/plan/PlanWork";
+import { PlanTabStrip } from "./features/plan/PlanTabStrip";
 import { loadWorkPanelMode, saveWorkPanelMode } from "./lib/workPanel";
 import { buildTooltip } from "./lib/alignmentScore";
 import { originLabel, pushOrigin, type Origin } from "./lib/origin";
-import { PLAN_TABS, tabFor, withTab, type PlanTab, type PlanTabs } from "./lib/planTab";
+import { tabFor, withTab, type PlanTab, type PlanTabs } from "./lib/planTab";
 import { restoreScroll, scrollMarks, type ScrollMark } from "./lib/scroll";
 import { addFolder, filterByFolder, removeFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
@@ -1070,10 +1071,21 @@ export default function App() {
     }
   }, [appFontSize]);
 
+  // The tabs belong to a plan's own page in the preview. A document of a
+  // set, an HTML plan and the editor show the body alone.
+  const planHome =
+    activePlan != null &&
+    activeDoc?.path === activePlan.path &&
+    !isHtmlPath(activePlan.path) &&
+    view === "preview";
+  const planTab: PlanTab = planHome && activePlan ? tabFor(planTabs, activePlan.path) : "plan";
+  // Only the Alignment tab's thread scrolls, so the page around it stays put.
+  const alignmentShown = planTab === "alignment";
   // The work panel takes a column beside the plan where there is room, and
-  // floats from the top bar where there is not.
+  // floats from the top bar where there is not. The Alignment tab has none.
   const mainWidth = viewportWidth - navbarWidth;
-  const workShown = activePlan != null && view === "preview" && showsWorkPanel(workRecord);
+  const workShown =
+    activePlan != null && view === "preview" && !alignmentShown && showsWorkPanel(workRecord);
   const workOverlays = mainWidth < WORK_COLUMN_MIN_WIDTH;
   const workColumn = workShown && !workOverlays;
   const workOpen = workShown && workOverlays && workOpenFor === activePlan?.path;
@@ -1097,16 +1109,6 @@ export default function App() {
     else setOutlineOpen((o) => !o);
   }, [outlineOverlays]);
   const closeOutline = useCallback(() => setFloatingOutlineOpen(false), []);
-  // The tabs belong to a plan's own page in the preview. A document of a
-  // set, an HTML plan and the editor show the body alone.
-  const planHome =
-    activePlan != null &&
-    activeDoc?.path === activePlan.path &&
-    !isHtmlPath(activePlan.path) &&
-    view === "preview";
-  const planTab: PlanTab = planHome && activePlan ? tabFor(planTabs, activePlan.path) : "plan";
-  // Only the Alignment tab's thread scrolls, so the page around it stays put.
-  const alignmentShown = planTab === "alignment";
   const choosePlanTab = useCallback(
     (tab: PlanTab) => {
       if (activePlan) setPlanTabs((tabs) => withTab(tabs, activePlan.path, tab));
@@ -1908,86 +1910,98 @@ export default function App() {
             whole layout sideways to reveal it. */}
         {mainView === "plan" && (
         <div className="motion-view relative flex min-h-0 flex-1 overflow-hidden">
-          <div
-            ref={scrollRef}
-            style={
-              {
-                "--content-max-width": WIDTH_VALUES[contentWidth],
-                "--content-font-scale": FONT_SIZE_SCALES[fontSize],
-              } as CSSProperties
-            }
-            className={cn(
-              "relative min-h-0 min-w-0 flex-1",
-              view === "edit" && activeDoc && content != null
-                ? "overflow-hidden"
-                : alignmentShown
-                  ? "flex flex-col overflow-hidden"
-                  : "overflow-y-auto",
-            )}
-          >
-            {activePlan && view === "preview" && (
-              <div
-                className="mx-auto w-full shrink-0 px-10 pt-8"
-                style={{ maxWidth: "var(--content-max-width, 48rem)" }}
-              >
-                <PlanMetaBar
-                  plan={activePlan}
-                  sessions={sessions.get(activePlan.id) ?? 0}
-                  onStatusChange={changeStatus}
-                  folders={knownFolders}
-                  onFoldersChange={(next) => changeFolders(activePlan, next)}
-                  foldersOpen={foldersOpen}
-                  onFoldersOpenChange={setFoldersOpen}
-                  onOpenHistory={toggleHistory}
-                />
-                {planHome && (
-                  <Segmented value={planTab} options={PLAN_TABS} onChange={choosePlanTab} />
-                )}
-              </div>
-            )}
-            {canComment && planTab === "plan" && (
-              <>
-                <CommentsLayer
-                  threads={commentThreads}
-                  articleRef={articleRef}
-                  containerRef={scrollRef}
-                  lineOffset={commentLineOffset}
-                  activeThreadId={focusThreadId}
-                  onAnchorStates={setAnchorStates}
-                  onOpenThread={openThread}
-                />
-                <CommentComposer
-                  articleRef={articleRef}
-                  containerRef={scrollRef}
-                  lineOffset={commentLineOffset}
-                  enabled={canComment && !commentsOpen}
-                  onSubmit={addThread}
-                />
-              </>
-            )}
-            {activeDoc ? (
-              <Viewer
-                doc={activeDoc}
-                plan={activePlan}
+          {/* The tabs stay at the top while the plan scrolls under them. */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {planHome && (
+              <PlanTabStrip
                 tab={planTab}
-                record={workRecord}
-                content={content == null ? null : planBody}
-                error={error}
-                loading={loading}
-                view={view}
-                canEdit={canEnterEdit}
-                editorRef={editorRef}
-                articleRef={articleRef}
-                dark={dark}
-                media={preferences.media}
-                onEditorChange={onEditorChange}
-                onEnterEdit={toggleEdit}
-                onRetry={() => setReloadKey((k) => k + 1)}
-                onRemove={() => removeItem(activeDoc.id)}
+                waiting={pendingQuestions(workRecord).length}
+                onChange={choosePlanTab}
               />
-            ) : (
-              <EmptyState />
             )}
+            <div
+              ref={scrollRef}
+              style={
+                {
+                  "--content-max-width": WIDTH_VALUES[contentWidth],
+                  "--content-font-scale": FONT_SIZE_SCALES[fontSize],
+                } as CSSProperties
+              }
+              className={cn(
+                "relative min-h-0 min-w-0 flex-1",
+                view === "edit" && activeDoc && content != null
+                  ? "overflow-hidden"
+                  : alignmentShown
+                    ? "flex flex-col overflow-hidden"
+                    : "overflow-y-auto",
+              )}
+            >
+              {activePlan && view === "preview" && (
+                <div
+                  className={cn(
+                    "mx-auto w-full shrink-0 px-10",
+                    planHome ? "pt-5" : "pt-8",
+                    alignmentShown && "max-w-6xl",
+                  )}
+                  style={alignmentShown ? undefined : { maxWidth: "var(--content-max-width, 48rem)" }}
+                >
+                  <PlanMetaBar
+                    plan={activePlan}
+                    sessions={sessions.get(activePlan.id) ?? 0}
+                    onStatusChange={changeStatus}
+                    folders={knownFolders}
+                    onFoldersChange={(next) => changeFolders(activePlan, next)}
+                    foldersOpen={foldersOpen}
+                    onFoldersOpenChange={setFoldersOpen}
+                    onOpenHistory={toggleHistory}
+                    ruled={!planHome}
+                  />
+                </div>
+              )}
+              {canComment && planTab === "plan" && (
+                <>
+                  <CommentsLayer
+                    threads={commentThreads}
+                    articleRef={articleRef}
+                    containerRef={scrollRef}
+                    lineOffset={commentLineOffset}
+                    activeThreadId={focusThreadId}
+                    onAnchorStates={setAnchorStates}
+                    onOpenThread={openThread}
+                  />
+                  <CommentComposer
+                    articleRef={articleRef}
+                    containerRef={scrollRef}
+                    lineOffset={commentLineOffset}
+                    enabled={canComment && !commentsOpen}
+                    onSubmit={addThread}
+                  />
+                </>
+              )}
+              {activeDoc ? (
+                <Viewer
+                  doc={activeDoc}
+                  plan={activePlan}
+                  tab={planTab}
+                  record={workRecord}
+                  content={content == null ? null : planBody}
+                  error={error}
+                  loading={loading}
+                  view={view}
+                  canEdit={canEnterEdit}
+                  editorRef={editorRef}
+                  articleRef={articleRef}
+                  dark={dark}
+                  media={preferences.media}
+                  onEditorChange={onEditorChange}
+                  onEnterEdit={toggleEdit}
+                  onRetry={() => setReloadKey((k) => k + 1)}
+                  onRemove={() => removeItem(activeDoc.id)}
+                />
+              ) : (
+                <EmptyState />
+              )}
+            </div>
           </div>
           {loading && content != null && (
             <div className="absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/50 fade-in backdrop-blur-[3px] duration-150">

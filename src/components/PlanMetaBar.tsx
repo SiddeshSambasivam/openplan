@@ -6,6 +6,7 @@ import {
 } from "@/components/AgentIcons";
 import { FolderBadges, LiveMark } from "@/components/PlanFacts";
 import { SOURCE_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
+import { cn } from "@/lib/utils";
 import { FolderPicker } from "./FolderPicker";
 import { StatusPicker } from "./StatusPicker";
 import { TooltipButton } from "./TooltipButton";
@@ -35,6 +36,8 @@ interface PlanMetaBarProps {
   foldersOpen: boolean;
   onFoldersOpenChange: (open: boolean) => void;
   onOpenHistory: () => void;
+  /** A rule under the bar. The plan's tabs draw their own above it. */
+  ruled?: boolean;
 }
 
 /** What the app knows about a plan, above the plan itself: where it stands,
@@ -48,11 +51,17 @@ export function PlanMetaBar({
   foldersOpen,
   onFoldersOpenChange,
   onOpenHistory,
+  ruled = true,
 }: PlanMetaBarProps) {
   const updated = formatDate(plan.updated ?? plan.created);
 
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-3 text-xs text-muted-foreground">
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground",
+        ruled ? "mb-6 border-b border-border pb-3" : "mb-4",
+      )}
+    >
       <StatusPicker key={plan.id} status={plan.status} onChange={onStatusChange} />
       <span aria-hidden>·</span>
       <span className="flex items-center gap-1.5">
