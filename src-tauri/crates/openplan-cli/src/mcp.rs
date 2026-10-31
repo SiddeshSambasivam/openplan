@@ -7,11 +7,13 @@
 
 use openplan_core::base::Base;
 use openplan_core::import::iso_from_unix;
+use openplan_core::local::{self, Event};
 use openplan_core::plan::{self, slugify, Plan, PlanMeta, Status};
 use openplan_core::repo::{self, Author};
 use openplan_core::{comments, fs, library, project, settings, standards};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
+use std::sync::{Arc, Mutex};
 
 const PROTOCOL: &str = "2025-06-18";
 
@@ -449,9 +451,83 @@ fn get_standards() -> Value {
     )
 }
 
+/// What the app has sent this session, waiting for somewhere to put it.
+type Inbox = Arc<Mutex<Vec<Event>>>;
+
+/// Registers with the app if one is open, and keeps a request held there so
+/// anything it sends arrives without being asked for. Silence is the ordinary
+/// answer: with no app, every tool works exactly as it does on its own.
+fn join(client_name: &str, inbox: &Inbox) -> Option<local::Client> {
+    let client = local::connect(client_name)?;
+    let polling = client.clone();
+    let sink = inbox.clone();
+    std::thread::spawn(move || {
+        // Each read blocks in the app until there is something to say; an
+        // empty answer is how the end of the session arrives.
+        while let Some(events) = polling.events() {
+            if events.is_empty() {
+                return;
+            }
+            let Ok(mut waiting) = sink.lock() else { return };
+            waiting.extend(events);
+        }
+    });
+    Some(client)
+}
+
+/// Opening a plan is what says a session is working on it. Filing one is not:
+/// a plan stays a draft until somebody picks it up.
+fn registers(tool: &str) -> bool {
+    matches!(tool, "read_plan" | "get_comments" | "set_status")
+}
+
+/// MCP gives a server no way to start a message, so a tool result is the only
+/// channel there is for something the person did while the agent was working.
+fn news(events: &[Event]) -> String {
+    let mut blocks = Vec::new();
+    for event in events {
+        match event {
+            Event::Comments { plan, threads } => {
+                let mut block = vec![format!("New comments on {plan} since your last call:")];
+                for thread in threads {
+                    block.push(format!(
+                        "thread {} (lines {}-{}): {:?}",
+                        thread.id, thread.line_start, thread.line_end, thread.quote
+                    ));
+                    block.push(thread.text.clone());
+                }
+                block.push("Reply in each thread with reply_comment.".to_string());
+                blocks.push(block.join("\n"));
+            }
+            Event::Status { plan, status } => blocks.push(format!("{plan} is now {status}.")),
+        }
+    }
+    blocks.join("\n\n")
+}
+
+fn deliver(inbox: &Inbox, reply: &mut Value) {
+    let waiting = inbox
+        .lock()
+        .map(|mut queued| std::mem::take(&mut *queued))
+        .unwrap_or_default();
+    if waiting.is_empty() {
+        return;
+    }
+    let Some(text) = reply
+        .pointer("/content/0/text")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    else {
+        return;
+    };
+    reply["content"][0]["text"] = Value::String(format!("{text}\n\n{}", news(&waiting)));
+}
+
 /// Serves until stdin closes, which is how the client says the session ended.
 pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result<(), String> {
     let mut author = "agent".to_string();
+    let mut session: Option<local::Client> = None;
+    let inbox: Inbox = Arc::new(Mutex::new(Vec::new()));
     for line in input.lines() {
         let line = line.map_err(|e| e.to_string())?;
         if line.trim().is_empty() {
@@ -477,6 +553,9 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                 {
                     author = author_from_client(name);
                 }
+                if session.is_none() {
+                    session = join(&author, &inbox);
+                }
                 Ok(json!({
                     "protocolVersion": params.get("protocolVersion").and_then(Value::as_str).unwrap_or(PROTOCOL),
                     "capabilities": { "tools": {} },
@@ -500,6 +579,17 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                     "get_standards" => Ok(get_standards()),
                     other => Err((-32602, format!("No such tool: {other}"))),
                 }
+                .map(|mut reply| {
+                    if let Some(client) = &session {
+                        if registers(name) && reply["isError"] != Value::Bool(true) {
+                            if let Some(id) = args.get("id").and_then(Value::as_str) {
+                                client.take_plan(id);
+                            }
+                        }
+                    }
+                    deliver(&inbox, &mut reply);
+                    reply
+                })
             }
             "resources/list" => Ok(json!({ "resources": [] })),
             "prompts/list" => Ok(json!({ "prompts": [] })),
@@ -514,6 +604,9 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
         };
         writeln!(output, "{reply}").map_err(|e| e.to_string())?;
         output.flush().map_err(|e| e.to_string())?;
+    }
+    if let Some(client) = &session {
+        client.end();
     }
     Ok(())
 }
