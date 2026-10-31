@@ -500,6 +500,37 @@ the moment it's opened. No daemon, no autostart (NFR-8).
 
 ### 6.7 Discovery import
 
+**Measured on Sid's machine, 2026-08-15 — the premise is weaker than assumed.**
+
+| source | found | usable |
+|---|---|---|
+| `~/.claude/plans/*.md` | 1 file | 1 |
+| Claude Code session transcripts | 483 JSONL across 65 projects | **4 payloads, 3 sessions** (2026-05-26 → 2026-08-14) |
+| Codex `rollout-*.jsonl` | 14 files, 24 `update_plan` calls | **0** — see below |
+| `~/Desktop/Hypo Fable Plans/` | 10 plan sets, 14,737 lines | **all of it** |
+
+A grep for `ExitPlanMode` matches 1,110 times across 232 files, which reads like
+a rich seam and is not: 523 are `attachment` records (the tool list in a session's
+own context), 12 are tool results, 5 are the assistant mentioning the tool. Only 4
+are real `tool_use` payloads carrying a `plan`. Counting by grep would have
+overstated the yield by ~270×.
+
+Codex's `update_plan` is a **TODO checklist**, not a document — `[{status,
+step}]`, e.g. "Inspect modal component and related hook". Importing those as
+plans produces three-line stubs, not plans. Codex has no prose-plan artifact to
+discover.
+
+What the transcripts *do* carry, for the 4 that exist, is good metadata:
+`timestamp`, `cwd` (→ `project:`), `gitBranch`, `sessionId`, and a body that
+already opens with an H1 and `## Context`.
+
+**Consequence for onboarding (P3.0):** auto-discovery of agent internals is a
+garnish, not the main course. The plans a person already has live in a folder
+they maintain by hand. Onboarding should lead with *"point us at where you keep
+plans"* and *"connect your agents so the next one lands here"*, with transcript
+discovery offered quietly for the handful it finds.
+
+
 - Claude Code: read `~/.claude/plans/*.md` (verified format: plain md, H1 title).
   Candidate = {title from H1, mtime, content}.
 - Codex: for each `rollout-*.jsonl`, stream-parse, keep the **last** `update_plan`
@@ -713,6 +744,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Default reading settings: small font, compact width | Sid's preference |
 | 2026-08-15 | Shared motion utilities in `index.css` (transform/opacity entrances, `prefers-reduced-motion` guard) | Sid: interactions felt too sudden; keeps motion consistent instead of per-component ad hoc |
 | 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
+| 2026-08-15 | Onboarding leads with importing an existing folder, not with mining agent transcripts | Measured (§6.7): agent internals yield 4 plans on a machine whose real corpus is a 10-set folder. Codex has no prose plan to find |
 | 2026-08-15 | Standards belong to the app, not the plan base; settings expose additions that layer on top | Sid: standards are a settings concept. A copy per base drifts, and nobody edits the one that shipped. Interoperability is preserved through `get_standards` rather than a file |
 | 2026-08-15 | Settings is a modal with its own section nav, opened from the sidebar's footer | Sid; matches where people look for it |
 | 2026-08-15 | Find (and later comment) highlights are drawn as positioned elements, not via the CSS Custom Highlight API | The desktop WebView keeps painting registered highlights after the registry is emptied and the colour removed; scrolling does not repaint them away. Verified in the app: registry `[]`, colour unset, still lit. Elements React unmounts are repainted by definition |
