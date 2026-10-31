@@ -1258,6 +1258,7 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-31 | The shortcut registry takes `alt` as a modifier, only inside a chord, plus the left and right arrow keys | Sid asked for ⌥⌘ with the arrows to switch tabs. Option on its own types characters on macOS, so it never fires alone |
 | 2026-10-31 | Verified: an answer sent from the Alignment tab woke an idle Claude Code session through its inbox, which read the answer in about 3 seconds with nobody typing | The live test Sid asked for, run in the dev app against a real interactive session |
 | 2026-10-31 | `atomic_write` resolves a symlink and writes beside the real file | `openplan install claude-code` had turned Sid's symlinked `~/.claude/CLAUDE.md` into a plain file, so the OpenPlan block never reached his dotfiles. Renaming over a link replaces the link |
+| 2026-10-31 | The build after GATE 7 round 4 is 0.5.0, skipping 0.4.0 | Sid's call |
 | 2026-10-31 | `read_plan` ends with each alignment question and its answer | An agent woken by answers given in the app needs to read them somewhere |
 | 2026-10-31 | The app reads unmerged PRs with the person's `gh` CLI on plan open, from a board Refresh control, and when a plan's last session leaves. When every PR reads merged it offers "All PRs merged. Mark completed?". It never completes a plan on its own | Sid (q5, q6, q15). The agent's reports go stale once its session ends. `gh` uses the person's own login and needs no stored secret. The person stays the one who completes (2026-10-28) |
 

@@ -1,6 +1,6 @@
 [package]
 name = "openplan-cli"
-version = "0.3.0"
+version = "0.5.0"
 description = "Command line access to the OpenPlan plan base, and the MCP server agents talk to"
 authors = ["Siddesh Sambasivam"]
 edition = "2021"

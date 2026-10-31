@@ -15,7 +15,7 @@ tool can adopt.
 
 ## Status
 
-0.3.0, in development. The plan base, version history, onboarding, the MCP
+0.5.0, in development. The plan base, version history, onboarding, the MCP
 server and its installers, the status board, rendered plan pages, and comments as a
 review are all built. Plans move through Draft, Alignment, In progress, In review,
 Completed and Archived. An agent files a draft, you review it, then alignment: the

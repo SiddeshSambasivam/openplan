@@ -3,7 +3,7 @@ members = ["crates/*"]
 
 [package]
 name = "openplan-app"
-version = "0.3.0"
+version = "0.5.0"
 description = "One place to manage the plans you and your coding agents collaborate on"
 authors = ["Siddesh Sambasivam"]
 edition = "2021"
