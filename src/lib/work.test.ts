@@ -139,7 +139,7 @@ describe("pendingQuestions", () => {
 });
 
 describe("questionsByRound", () => {
-  it("puts the newest round first and keeps the asked order within a round", () => {
+  it("puts the first round first and keeps the asked order within a round", () => {
     const groups = questionsByRound([
       question("q1", "tests"),
       question("q2", "scale", { round: 2 }),
@@ -148,8 +148,8 @@ describe("questionsByRound", () => {
     ]);
 
     expect(groups.map((g) => [g.round, g.questions.map((q) => q.id)])).toEqual([
-      [2, ["q2", "q4"]],
       [1, ["q1", "q3"]],
+      [2, ["q2", "q4"]],
     ]);
   });
 
@@ -174,14 +174,14 @@ describe("unusedRoles", () => {
 });
 
 describe("unusedRolesText", () => {
-  it("says which roles had nothing to ask", () => {
+  it("names the personas that had nothing to ask", () => {
     expect(unusedRolesText(["design", "oncall"])).toBe(
-      "The designer and on-call had nothing to ask on this plan.",
+      "Iris and Kai had nothing to ask on this plan.",
     );
     expect(unusedRolesText(["product", "engineering", "design"])).toBe(
-      "The product owner, the tech lead and the designer had nothing to ask on this plan.",
+      "Mila, Theo and Iris had nothing to ask on this plan.",
     );
-    expect(unusedRolesText(["oncall"])).toBe("On-call had nothing to ask on this plan.");
+    expect(unusedRolesText(["oncall"], "this round")).toBe("Kai had nothing to ask this round.");
   });
 
   it("says nothing when every role asked", () => {

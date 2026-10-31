@@ -248,8 +248,8 @@ export interface RoundGroup {
   questions: Question[];
 }
 
-/** The newest round first, the way the page reads from the latest down.
- * Within a round, questions keep the order they were asked. */
+/** The first round first, the way a conversation reads. Within a round,
+ * questions keep the order they were asked. */
 export function questionsByRound(questions: Question[]): RoundGroup[] {
   const groups: RoundGroup[] = [];
   for (const question of questions) {
@@ -258,19 +258,18 @@ export function questionsByRound(questions: Question[]): RoundGroup[] {
     if (group) group.questions.push(question);
     else groups.push({ round, questions: [question] });
   }
-  return groups.sort((a, b) => b.round - a.round);
+  return groups.sort((a, b) => a.round - b.round);
 }
 
-/** Each role as the person on the team who asks. `inSentence` is the name
- * mid-sentence. */
-export const PERSONAS: Record<Role, { name: string; inSentence: string }> = {
-  product: { name: "Product owner", inSentence: "the product owner" },
-  engineering: { name: "Tech lead", inSentence: "the tech lead" },
-  design: { name: "Designer", inSentence: "the designer" },
-  oncall: { name: "On-call", inSentence: "on-call" },
+/** Each role as the person on the team who asks. */
+export const PERSONAS: Record<Role, { name: string; title: string }> = {
+  product: { name: "Mila", title: "Product owner" },
+  engineering: { name: "Theo", title: "Tech lead" },
+  design: { name: "Iris", title: "Designer" },
+  oncall: { name: "Kai", title: "On-call" },
 };
 
-const ROLES = Object.keys(PERSONAS) as Role[];
+export const ROLES = Object.keys(PERSONAS) as Role[];
 
 /** The roles no question came from. Questions from before roles name none,
  * so nothing counts as left out for them. */
@@ -280,12 +279,18 @@ export function unusedRoles(questions: Question[]): Role[] {
   return ROLES.filter((role) => !asked.has(role));
 }
 
-export function unusedRolesText(roles: Role[]): string | null {
+export function unusedRolesText(
+  roles: Role[],
+  when: "on this plan" | "this round" = "on this plan",
+): string | null {
   if (roles.length === 0) return null;
-  const names = roles.map((role) => PERSONAS[role].inSentence);
-  const list =
-    names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-  return `${list.charAt(0).toUpperCase()}${list.slice(1)} had nothing to ask on this plan.`;
+  return `${spokenList(roles.map((role) => PERSONAS[role].name))} had nothing to ask ${when}.`;
+}
+
+/** "a", "a and b", "a, b and c". */
+export function spokenList(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
 /** What the person has picked and written for one question so far. */
