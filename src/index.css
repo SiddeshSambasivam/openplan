@@ -226,6 +226,64 @@
 }
 
 /* ---------------------------------- */
+/* Motion                              */
+/* ---------------------------------- */
+/* Shared entrances and presses, so a card, a row and a view move the same
+   way. Transform and opacity only, and the guard above stills all of it.
+   Entrances fill backwards, never forwards: a held final frame would win
+   over the hover and press transitions below it. */
+
+@keyframes motion-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes motion-tick {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25);
+  }
+}
+
+/* A view arriving. It is on the element the view switch mounts, so it runs
+   once per switch and never on a refresh behind it. */
+.motion-view {
+  animation: motion-rise 200ms ease-out backwards;
+}
+
+/* One card or row of a group, delayed by its place in the group. */
+.motion-item {
+  animation: motion-rise 220ms ease-out backwards;
+}
+
+/* A card that answers the pointer. */
+.motion-card {
+  transition:
+    transform 150ms ease-out,
+    border-color 150ms ease-out;
+}
+.motion-card:hover {
+  transform: translateY(-1px);
+}
+.motion-card:active {
+  transform: scale(0.99);
+}
+
+/* A glyph whose meaning just changed. */
+.motion-tick {
+  animation: motion-tick 320ms ease-out;
+}
+
+/* ---------------------------------- */
 /* Rendered markdown (shadcn-flavored) */
 /* ---------------------------------- */
 .markdown-body {
