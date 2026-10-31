@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn completing_onboarding_keeps_the_name_and_role() {
-        let (dir, file) = temp_home("openplan-app-complete");
+        let (dir, file) = temp_home("openplan-app-onboarding-complete");
 
         complete_onboarding_at(&file, Some("  Sid ".into()), Some(PersonRole::Designer)).unwrap();
 
