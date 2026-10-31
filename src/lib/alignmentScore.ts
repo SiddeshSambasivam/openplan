@@ -15,16 +15,19 @@ export interface AlignmentArea {
 export interface AlignmentScore {
   /** 0 to 100, always `coverage` plus `reasoning`. */
   total: number;
-  /** Up to 80, for the share of areas settled. */
+  /** Up to 80, for the areas settled out of the required ones and every
+   * settled one. */
   coverage: number;
-  /** Up to 20, for the share of answers that say why. */
+  /** Up to 20, 5 for each answer that says why. */
   reasoning: number;
   areas: AlignmentArea[];
+  /** The areas coverage counts: the required ones and every settled one. */
+  counted: number;
   answered: number;
   /** Answers with a note beside the pick, or written in full. */
   reasoned: number;
-  /** Areas every plan should settle that no question asks about. They count
-   * for nothing. */
+  /** Areas every plan should settle that no question asks about. They hold
+   * coverage down until settled. */
   notAsked: string[];
 }
 
@@ -33,9 +36,12 @@ export const REQUIRED_AREAS = ["edge cases", "error handling", "scale"];
 
 const COVERAGE_POINTS = 80;
 const REASONING_POINTS = 20;
+const POINTS_PER_REASON = 5;
 
 /** How well the person and the agents agree on the plan so far. `drafts`
- * holds the replies not sent yet, by question id. */
+ * holds the replies not sent yet, by question id. It only rises as
+ * questions are asked and answered: an unanswered question outside the
+ * required areas counts for nothing. */
 export function alignmentScore(
   questions: Question[],
   drafts: Record<string, Answer>,
@@ -50,14 +56,16 @@ export function alignmentScore(
   }
   const answers = questions.flatMap((question) => answerTo(question) ?? []);
   const reasoned = answers.filter(givesReason).length;
-  const settled = [...areas.values()].filter((area) => area.settled).length;
-  const coverage = share(settled, areas.size, COVERAGE_POINTS);
-  const reasoning = share(reasoned, answers.length, REASONING_POINTS);
+  const settled = [...areas].filter(([, area]) => area.settled).map(([key]) => key);
+  const counted = new Set([...REQUIRED_AREAS, ...settled]);
+  const coverage = Math.round((COVERAGE_POINTS * settled.length) / counted.size);
+  const reasoning = Math.min(REASONING_POINTS, POINTS_PER_REASON * reasoned);
   return {
     total: coverage + reasoning,
     coverage,
     reasoning,
     areas: [...areas.values()],
+    counted: counted.size,
     answered: answers.length,
     reasoned,
     notAsked: REQUIRED_AREAS.filter((required) => !areas.has(required)),
@@ -111,8 +119,4 @@ function newArea(question: Question): AlignmentArea {
 function givesReason(answer: Answer): boolean {
   if (answer.kind === "text") return true;
   return answer.kind === "option" && Boolean(answer.note?.trim());
-}
-
-function share(part: number, whole: number, points: number): number {
-  return whole === 0 ? 0 : Math.round((points * part) / whole);
 }

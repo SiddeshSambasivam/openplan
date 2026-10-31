@@ -301,13 +301,13 @@ describe("AlignmentTab", () => {
       </TooltipProvider>,
     );
 
-    expect(html).toContain("Alignment score 60 out of 100");
-    expect(html).toContain("1 of 2 areas settled");
+    expect(html).toContain("Alignment score 32 out of 100");
+    expect(html).toContain("1 of 3 areas settled");
     expect(html).toContain("Below your 80% target");
-    expect(alignmentTab(record({ alignment: { askedAt: "2026-10-28T09:00:00Z", questions } }), 60)).not.toContain("target");
+    expect(alignmentTab(record({ alignment: { askedAt: "2026-10-28T09:00:00Z", questions } }), 30)).not.toContain("target");
     expect(html.indexOf("Alignment score")).toBeLessThan(html.indexOf("Where does it sit?"));
-    expect(details).toContain("1 of 2 areas settled · 40 of 80");
-    expect(details).toContain("1 of 1 answer explains why · 20 of 20");
+    expect(details).toContain("1 of 3 areas settled · 27 of 80");
+    expect(details).toContain("1 answer explains why · 5 of 20");
     expect(details).toContain("Not asked yet: edge cases");
     expect(details).toContain("Not asked yet: error handling");
     expect(details).not.toContain("Not asked yet: scale");

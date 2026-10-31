@@ -33,7 +33,7 @@ export function AlignmentScoreCard({ score, target }: { score: AlignmentScore; t
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="xs" className="-ml-1 font-normal text-muted-foreground">
-            {settled} of {score.areas.length} {score.areas.length === 1 ? "area" : "areas"} settled
+            {settled} of {score.counted} {score.counted === 1 ? "area" : "areas"} settled
             <ChevronDown />
           </Button>
         </PopoverTrigger>
@@ -62,12 +62,12 @@ export function ScoreDetails({ score }: { score: AlignmentScore }) {
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-col gap-0.5 text-xs leading-normal text-muted-foreground">
         <p>
-          {settled} of {score.areas.length} {score.areas.length === 1 ? "area" : "areas"} settled ·{" "}
+          {settled} of {score.counted} {score.counted === 1 ? "area" : "areas"} settled ·{" "}
           {score.coverage} of 80
         </p>
         <p>
-          {score.reasoned} of {score.answered} {score.answered === 1 ? "answer explains" : "answers explain"}{" "}
-          why · {score.reasoning} of 20
+          {score.reasoned} {score.reasoned === 1 ? "answer explains" : "answers explain"} why ·{" "}
+          {score.reasoning} of 20
         </p>
       </div>
       <ul className="flex flex-wrap gap-1.5">
