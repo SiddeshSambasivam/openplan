@@ -1,5 +1,6 @@
-import { FileText, Search, X } from "lucide-react";
+import { FileText, Search, Settings, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isMac } from "../lib/platform";
 import { filterLibraryItems } from "../lib/tree";
 import type { FileLibraryItem, LibraryItem } from "../lib/types";
 import { cn } from "../lib/utils";
@@ -21,6 +22,7 @@ interface SidebarProps {
   plans: PlanSummary[];
   activePlanPath: string | null;
   onSelectPlan: (plan: PlanSummary) => void;
+  onOpenSettings: () => void;
   activeId: string | null;
   expanded: Set<string>;
   onToggleDir: (path: string) => void;
@@ -85,6 +87,7 @@ export function Sidebar({
   plans,
   activePlanPath,
   onSelectPlan,
+  onOpenSettings,
   activeId,
   expanded,
   onToggleDir,
@@ -260,6 +263,19 @@ export function Sidebar({
           </ul>
         )}
       </nav>
+
+      <div className="shrink-0 border-t border-sidebar-border p-2">
+        <button
+          onClick={onOpenSettings}
+          className="flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+        >
+          <Settings className="size-4 shrink-0 text-muted-foreground" />
+          <span className="flex-1">Settings</span>
+          <span className="text-[11px] text-muted-foreground">
+            {isMac ? "⌘," : "Ctrl+,"}
+          </span>
+        </button>
+      </div>
     </aside>
   );
 }

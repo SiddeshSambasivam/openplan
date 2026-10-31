@@ -1113,6 +1113,7 @@ export default function App() {
           plans={plans}
           activePlanPath={activePlan?.path ?? null}
           onSelectPlan={selectPlan}
+          onOpenSettings={() => setSettingsOpen(true)}
           activeId={activeDocId}
           expanded={expanded}
           onToggleDir={toggleDir}
@@ -1162,7 +1163,6 @@ export default function App() {
           onFontSizeChange={setFontSize}
           outlineOpen={outlineShown}
           onToggleOutline={toggleOutline}
-          onOpenSettings={() => setSettingsOpen(true)}
           onOpenFind={() => {
             setFindOpen(true);
             setFindFocusSeq((s) => s + 1);

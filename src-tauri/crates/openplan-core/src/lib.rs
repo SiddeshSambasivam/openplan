@@ -7,4 +7,5 @@ pub mod library;
 pub mod plan;
 pub mod repo;
 pub mod settings;
+pub mod standards;
 pub mod sidecar;

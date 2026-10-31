@@ -152,15 +152,15 @@ mod tests {
     }
 
     #[test]
-    fn the_standards_are_part_of_the_base_the_git_directory_is_not() {
+    fn what_git_keeps_in_the_base_is_not_a_plan() {
         let base = temp_base("openplan-core-library-hidden");
         std::fs::create_dir_all(base.root.join(".git")).unwrap();
         write(&base, ".git/hidden.md", "# Not a plan\n");
+        write(&base, "plans/real.md", "# Real\n");
 
         let titles: Vec<String> = scan(&base).into_iter().map(|e| e.meta.title).collect();
 
-        assert!(titles.iter().any(|t| t.contains("Plan standards")), "got {titles:?}");
-        assert!(!titles.iter().any(|t| t == "Not a plan"), "got {titles:?}");
+        assert_eq!(titles, vec!["Real"]);
         let _ = std::fs::remove_dir_all(&base.root);
     }
 

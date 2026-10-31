@@ -44,7 +44,13 @@ export interface PlanSummary {
 
 export interface BaseInfo {
   root: string;
-  standardsPath: string;
+}
+
+export interface Standards {
+  /** What ships with the app. */
+  builtIn: string;
+  /** What this person added, layered on top. */
+  overrides: string | null;
 }
 
 export interface Revision {
@@ -69,6 +75,16 @@ export function isPlanStatus(value: string): value is PlanStatus {
 export async function getBase(): Promise<BaseInfo | null> {
   if (!isTauri) return null;
   return invoke<BaseInfo>("get_base");
+}
+
+export async function getStandards(): Promise<Standards | null> {
+  if (!isTauri) return null;
+  return invoke<Standards>("get_standards");
+}
+
+export async function setStandardsOverrides(text: string): Promise<void> {
+  if (!isTauri) return;
+  await invoke<void>("set_standards_overrides", { text });
 }
 
 export async function scanPlans(): Promise<PlanSummary[]> {

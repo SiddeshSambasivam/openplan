@@ -7,10 +7,14 @@ use crate::fs::atomic_write;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct Settings {
     #[serde(rename = "basePath")]
     pub base_path: PathBuf,
+    /// Added to the standards that ship with the app. Absent for everyone who
+    /// has not written any.
+    #[serde(rename = "standards", default, skip_serializing_if = "Option::is_none")]
+    pub standards: Option<String>,
 }
 
 /// `~/.config/openplan/settings.json`, or the platform's equivalent.
@@ -51,14 +55,17 @@ pub fn resolve_default_base() -> Result<Base, String> {
 /// fresh one in the home directory. Either way it exists by the time this
 /// returns, and the choice is recorded so the next caller agrees.
 pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
-    let chosen = read_settings(settings_file)?
-        .map(|s| s.base_path)
+    let existing = read_settings(settings_file)?;
+    let chosen = existing
+        .as_ref()
+        .map(|s| s.base_path.clone())
         .unwrap_or_else(|| default_base_path(home));
     let base = ensure_base(&chosen)?;
     write_settings(
         settings_file,
         &Settings {
             base_path: base.root.clone(),
+            standards: existing.and_then(|s| s.standards),
         },
     )?;
     Ok(base)
@@ -90,6 +97,7 @@ mod tests {
         let file = dir.join("nested").join("settings.json");
         let settings = Settings {
             base_path: PathBuf::from("/somewhere/plans"),
+            standards: Some("Name the reviewer.".to_string()),
         };
 
         write_settings(&file, &settings).unwrap();
@@ -117,6 +125,30 @@ mod tests {
     }
 
     #[test]
+    fn resolving_the_base_does_not_discard_the_standards_someone_wrote() {
+        let dir = temp_dir("openplan-core-settings-keeps-standards");
+        let home = dir.join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let file = dir.join("settings.json");
+        write_settings(
+            &file,
+            &Settings {
+                base_path: default_base_path(&home),
+                standards: Some("Name the reviewer.".to_string()),
+            },
+        )
+        .unwrap();
+
+        resolve_base(&file, &home).unwrap();
+
+        assert_eq!(
+            read_settings(&file).unwrap().unwrap().standards.as_deref(),
+            Some("Name the reviewer.")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_recorded_base_is_used_instead_of_the_default() {
         let dir = temp_dir("openplan-core-settings-relocated");
         let home = dir.join("home");
@@ -127,6 +159,7 @@ mod tests {
             &file,
             &Settings {
                 base_path: elsewhere.clone(),
+                standards: None,
             },
         )
         .unwrap();

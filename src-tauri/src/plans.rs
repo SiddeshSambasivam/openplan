@@ -5,7 +5,7 @@
 use openplan_core::base::Base;
 use openplan_core::plan::Status;
 use openplan_core::repo::Author;
-use openplan_core::{library, plan, repo, settings};
+use openplan_core::{library, plan, repo, settings, standards};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -55,16 +55,47 @@ impl From<library::PlanEntry> for PlanSummary {
 #[serde(rename_all = "camelCase")]
 pub struct BaseInfo {
     root: PathBuf,
-    standards_path: PathBuf,
 }
 
 #[tauri::command]
 pub async fn get_base() -> Result<BaseInfo, String> {
     let base = base()?;
     Ok(BaseInfo {
-        standards_path: base.standards_path(),
         root: base.root,
     })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Standards {
+    /// What ships with the app, shown so it is clear what is being added to.
+    built_in: String,
+    /// What this person added, if anything.
+    overrides: Option<String>,
+}
+
+#[tauri::command]
+pub async fn get_standards() -> Result<Standards, String> {
+    let saved = settings::read_settings(&settings::settings_path()?)?;
+    Ok(Standards {
+        built_in: standards::BUILT_IN.to_string(),
+        overrides: saved.and_then(|s| s.standards),
+    })
+}
+
+/// Agents are told the built-in standards with these layered on top.
+#[tauri::command]
+pub async fn set_standards_overrides(text: String) -> Result<(), String> {
+    let path = settings::settings_path()?;
+    let base = base()?;
+    let trimmed = text.trim();
+    settings::write_settings(
+        &path,
+        &settings::Settings {
+            base_path: base.root,
+            standards: (!trimmed.is_empty()).then(|| trimmed.to_string()),
+        },
+    )
 }
 
 #[tauri::command]

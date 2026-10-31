@@ -164,7 +164,7 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 | FR-7 | **Live updates**: external changes to the base (agent writes) appear in the UI within 1s, without focus change. New-plan toast: "New plan from claude-code". |
 | FR-8 | **`openplan` CLI + MCP server**: one binary; MCP tools `create_plan, update_plan, read_plan, list_plans, set_status, get_comments, reply_comment, resolve_comment, get_standards`; CLI verbs mirror them. Reads the same base config the app writes. |
 | FR-9 | **Agent installers**: `openplan install claude-code` (MCP registration + plugin with skill and optional ExitPlanMode hook), `openplan install codex` (`config.toml` MCP entry + AGENTS.md snippet), and `openplan install cursor` (`~/.cursor/mcp.json` entry + rules snippet). App onboarding has Connect buttons that run these and verify. |
-| FR-10 | **Standards**: `STANDARDS.md` at base root, editable in-app, served to agents via `get_standards` and summarized into the `create_plan` tool description. Ships with a sensible default template. |
+| FR-10 | **Standards**: the house style ships **with the app**, not in the plan base — a base is plans and their history, and a copy per base would drift. Settings expose additions that layer on top, so a new build's improvements still reach someone who wrote their own rules. Served to agents via `get_standards` and summarized into the `create_plan` tool description. |
 | FR-11 | **Auto-discovery import**: onboarding (re-runnable from settings) scans `~/.claude/plans/*.md` (loose markdown — verified) and best-effort `~/.codex/sessions/**/rollout-*.jsonl` (`update_plan` payloads). Shows candidates with preview; selected ones are copied into the base with synthesized frontmatter; imported hashes remembered to prevent duplicates. |
 | FR-12 | **Sync & remotes**: connect the base to a GitHub/GitLab remote from settings (URL + push/pull; git2 already bundled) — this is the primary "save to my existing workflow" path. Drive/iCloud users can instead relocate the base into a synced folder (FR-1 relocation). No cloud-provider APIs. |
 | FR-13 | **Agent curation**: agents keep the base tidy so it stays easy for the human to review and follow — consistent naming per STANDARDS, stale `done` plans archived, near-duplicates flagged/merged. Driven by the integration skill + explicit MCP tools (`archive_plan`, `rename_plan`); never a background process (NFR-8). Every curation action is a normal attributed commit (FR-6), so the human can always see and roll back what the janitor did. |
@@ -250,8 +250,9 @@ prompt "Copy into your plan base?" [Copy in] (becomes a tracked plan) / [Just vi
 
 ### 4.8 Standards
 
-Sidebar footer → "Plan standards" opens `STANDARDS.md` in the normal editor. Saved
-changes are what agents get on their next `get_standards`/`create_plan` call.
+Settings → Standards shows what ships with OpenPlan and a field for your own
+additions. Saved additions are what agents get on their next
+`get_standards`/`create_plan` call, layered under the built-in ones.
 
 ---
 
@@ -439,8 +440,9 @@ lines→blocks, drift detection — all Vitest'd before any component exists.
   `{ "basePath": "~/.openplan" }` — how app AND CLI find the base. Default base is
   the hidden `~/.openplan`, created `0700`.
 - `<base>/openplan.json`: `{ "schemaVersion": 1 }` + future base-local settings.
-- `<base>/STANDARDS.md`: default template ships with headers agents must produce
-  (Context, Approach, Steps, Risks) + style rules; user edits freely.
+- Standards are **not** a file in the base. They ship with the app
+  (`openplan-core::standards::BUILT_IN`); the user's additions live in the
+  settings file above and are layered on top when agents ask.
 
 ### 6.4 Watcher & auto-commit flow
 
@@ -711,6 +713,8 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Default reading settings: small font, compact width | Sid's preference |
 | 2026-08-15 | Shared motion utilities in `index.css` (transform/opacity entrances, `prefers-reduced-motion` guard) | Sid: interactions felt too sudden; keeps motion consistent instead of per-component ad hoc |
 | 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
+| 2026-08-15 | Standards belong to the app, not the plan base; settings expose additions that layer on top | Sid: standards are a settings concept. A copy per base drifts, and nobody edits the one that shipped. Interoperability is preserved through `get_standards` rather than a file |
+| 2026-08-15 | Settings is a modal with its own section nav, opened from the sidebar's footer | Sid; matches where people look for it |
 | 2026-08-15 | Find (and later comment) highlights are drawn as positioned elements, not via the CSS Custom Highlight API | The desktop WebView keeps painting registered highlights after the registry is emptied and the colour removed; scrolling does not repaint them away. Verified in the app: registry `[]`, colour unset, still lit. Elements React unmounts are repainted by definition |
 | 2026-08-15 | Motion comes from `tw-animate-css`, not hand-written keyframes | shadcn's generated components already reference its classes (`animate-in`, `fade-in-0`, `zoom-in-95`); without it they were dead classes and menus/tooltips did not animate |
 | 2026-08-15 | The wordmark uses EB Garamond from the marketing site, with no icon | Sid: match the marketing material; fonts vendored into `public/fonts` |

@@ -10,12 +10,9 @@ use std::path::{Path, PathBuf};
 pub const BASE_DIR_NAME: &str = ".openplan";
 pub const PLANS_DIR_NAME: &str = "plans";
 pub const BASE_CONFIG_NAME: &str = "openplan.json";
-pub const STANDARDS_NAME: &str = "STANDARDS.md";
 
 /// Bumped only when the layout changes in a way older builds cannot read.
 pub const SCHEMA_VERSION: u32 = 1;
-
-const DEFAULT_STANDARDS: &str = include_str!("default_standards.md");
 
 /// Settings that belong to the base itself, so they travel with it.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -37,10 +34,6 @@ impl Base {
 
     pub fn config_path(&self) -> PathBuf {
         self.root.join(BASE_CONFIG_NAME)
-    }
-
-    pub fn standards_path(&self) -> PathBuf {
-        self.root.join(STANDARDS_NAME)
     }
 }
 
@@ -65,9 +58,6 @@ pub fn ensure_base(root: &Path) -> Result<Base, String> {
         let json = serde_json::to_string_pretty(&config)
             .map_err(|e| format!("Couldn't write the base settings: {e}"))?;
         atomic_write(&base.config_path(), &format!("{json}\n"))?;
-    }
-    if !base.standards_path().exists() {
-        atomic_write(&base.standards_path(), DEFAULT_STANDARDS)?;
     }
     Ok(base)
 }
@@ -111,7 +101,7 @@ mod tests {
     }
 
     #[test]
-    fn creating_a_base_lays_out_plans_settings_and_standards() {
+    fn creating_a_base_lays_out_plans_and_settings() {
         let home = temp_dir("openplan-core-base-new");
         let root = default_base_path(&home);
 
@@ -119,7 +109,6 @@ mod tests {
 
         assert!(base.plans_dir().is_dir());
         assert!(base.config_path().is_file());
-        assert!(base.standards_path().is_file());
         assert_eq!(
             read_base_config(&base).unwrap(),
             BaseConfig {
@@ -130,36 +119,18 @@ mod tests {
     }
 
     #[test]
-    fn the_standards_that_ship_describe_what_a_plan_should_contain() {
-        let home = temp_dir("openplan-core-base-standards");
-        let base = ensure_base(&default_base_path(&home)).unwrap();
-
-        let standards = std::fs::read_to_string(base.standards_path()).unwrap();
-
-        for topic in [
-            "Summary", "Current state", "Approach", "Steps", "Alternatives",
-            "Risks", "Decisions", "Evidence", "Reproduction",
-        ] {
-            assert!(standards.contains(topic), "standards say nothing about {topic}");
-        }
-        let _ = std::fs::remove_dir_all(&home);
-    }
-
-    #[test]
     fn a_second_run_keeps_what_the_user_has_already_written() {
         let home = temp_dir("openplan-core-base-idempotent");
         let root = default_base_path(&home);
         let base = ensure_base(&root).unwrap();
-        std::fs::write(base.standards_path(), "# My own standards").unwrap();
         std::fs::write(base.plans_dir().join("a.md"), "# A plan").unwrap();
 
         ensure_base(&root).unwrap();
 
         assert_eq!(
-            std::fs::read_to_string(base.standards_path()).unwrap(),
-            "# My own standards"
+            std::fs::read_to_string(base.plans_dir().join("a.md")).unwrap(),
+            "# A plan"
         );
-        assert!(base.plans_dir().join("a.md").exists());
         let _ = std::fs::remove_dir_all(&home);
     }
 

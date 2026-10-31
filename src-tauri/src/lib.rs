@@ -203,6 +203,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             plans::get_base,
             plans::scan_plans,
+            plans::get_standards,
+            plans::set_standards_overrides,
             plans::search_plans,
             plans::set_plan_status,
             plans::commit_base,
