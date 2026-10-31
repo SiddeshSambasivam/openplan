@@ -1115,6 +1115,7 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | The welcome document is gone from the app and the browser demo alike (supersedes the "browser demo keeps an inline sample" note in the empty-state row); a stored welcome entry from an older build is dropped on load | `pnpm dev` works with the empty state and drag-drop, so a sample was code with no reader |
 | 2026-10-29 | Navbar section labels are small, muted, sentence case with a chevron; one accent on the current view row, a folder filter in force shows as medium weight with an open-folder icon | Matches the Linear reference, and a filtered board never shows two accents |
 | 2026-10-29 | The navbar column never animates `width`; mode changes land in one frame and only the floating panel moves, with transform. `BoardView` is memoized | Width is a layout property (NFR-2). Toggling the navbar re-rendered the board for about 16ms with 60 plans, 0 after memoizing |
+| 2026-10-29 | The empty state is a continuous scene (sheets falling into a tray on 7.3s, 9.7s and 12.1s clocks, a breathing tray, a swelling halo), transform and opacity only, paused whenever the window is hidden or unfocused | Sid: a looping animation that does not read as a loop, like GitHub's error page. Durations that share no factor line up only once in minutes. Pausing off-focus keeps the idle budget (NFR-8), and the reduced-motion guard stills it |
 
 ---
 

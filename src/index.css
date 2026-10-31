@@ -285,6 +285,71 @@
   }
 }
 
+/* The empty state's scene. Sheets fall into the tray on clocks that share no
+   factor, the tray breathes, and the halo swells. All of it pauses when the
+   window is hidden or unfocused, so an idle app paints nothing. */
+@keyframes empty-sheet-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-34px) rotate(-3deg);
+  }
+  18% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  78% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-34px) rotate(-3deg);
+  }
+}
+
+@keyframes empty-breathe {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(2px);
+  }
+}
+
+@keyframes empty-halo {
+  from {
+    opacity: 0.08;
+    transform: scaleX(0.94);
+  }
+  to {
+    opacity: 0.18;
+    transform: scaleX(1.04);
+  }
+}
+
+.empty-sheet {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: empty-sheet-fall var(--duration) var(--delay) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.empty-tray {
+  animation: empty-breathe 6.5s ease-in-out infinite alternate;
+}
+
+.empty-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: empty-halo 5.3s ease-in-out infinite alternate;
+}
+
+.empty-scene[data-paused="true"] * {
+  animation-play-state: paused;
+}
+
 /* A view arriving. It is on the element the view switch mounts, so it runs
    once per switch and never on a refresh behind it. */
 .motion-view {
