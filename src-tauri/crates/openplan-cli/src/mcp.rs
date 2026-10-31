@@ -12,6 +12,7 @@ use openplan_core::library::PlanEntry;
 use openplan_core::local::{self, Event};
 use openplan_core::plan::{self, slugify, Plan, PlanMeta, Status};
 use openplan_core::repo::{self, Author};
+use openplan_core::roles::{self, PersonRole};
 use openplan_core::work::{self, TodoState, WorkRecord};
 use openplan_core::{comments, fs, library, settings, standards};
 use serde_json::{json, Value};
@@ -245,6 +246,7 @@ fn create_plan(base: &Base, author: &str, authoring: &str, args: &Value) -> Valu
             created: Some(now.clone()),
             updated: Some(now),
             completed: None,
+            demo: false,
         },
         frontmatter: Vec::new(),
         body: format!("{}\n", body.trim_end()),
@@ -318,7 +320,7 @@ fn update_plan(base: &Base, author: &str, args: &Value) -> Value {
 }
 
 fn list_plans(base: &Base, args: &Value) -> Value {
-    let mut entries = library::scan(base);
+    let mut entries = agent_plans(base);
     if let Some(wanted) = args.get("status").and_then(Value::as_str) {
         let Some(wanted) = Status::parse(wanted) else {
             return text_result(
@@ -415,7 +417,7 @@ fn read_plan(base: &Base, args: &Value) -> Value {
     let Some(id) = args.get("id").and_then(Value::as_str) else {
         return text_result("read_plan needs an id. list_plans shows them.", true);
     };
-    match library::scan(base).into_iter().find(|e| e.meta.id == id) {
+    match agent_plans(base).into_iter().find(|e| e.meta.id == id) {
         Some(entry) => match fs::read_to_string(&entry.path) {
             Ok(text) => {
                 let record = work::read(&entry.path).ok().flatten().unwrap_or_default();
@@ -431,10 +433,16 @@ pub(crate) fn find_entry(base: &Base, args: &Value) -> Result<PlanEntry, Value> 
     let Some(id) = args.get("id").and_then(Value::as_str) else {
         return Err(text_result("Which plan? Pass its id.", true));
     };
-    library::scan(base)
+    agent_plans(base)
         .into_iter()
         .find(|e| e.meta.id == id)
         .ok_or_else(|| text_result(format!("No plan called {id}. list_plans shows what there is."), true))
+}
+
+/// Every plan but the demo ones, which are the person's to try the app on
+/// and no agent's to act on.
+fn agent_plans(base: &Base) -> Vec<PlanEntry> {
+    library::scan(base).into_iter().filter(|e| !e.meta.demo).collect()
 }
 
 fn get_comments(base: &Base, args: &Value) -> Value {
@@ -491,19 +499,20 @@ fn resolve_comment(base: &Base, author: &str, args: &Value) -> Value {
     text_result("Resolved.", false)
 }
 
-fn get_standards() -> Value {
+fn get_standards(role: Option<PersonRole>) -> Value {
     let overrides = settings::settings_path()
         .ok()
         .and_then(|p| settings::read_settings(&p).ok().flatten())
         .and_then(|s| s.standards);
-    text_result(
-        standards::effective_with_media(
-            settings::current_authoring(),
-            settings::current_media(),
-            overrides.as_deref(),
-        ),
-        false,
-    )
+    let mut served = standards::effective_with_media(
+        settings::current_authoring(),
+        settings::current_media(),
+        overrides.as_deref(),
+    );
+    if let Some(role) = role {
+        served.push_str(&format!("\n{}", roles::who_is_answering(role)));
+    }
+    text_result(served, false)
 }
 
 /// What the app has sent this session, waiting for somewhere to put it.
@@ -655,8 +664,8 @@ fn call_tool(
         "get_comments" => get_comments(base, args),
         "reply_comment" => reply_comment(base, author, args),
         "resolve_comment" => resolve_comment(base, author, args),
-        "get_standards" => get_standards(),
-        "ask_questions" => work_tools::ask_questions(base, author, args),
+        "get_standards" => get_standards(settings::current_role()),
+        "ask_questions" => work_tools::ask_questions(base, author, settings::current_role(), args),
         "record_alignment" => work_tools::record_alignment(base, author, args),
         "add_decisions" => work_tools::add_decisions(base, author, args),
         "add_todos" => work_tools::add_todos(base, author, session.map(local::Client::id), args),
@@ -844,6 +853,40 @@ mod tests {
 
         assert!(describe(true).contains("Media is on"), "{}", describe(true));
         assert!(describe(false).contains("Media is off"), "{}", describe(false));
+    }
+
+    #[test]
+    fn agents_never_see_a_demo_plan() {
+        let dir = std::env::temp_dir().join("openplan-cli-demo-plans");
+        let _ = std::fs::remove_dir_all(&dir);
+        let base = openplan_core::base::ensure_base(&dir).unwrap();
+        repo::init(&base.root).unwrap();
+        let plans = base.plans_dir();
+        std::fs::write(plans.join("demo-dark-mode.md"), "---\nid: demo-dark-mode\ntitle: Demo: add dark mode\nstatus: draft\ndemo: true\n---\n# Demo\n").unwrap();
+        std::fs::write(plans.join("auth.md"), "---\nid: auth\ntitle: Auth\nstatus: draft\n---\n# Auth\n").unwrap();
+        let text = |reply: &Value| reply["content"][0]["text"].as_str().unwrap().to_string();
+        let demo = json!({ "id": "demo-dark-mode" });
+
+        let listed = list_plans(&base, &json!({}));
+        let read = read_plan(&base, &demo);
+        let moved = set_status(&base, "claude-code", &json!({ "id": "demo-dark-mode", "status": "alignment" }));
+
+        assert_eq!(text(&listed), "[draft] auth Auth");
+        assert_eq!(text(&read), "No plan called demo-dark-mode. list_plans shows what there is.");
+        assert_eq!(text(&moved), "No plan called demo-dark-mode. list_plans shows what there is.");
+        assert!(std::fs::read_to_string(plans.join("demo-dark-mode.md")).unwrap().contains("status: draft"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_standards_say_who_is_answering_only_once_the_person_picked_a_role() {
+        let served = |role| get_standards(role)["content"][0]["text"].as_str().unwrap().to_string();
+
+        let without = served(None);
+        let designer = served(Some(PersonRole::Designer));
+
+        assert!(!without.contains("Who is answering."), "{without}");
+        assert_eq!(designer, format!("{without}\n{}", roles::who_is_answering(PersonRole::Designer)));
     }
 
     #[test]

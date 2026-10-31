@@ -760,6 +760,7 @@ mod tests {
                 created: Some("2026-09-22T09:00:00Z".to_string()),
                 updated: Some("2026-09-22T09:00:00Z".to_string()),
                 completed: None,
+                demo: false,
             },
             frontmatter: Vec::new(),
             body: "# Auth refactor\n".to_string(),

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Status } from "./planBase";
 import { isTauri } from "./platform";
+import personRoles from "../../src-tauri/crates/openplan-core/src/person_roles.json";
 
 /** The work record beside a plan: what the agents recorded about the work. */
 export interface WorkRecord {
@@ -46,7 +47,16 @@ export interface Question {
 
 /** Who on a team would ask the question. On-call is the person paged when
  * it breaks. */
-export type Role = "product" | "engineering" | "design" | "oncall";
+export type Role =
+  | "product"
+  | "engineering"
+  | "design"
+  | "oncall"
+  | "research"
+  | "accessibility"
+  | "data"
+  | "security"
+  | "support";
 
 export interface Choice {
   id: string;
@@ -278,22 +288,28 @@ export function roundTitle(round: number, latest: boolean): string {
   return latest ? `Round ${round} · after your ${ordinal(round)} review` : `Round ${round}`;
 }
 
-/** Each role as the person on the team who asks. */
-export const PERSONAS: Record<Role, { name: string; title: string }> = {
-  product: { name: "Mila", title: "Product owner" },
-  engineering: { name: "Theo", title: "Tech lead" },
-  design: { name: "Iris", title: "Designer" },
-  oncall: { name: "Kai", title: "On-call" },
-};
+export interface Persona {
+  name: string;
+  title: string;
+  /** What they ask about. */
+  focus: string;
+}
+
+/** Each role as the person on the team who asks. The agent reads the same
+ * file, so both name the same people. */
+export const PERSONAS: Record<Role, Persona> = personRoles.personas;
 
 export const ROLES = Object.keys(PERSONAS) as Role[];
 
-/** The roles no question came from. Questions from before roles name none,
- * so nothing counts as left out for them. */
-export function unusedRoles(questions: Question[]): Role[] {
+/** Who asks a person who has not picked a role. */
+export const DEFAULT_PANEL: Role[] = ["product", "engineering", "design", "oncall"];
+
+/** The panel's roles no question came from, in the panel's order. Questions
+ * from before roles name none, so nothing counts as left out for them. */
+export function unusedRoles(questions: Question[], panel: Role[] = DEFAULT_PANEL): Role[] {
   const asked = new Set(questions.map((question) => question.role).filter(Boolean));
   if (asked.size === 0) return [];
-  return ROLES.filter((role) => !asked.has(role));
+  return panel.filter((role) => !asked.has(role));
 }
 
 export function unusedRolesText(

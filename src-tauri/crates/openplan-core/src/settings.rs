@@ -4,6 +4,7 @@
 
 use crate::base::{default_base_path, ensure_base, Base};
 use crate::repo::{self, Author, Identity, ANONYMOUS};
+use crate::roles::PersonRole;
 use crate::fs::atomic_write;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -55,6 +56,14 @@ pub struct Settings {
     /// Absent means the generated marble.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub avatar: Option<String>,
+    /// What the person does, which picks who asks them questions. Absent
+    /// until they pick one, which keeps the first four personas.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<PersonRole>,
+    /// Whether the demo plans were written once. Set, they never come back
+    /// after the person deletes them.
+    #[serde(rename = "demoSeeded", default, skip_serializing_if = "Option::is_none")]
+    pub demo_seeded: Option<bool>,
 }
 
 /// Markdown is token-efficient; HTML gives a richer page to review. Both are
@@ -126,6 +135,11 @@ pub fn check_updates_on(stored: Option<bool>) -> bool {
 /// What this machine is set to.
 pub fn current_check_updates() -> bool {
     check_updates_on(saved().and_then(|s| s.check_updates))
+}
+
+/// What the person said they do, read the way the MCP server reads it.
+pub fn current_role() -> Option<PersonRole> {
+    saved().and_then(|s| s.role)
 }
 
 /// Sets the name and email the person typed. A blank field is stored as
@@ -512,6 +526,27 @@ mod tests {
     }
 
     #[test]
+    fn the_role_and_the_demo_flag_are_remembered_and_left_out_until_set() {
+        let dir = temp_dir("openplan-core-settings-role");
+        let file = dir.join("settings.json");
+        let unset = Settings { base_path: PathBuf::from("/somewhere"), ..Settings::default() };
+
+        write_settings(&file, &unset).unwrap();
+
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(!text.contains("role") && !text.contains("demoSeeded"), "{text}");
+        assert_eq!(read_settings(&file).unwrap().unwrap(), unset);
+
+        let set = Settings { role: Some(PersonRole::Designer), demo_seeded: Some(true), ..unset };
+        write_settings(&file, &set).unwrap();
+
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains("\"role\": \"designer\"") && text.contains("\"demoSeeded\": true"), "{text}");
+        assert_eq!(read_settings(&file).unwrap().unwrap(), set);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn settings_written_before_the_mode_existed_still_read() {
         let dir = temp_dir("openplan-core-settings-no-authoring");
         let file = dir.join("settings.json");
@@ -686,6 +721,8 @@ mod tests {
             alignment_target: Some(65),
             check_updates: Some(false),
             avatar: Some("avatar-100.png".to_string()),
+            role: Some(PersonRole::Founder),
+            demo_seeded: Some(false),
         };
 
         write_settings(&file, &settings).unwrap();

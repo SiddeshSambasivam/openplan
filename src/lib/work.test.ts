@@ -14,9 +14,11 @@ import {
   progressText,
   answerFromDraft,
   newQuestionIds,
+  PERSONAS,
   pendingQuestions,
   pendingQuestionsLabel,
   questionsByRound,
+  ROLES,
   roundTitle,
   showsWorkPanel,
   unusedRoles,
@@ -209,6 +211,45 @@ describe("unusedRoles", () => {
 
   it("names none for questions from before roles", () => {
     expect(unusedRoles([question("q1", "scope")])).toEqual([]);
+  });
+
+  it("looks only at the person's panel, in its order", () => {
+    const panel = ["design", "research", "accessibility", "engineering"] as const;
+    const roles = unusedRoles(
+      [
+        question("q1", "UX", { role: "design" }),
+        question("q2", "scale", { role: "engineering" }),
+      ],
+      [...panel],
+    );
+
+    expect(roles).toEqual(["research", "accessibility"]);
+  });
+});
+
+describe("PERSONAS", () => {
+  it("has nine personas, each with a name, a title and what they ask about", () => {
+    expect(ROLES).toEqual([
+      "product",
+      "engineering",
+      "design",
+      "oncall",
+      "research",
+      "accessibility",
+      "data",
+      "security",
+      "support",
+    ]);
+    expect(PERSONAS.research).toEqual({
+      name: "Noor",
+      title: "Researcher",
+      focus: "What we know about the people using it",
+    });
+    expect(PERSONAS.accessibility.name).toBe("Ada");
+    expect(PERSONAS.data.title).toBe("Data analyst");
+    expect(PERSONAS.security.focus).toBe("Who can reach what");
+    expect(PERSONAS.support.name).toBe("Juno");
+    expect(PERSONAS.oncall.focus).toBe("What breaks, and at what size");
   });
 });
 

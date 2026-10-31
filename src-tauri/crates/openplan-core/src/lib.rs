@@ -15,6 +15,7 @@ pub mod local;
 pub mod plan;
 pub mod profile;
 pub mod repo;
+pub mod roles;
 pub mod settings;
 pub mod standards;
 pub mod sidecar;
