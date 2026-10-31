@@ -1140,6 +1140,25 @@ behaviours above; `iam create-open-id-connect-provider`, `create-role`,
       Windows with a live agent session, and Linux AppImage; a `.deb` copy shows the
       download hint; idle CPU ~0%)
 
+### Phase 9 — onboarding by role, agent setup and an in-app tour
+Specification and decisions D1 to D20: the filed plan "Ask the person's role during
+onboarding and let it decide which personas go deep". Started 2026-11-01 on Sid's
+recorded GATE 8 waiver (§9).
+- [ ] P9.1 Question role grows to nine values with an unknown-role fallback **(T)**
+- [ ] P9.2 `person_roles.json`, `PersonRole`, `role` and `demoSeeded` settings **(T)**
+- [ ] P9.3 "Who is answering" in `get_standards`; `ask_questions` checks the panel **(T)**
+- [ ] P9.4 Standards: question-bank rows for the five new personas
+- [ ] P9.5 Five new persona avatars and their colour tokens
+- [ ] P9.6 Five demo plans, `seed_demo`, `demo: true` skipped by MCP and `gh` **(T)**
+- [ ] P9.7 Onboarding: welcome, name, role and panel, agent picker, MCP setup, all
+      with `kbd` hints; ends on the board **(T)**
+- [ ] P9.8 In-app tour over the real screens, with try-it steps and a resume pill **(T)**
+- [ ] P9.9 Settings: Agents, Role, Take the tour; the Alignment tab role hint
+- [ ] **GATE 9 — Sid manual QA & approval** (fresh onboarding as a designer and as
+      an engineer; agent setup with one tool failing; the full tour at 720x480 and
+      full screen, in both themes; a designer plan's questions come from Iris, Noor,
+      Ada and Theo; idle CPU ~0% after the tour)
+
 ---
 
 ## 9. Decision log
@@ -1334,6 +1353,7 @@ behaviours above; `iam create-open-id-connect-provider`, `create-role`,
 | 2026-10-31 | New unanswered questions on the open plan switch it to the Alignment tab. A window in the background calls `requestUserAttention` once, then not again until it is focused. No `openplan://` deep link | Sid (R5.5, q2, q5): Tauri's core window API needs no new dependency. One request per background period keeps several sessions from nagging. Nobody has checked whether Claude Code desktop opens custom-scheme links |
 | 2026-10-31 | Every question with options ends with "Write my own" | Sid (R5.3, q1): the composer already took free text, but nothing on the question said so |
 | 2026-10-31 | **GATE 7 waived and Phase 8 (0.6.0, S3 builds and in-app updates) starts** | Sid, 2026-10-31: "Gate waived", after the rule was pointed out. Recorded per §2 Process. GATE 7 QA remains owed |
+| 2026-11-01 | **GATE 8 waived and Phase 9 (onboarding by role, agent setup, in-app tour) starts** | Sid, 2026-11-01: "Gate waived", after the rule was pointed out on Build. Recorded per §2 Process. GATE 7 and GATE 8 QA remain owed |
 | 2026-10-31 | The license is Apache 2.0, not MIT | Sid's call. It allows the same use as MIT and adds an explicit patent grant and terms for contributions, which matter once pull requests are accepted. Rejected: GPL-3.0 (forces forks open, deters adoption) and the Functional Source License (not open source) |
 | 2026-10-31 | macOS builds are ad-hoc signed (`bundle.macOS.signingIdentity: "-"`) and not notarized | Sid has no Apple Developer ID. An unsigned download can fail with "is damaged and can't be opened", which only `xattr` gets past; an ad-hoc signed one gets Open Anyway in Privacy & Security. Revisit with a Developer ID, which adds signing and notarization secrets to CI and changes nothing else |
 
