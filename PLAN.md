@@ -978,6 +978,27 @@ main with no PRs (q10).
       socket, with a fallback line and a setting
 - [x] R4.8 Agents post questions with `ask_questions`; the person answers on the
       Alignment tab; questions carry illustrations; cards show pending counts
+- [x] R4.9 The Alignment tab reads as a group chat: Mila, Theo, Iris and Kai are
+      matte 3D blob personas that blink and turn their heads, one tab per persona,
+      replies queue and go out together, and an alignment score (80 for coverage, 20
+      for reasoning) never gates Build
+
+Round 4 QA, on a release build with Claude Code connected:
+1. Kill a session's `openplan mcp` process: its plan's session count drops at once.
+   Archive a Claude Code desktop session: check whether the count drops too (t2).
+2. File a plan, send one review: it moves from Draft to Alignment. The agent posts
+   one to three questions and ends its turn. Answer on the Alignment tab and send:
+   an idle session starts a turn by itself and the top bar reads "Agent woken."
+3. Personas blink, turn and hop. Blur the window: Activity Monitor shows the app
+   near 0% CPU. Reduced motion stills them.
+4. The score rises as you reply and rises more with a written reason. Build works
+   below 100 and its tooltip names the open areas.
+5. Press Build with an unsent comment: the agent answers it, asks what is left,
+   then moves the plan to In progress.
+6. Todos show one line each, open their detail with a slide, and the panel folds to
+   a rail with `mod+shift+t`.
+7. A `github.com` repo shows its owner's avatar. Merge a recorded PR on GitHub,
+   press Refresh on the board: "All PRs merged." and "Mark completed?" appear.
 
 #### GATE 7 QA script
 
@@ -1223,6 +1244,7 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-31 | A dead session leaves the list when its poll socket closes: a second blocked thread reads the poll's socket and wakes the poll on end of file | R4.6: a poll with no event never wrote, so a killed `openplan mcp` stayed counted. Two blocked threads cost no cycles, unlike a timed wake |
 | 2026-10-31 | Supersedes D11. The `openplan mcp` process wakes an idle Claude Code session by writing to its inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`): an auth line, then one `{"type":"user",...}` line. It reports the result to the app, which shows "Agent woken." or "Couldn't wake the session. It will hear on your next message." The setting "Wake the agent when I send a review" is on by default and lives in the app's server, which tells the process on each poll | Sid (R4.7, q16, q17). The format is undocumented. It was verified on 2026-10-31 by a child process writing to its own session, which got the message with no approval prompt. A session mid-turn hears through the Stop hook and then gets the wake after its turn, which costs one extra turn. Channels were rejected: research preview, a development-only startup flag, nothing on the desktop app |
 | 2026-10-31 | Events for a plan nobody is on wait for the first session that takes it, except status changes | The plan file already says where it stands, so a replayed status is noise |
+| 2026-10-31 | Supersedes the drawn persona tiles: personas are matte 3D blobs (Mila, Theo, Iris, Kai) with one prop each, colour tokens per persona in `index.css`, and one shared clock that runs only for on-screen avatars while the window is visible and focused. The score ring takes its length at once and only the number counts up | Sid (R4.9): clearly able to blink and turn their heads, not glossy. One clock and an IntersectionObserver keep idle CPU at zero (NFR-8). Only transform and opacity animate |
 | 2026-10-31 | `read_plan` ends with each alignment question and its answer | An agent woken by answers given in the app needs to read them somewhere |
 | 2026-10-31 | The app reads unmerged PRs with the person's `gh` CLI on plan open, from a board Refresh control, and when a plan's last session leaves. When every PR reads merged it offers "All PRs merged. Mark completed?". It never completes a plan on its own | Sid (q5, q6, q15). The agent's reports go stale once its session ends. `gh` uses the person's own login and needs no stored secret. The person stays the one who completes (2026-10-28) |
 
