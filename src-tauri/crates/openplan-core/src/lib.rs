@@ -2,6 +2,7 @@
 //! two can never disagree about what is on disk.
 
 pub mod base;
+pub mod comments;
 pub mod discovery;
 pub mod fs;
 pub mod import;

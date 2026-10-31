@@ -1,10 +1,11 @@
 import { RotateCcw, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
-  planAtRevision,
+  planDiff,
   planHistory,
   restorePlanRevision,
   SOURCE_LABELS,
+  type DiffLine,
   type Revision,
 } from "@/lib/planBase";
 import { Button } from "@/components/ui/button";
@@ -41,20 +42,20 @@ export function HistoryPanel({
 }: HistoryPanelProps) {
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [selected, setSelected] = useState<Revision | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [diff, setDiff] = useState<DiffLine[] | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setSelected(null);
-    setPreview(null);
+    setDiff(null);
     void planHistory(path).then(setRevisions);
   }, [open, path]);
 
   useEffect(() => {
     if (!selected) return;
     let stale = false;
-    void planAtRevision(path, selected.id).then((text) => {
-      if (!stale) setPreview(text);
+    void planDiff(path, selected.id).then((lines) => {
+      if (!stale) setDiff(lines);
     });
     return () => {
       stale = true;
@@ -80,7 +81,7 @@ export function HistoryPanel({
   };
 
   return (
-    <aside className="absolute inset-y-0 right-0 z-30 flex w-80 animate-in flex-col border-l border-border bg-background shadow-lg slide-in-from-right-4 duration-200">
+    <aside className="absolute inset-y-0 right-0 z-30 flex w-96 animate-in flex-col border-l border-border bg-background shadow-lg slide-in-from-right-4 duration-200">
       <div className="flex shrink-0 items-center justify-between px-4 pt-3.5 pb-2">
         <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
           History
@@ -129,9 +130,51 @@ export function HistoryPanel({
 
               {selected?.id === revision.id && (
                 <div className="mt-1 mb-2 px-2">
-                  <pre className="max-h-52 overflow-auto rounded-md border border-border bg-muted/40 p-2 text-[11px] leading-4 whitespace-pre-wrap text-muted-foreground">
-                    {preview ?? "Loading…"}
-                  </pre>
+                  <div className="max-h-72 overflow-auto rounded-md border border-border font-mono text-[11px] leading-5">
+                    {diff == null ? (
+                      <p className="p-2 text-muted-foreground">Loading…</p>
+                    ) : diff.length === 0 ? (
+                      <p className="p-2 text-muted-foreground">
+                        Nothing has changed since this version.
+                      </p>
+                    ) : (
+                      diff.map((line, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            "flex",
+                            line.origin === "+" && "bg-success/10",
+                            line.origin === "-" && "bg-destructive/10",
+                          )}
+                        >
+                          <span className="w-8 shrink-0 border-r border-border/50 pr-1 text-right text-muted-foreground/60 tabular-nums select-none">
+                            {line.oldLine ?? ""}
+                          </span>
+                          <span className="w-8 shrink-0 border-r border-border/50 pr-1 text-right text-muted-foreground/60 tabular-nums select-none">
+                            {line.newLine ?? ""}
+                          </span>
+                          <span
+                            className={cn(
+                              "w-4 shrink-0 text-center select-none",
+                              line.origin === "+" && "text-success",
+                              line.origin === "-" && "text-destructive",
+                            )}
+                          >
+                            {line.origin.trim()}
+                          </span>
+                          <span
+                            className={cn(
+                              "whitespace-pre-wrap",
+                              line.origin === "+" && "text-success",
+                              line.origin === "-" && "text-destructive",
+                            )}
+                          >
+                            {line.text || " "}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                   <TooltipButton
                     variant="outline"
                     size="xs"

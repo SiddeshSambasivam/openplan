@@ -96,7 +96,9 @@ describe("formatThreadsForAgent", () => {
     );
 
     expect(output).toContain("plans/auth.md");
-    expect(output).toContain("Lines 3-5");
+    expect(output).toContain("### Lines 3-5 (thread t1)");
+    expect(output).toContain("- **Comment (user):** why this order?");
+    expect(output).toContain("  - **Reply (claude-code):** because of X");
     expect(output).toContain("> the quoted text");
     expect(output).toContain("why this order?");
     expect(output).toContain("because of X");

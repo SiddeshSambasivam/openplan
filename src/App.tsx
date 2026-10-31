@@ -19,6 +19,12 @@ import { PlanMetaBar } from "./components/PlanMetaBar";
 import { HistoryPanel } from "./features/history/HistoryPanel";
 import { SettingsDialog } from "./features/settings/SettingsDialog";
 import { Onboarding } from "./features/onboarding/Onboarding";
+import { CommentComposer } from "./features/comments/CommentComposer";
+import { CommentsLayer, type AnchorState } from "./features/comments/CommentsLayer";
+import { CommentsPanel } from "./features/comments/CommentsPanel";
+import { useComments } from "./features/comments/useComments";
+import { blocksForRange } from "./lib/anchors";
+import type { CommentThread } from "./lib/comments";
 import { Outline } from "./components/Outline";
 import { Viewer } from "./components/Viewer";
 import { directoryEntryToTree, fileListToTree } from "./lib/browserFs";
@@ -51,6 +57,7 @@ import { useOutline } from "./lib/useOutline";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
   commitBase,
+  renamePlan,
   setPlanTags,
   SOURCE_LABELS,
   type PlanSummary,
@@ -223,6 +230,9 @@ export default function App() {
 
   const { base, plans, refresh: refreshPlans, arrivals } = usePlanBase();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [focusThreadId, setFocusThreadId] = useState<string | null>(null);
+  const [anchorStates, setAnchorStates] = useState<Record<string, AnchorState>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   // null until the answer is known, so the wizard neither flashes for people
   // who have been here before nor gets skipped for people who haven't.
@@ -1145,6 +1155,50 @@ export default function App() {
   );
   const planHeaderRef = useRef("");
   planHeaderRef.current = planHeader;
+  // Threads store file lines; the renderer sees the stripped body. The
+  // header's line count is the constant between the two.
+  const commentLineOffset =
+    planHeader === "" ? 0 : planHeader.split("\n").length - 1;
+
+  const canComment =
+    view === "preview" && activeDoc?.path != null && content != null;
+  const commentsDoc = canComment ? (activeDoc?.path ?? null) : null;
+  const {
+    threads: commentThreads,
+    addThread,
+    reply: replyToThread,
+    setResolved: setThreadResolved,
+    removeThread,
+  } = useComments(commentsDoc);
+  const openCommentCount = commentThreads.filter((t) => !t.resolved).length;
+
+  const openThread = useCallback((threadId: string) => {
+    setCommentsOpen(true);
+    setFocusThreadId(threadId);
+  }, []);
+
+  const jumpToThread = useCallback(
+    (thread: CommentThread) => {
+      const article = articleRef.current;
+      if (!article) return;
+      const [block] = blocksForRange(article, thread, commentLineOffset);
+      block?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFocusThreadId(thread.id);
+    },
+    [commentLineOffset],
+  );
+
+  const handleRename = useCallback(
+    (plan: PlanSummary, newTitle: string) => {
+      void renamePlan(plan.path, newTitle).then((newPath) => {
+        refreshPlans();
+        if (activeIdRef.current === plan.path || activeIdRef.current?.startsWith(plan.path)) {
+          openFilePaths([newPath]);
+        }
+      });
+    },
+    [refreshPlans, openFilePaths],
+  );
 
   const wordCount = useMemo(() => {
     if (content == null) return null;
@@ -1175,6 +1229,7 @@ export default function App() {
           activePlanPath={activeDoc?.path ?? null}
           onSelectPlan={selectPlan}
           onSelectDocument={selectDocument}
+          onRenamePlan={handleRename}
           onOpenSettings={() => setSettingsOpen(true)}
           activeId={activeDocId}
           expanded={expanded}
@@ -1225,6 +1280,9 @@ export default function App() {
           onFontSizeChange={setFontSize}
           outlineOpen={outlineShown}
           onToggleOutline={toggleOutline}
+          commentsOpen={commentsOpen}
+          onToggleComments={() => setCommentsOpen((o) => !o)}
+          openCommentCount={openCommentCount}
           onOpenFind={() => {
             setFindOpen(true);
             setFindFocusSeq((s) => s + 1);
@@ -1262,6 +1320,26 @@ export default function App() {
                 />
               </div>
             )}
+            {canComment && (
+              <>
+                <CommentsLayer
+                  threads={commentThreads}
+                  articleRef={articleRef}
+                  containerRef={scrollRef}
+                  lineOffset={commentLineOffset}
+                  activeThreadId={focusThreadId}
+                  onAnchorStates={setAnchorStates}
+                  onOpenThread={openThread}
+                />
+                <CommentComposer
+                  articleRef={articleRef}
+                  containerRef={scrollRef}
+                  lineOffset={commentLineOffset}
+                  enabled={canComment && !commentsOpen}
+                  onSubmit={addThread}
+                />
+              </>
+            )}
             {activeDoc ? (
               <Viewer
                 doc={activeDoc}
@@ -1289,6 +1367,23 @@ export default function App() {
             <div className="absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/50 fade-in backdrop-blur-[3px] duration-150">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
             </div>
+          )}
+          {canComment && (
+            <CommentsPanel
+              open={commentsOpen}
+              threads={commentThreads}
+              anchorStates={anchorStates}
+              docLabel={activePlan?.relativePath ?? activeDoc?.name ?? ""}
+              focusThreadId={focusThreadId}
+              onClose={() => {
+                setCommentsOpen(false);
+                setFocusThreadId(null);
+              }}
+              onReply={replyToThread}
+              onSetResolved={setThreadResolved}
+              onRemoveThread={removeThread}
+              onJumpTo={jumpToThread}
+            />
           )}
           {activePlan && (
             <HistoryPanel

@@ -11,6 +11,8 @@ interface PlanListProps {
   onSelect: (plan: PlanSummary) => void;
   /** Opens one document of a set, given its path inside the set's folder. */
   onSelectDocument: (plan: PlanSummary, document: string) => void;
+  /** Double-click a row to rename; commits on Enter. */
+  onRename: (plan: PlanSummary, newTitle: string) => void;
 }
 
 /** One level of a set's tree. Folders start open — a set is small, and a
@@ -121,6 +123,7 @@ export function PlanList({
   activePath,
   onSelect,
   onSelectDocument,
+  onRename,
 }: PlanListProps) {
   // Newest first; a plan without a date sorts by name at the end.
   const sorted = useMemo(
@@ -141,6 +144,9 @@ export function PlanList({
   // Archived plans are kept, not shown: the group starts closed, and opens
   // itself only when the plan being read is inside it.
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [renaming, setRenaming] = useState<{ path: string; value: string } | null>(
+    null,
+  );
   const readingArchived = archived.some((plan) => {
     const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
     return plan.path === activePath || !!activePath?.startsWith(folder);
@@ -168,6 +174,7 @@ export function PlanList({
     return (
       <li key={plan.path}>
         <button
+          onDoubleClick={() => setRenaming({ path: plan.path, value: plan.title })}
           onClick={() => {
             if (!isSet) {
               onSelect(plan);
@@ -203,7 +210,27 @@ export function PlanList({
           ) : (
             <FileText className="size-4 shrink-0 text-muted-foreground" />
           )}
-          <MarqueeText text={plan.title} className="flex-1" />
+          {renaming?.path === plan.path ? (
+            <input
+              autoFocus
+              value={renaming.value}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) =>
+                setRenaming({ path: plan.path, value: e.target.value })
+              }
+              onBlur={() => setRenaming(null)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renaming.value.trim()) {
+                  onRename(plan, renaming.value.trim());
+                  setRenaming(null);
+                }
+                if (e.key === "Escape") setRenaming(null);
+              }}
+              className="min-w-0 flex-1 cursor-text rounded border border-ring bg-background px-1 text-sm text-foreground outline-none"
+            />
+          ) : (
+            <MarqueeText text={plan.title} className="flex-1" />
+          )}
           {isSet && (
             <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
               {plan.documents.length}

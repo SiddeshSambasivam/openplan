@@ -9,7 +9,7 @@ use openplan_core::base::Base;
 use openplan_core::import::iso_from_unix;
 use openplan_core::plan::{self, slugify, Plan, PlanMeta};
 use openplan_core::repo::{self, Author};
-use openplan_core::{fs, library, settings, standards};
+use openplan_core::{comments, fs, library, settings, standards};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
 
@@ -87,6 +87,40 @@ fn tool_list() -> Value {
                 "type": "object",
                 "properties": { "id": { "type": "string" } },
                 "required": ["id"]
+            }
+        },
+        {
+            "name": "get_comments",
+            "description": "The user's open review comments on one plan, with thread ids, quoted text, and line numbers. Address each thread, then reply and resolve it.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "id": { "type": "string" } },
+                "required": ["id"]
+            }
+        },
+        {
+            "name": "reply_comment",
+            "description": "Reply to one review thread on a plan, as yourself.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "The plan's id" },
+                    "thread_id": { "type": "string" },
+                    "text": { "type": "string" }
+                },
+                "required": ["id", "thread_id", "text"]
+            }
+        },
+        {
+            "name": "resolve_comment",
+            "description": "Mark one review thread on a plan as resolved. Do this after addressing it, not instead.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "The plan's id" },
+                    "thread_id": { "type": "string" }
+                },
+                "required": ["id", "thread_id"]
             }
         },
         {
@@ -225,6 +259,70 @@ fn read_plan(base: &Base, args: &Value) -> Value {
     }
 }
 
+fn find_entry(base: &Base, args: &Value) -> Result<library::PlanEntry, Value> {
+    let Some(id) = args.get("id").and_then(Value::as_str) else {
+        return Err(text_result("Which plan? Pass its id.", true));
+    };
+    library::scan(base)
+        .into_iter()
+        .find(|e| e.meta.id == id)
+        .ok_or_else(|| text_result(format!("No plan called {id}."), true))
+}
+
+fn get_comments(base: &Base, args: &Value) -> Value {
+    match find_entry(base, args) {
+        Ok(entry) => text_result(
+            comments::format_for_agent(
+                &comments::read_threads(&entry.path),
+                &entry.relative_path.display().to_string(),
+            ),
+            false,
+        ),
+        Err(reply) => reply,
+    }
+}
+
+fn reply_comment(base: &Base, author: &str, args: &Value) -> Value {
+    let entry = match find_entry(base, args) {
+        Ok(entry) => entry,
+        Err(reply) => return reply,
+    };
+    let (Some(thread_id), Some(text)) = (
+        args.get("thread_id").and_then(Value::as_str),
+        args.get("text").and_then(Value::as_str).filter(|t| !t.trim().is_empty()),
+    ) else {
+        return text_result("reply_comment needs thread_id and text.", true);
+    };
+    if let Err(e) = comments::reply(&entry.path, thread_id, text, author, &now_iso()) {
+        return text_result(e, true);
+    }
+    let _ = repo::commit_all(
+        &base.root,
+        &Author::agent(author),
+        &format!("agent({author}): reply on {}", entry.meta.id),
+    );
+    text_result("Replied.", false)
+}
+
+fn resolve_comment(base: &Base, author: &str, args: &Value) -> Value {
+    let entry = match find_entry(base, args) {
+        Ok(entry) => entry,
+        Err(reply) => return reply,
+    };
+    let Some(thread_id) = args.get("thread_id").and_then(Value::as_str) else {
+        return text_result("resolve_comment needs a thread_id.", true);
+    };
+    if let Err(e) = comments::set_resolved(&entry.path, thread_id, true) {
+        return text_result(e, true);
+    }
+    let _ = repo::commit_all(
+        &base.root,
+        &Author::agent(author),
+        &format!("agent({author}): resolve thread on {}", entry.meta.id),
+    );
+    text_result("Resolved.", false)
+}
+
 fn get_standards() -> Value {
     let overrides = settings::settings_path()
         .ok()
@@ -277,6 +375,9 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                     "list_plans" => Ok(list_plans(base, &args)),
                     "tag_plan" => Ok(tag_plan(base, &author, &args)),
                     "read_plan" => Ok(read_plan(base, &args)),
+                    "get_comments" => Ok(get_comments(base, &args)),
+                    "reply_comment" => Ok(reply_comment(base, &author, &args)),
+                    "resolve_comment" => Ok(resolve_comment(base, &author, &args)),
                     "get_standards" => Ok(get_standards()),
                     other => Err((-32602, format!("No such tool: {other}"))),
                 }

@@ -124,12 +124,13 @@ export function formatThreadsForAgent(
       thread.lineStart === thread.lineEnd
         ? `Line ${thread.lineStart}`
         : `Lines ${thread.lineStart}-${thread.lineEnd}`;
-    out.push(`### ${lineLabel}`);
+    out.push(`### ${lineLabel} (thread ${thread.id})`);
     for (const quoteLine of thread.quote.split("\n")) out.push(`> ${quoteLine}`);
     out.push("");
     const [root, ...replies] = thread.comments;
-    if (root) out.push(`- **Comment:** ${root.text}`);
-    for (const reply of replies) out.push(`  - **Reply:** ${reply.text}`);
+    if (root) out.push(`- **Comment (${root.author}):** ${root.text}`);
+    for (const reply of replies)
+      out.push(`  - **Reply (${reply.author}):** ${reply.text}`);
     out.push("");
   }
 

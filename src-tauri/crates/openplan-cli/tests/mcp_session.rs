@@ -45,7 +45,13 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, vec!["create_plan", "list_plans", "tag_plan", "read_plan", "get_standards"]);
+    assert_eq!(
+        names,
+        vec![
+            "create_plan", "list_plans", "tag_plan", "read_plan",
+            "get_comments", "reply_comment", "resolve_comment", "get_standards"
+        ]
+    );
 
     let standards = ask(r##"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_standards","arguments":{}}}"##);
     assert!(standards["result"]["content"][0]["text"]
@@ -78,6 +84,44 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     assert!(text.contains("source: claude-code"), "client name normalised: {text}");
     assert!(text.contains("project: ~/work/api"));
     assert!(text.contains("tags: auth, needs-review"), "{text}");
+
+    // The user leaves a review comment the way the app writes one...
+    let base_root = home.join(".openplan");
+    let plan_path = base_root.join("plans/auth-refactor.md");
+    openplan_core::comments::write_threads(
+        &plan_path,
+        &[openplan_core::comments::CommentThread {
+            id: "t1".to_string(),
+            quote: "why".to_string(),
+            line_start: 10,
+            line_end: 10,
+            resolved: false,
+            comments: vec![openplan_core::comments::CommentEntry {
+                id: "c1".to_string(),
+                text: "explain this choice".to_string(),
+                created_at: "2026-08-16T12:00:00Z".to_string(),
+                edited_at: None,
+                author: "user".to_string(),
+            }],
+        }],
+    )
+    .unwrap();
+
+    // ...and the agent reads it, replies, and resolves it.
+    let review = ask(r##"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"get_comments","arguments":{"id":"auth-refactor"}}}"##);
+    let review_text = review["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(review_text.contains("thread t1"), "{review_text}");
+    assert!(review_text.contains("explain this choice"));
+
+    let replied = ask(r##"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"reply_comment","arguments":{"id":"auth-refactor","thread_id":"t1","text":"Because the schema owns the wire shape."}}}"##);
+    assert_eq!(replied["result"]["isError"], false, "{replied}");
+
+    let resolved = ask(r##"{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"resolve_comment","arguments":{"id":"auth-refactor","thread_id":"t1"}}}"##);
+    assert_eq!(resolved["result"]["isError"], false, "{resolved}");
+
+    let threads = openplan_core::comments::read_threads(&plan_path);
+    assert!(threads[0].resolved);
+    assert_eq!(threads[0].comments[1].author, "claude-code");
 
     drop(stdin);
     server.wait().unwrap();

@@ -4,7 +4,7 @@
 
 use openplan_core::base::Base;
 use openplan_core::repo::Author;
-use openplan_core::{library, plan, repo, settings, standards};
+use openplan_core::{comments, library, plan, repo, settings, standards};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -161,6 +161,63 @@ pub async fn commit_base(message: String) -> Result<Option<String>, String> {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DiffLine {
+    origin: char,
+    text: String,
+    old_line: Option<u32>,
+    new_line: Option<u32>,
+}
+
+#[tauri::command]
+pub async fn plan_diff(path: String, revision: String) -> Result<Vec<DiffLine>, String> {
+    let base = base()?;
+    let path = PathBuf::from(&path);
+    Ok(repo::diff_since(&base.root, relative(&base, &path)?, &revision)?
+        .into_iter()
+        .map(|l| DiffLine {
+            origin: l.origin,
+            text: l.text,
+            old_line: l.old_line,
+            new_line: l.new_line,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub async fn rename_plan(path: String, new_title: String) -> Result<PathBuf, String> {
+    let base = base()?;
+    openplan_core::import::rename_plan(
+        &base,
+        &openplan_core::repo::Author::user(),
+        std::path::Path::new(&path),
+        &new_title,
+    )
+}
+
+#[tauri::command]
+pub async fn comment_threads(path: String) -> Result<Vec<comments::CommentThread>, String> {
+    Ok(comments::read_threads(std::path::Path::new(&path)))
+}
+
+/// The interface writes whole thread lists; every save is one commit.
+#[tauri::command]
+pub async fn save_comment_threads(
+    path: String,
+    threads: Vec<comments::CommentThread>,
+) -> Result<(), String> {
+    comments::write_threads(std::path::Path::new(&path), &threads)?;
+    let base = base()?;
+    let name = std::path::Path::new(&path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("plan")
+        .to_string();
+    let _ = repo::commit_all(&base.root, &Author::user(), &format!("comments: {name}"));
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Revision {
     id: String,
     author: String,
@@ -261,10 +318,9 @@ fn is_relevant(root: &Path, event: &notify::Result<notify::Event>) -> bool {
             return false;
         };
         !inside.components().any(|c| {
-            c.as_os_str()
-                .to_str()
-                .map(|s| s.starts_with('.'))
-                .unwrap_or(false)
+            let name = c.as_os_str().to_str().unwrap_or("");
+            // Comment sidecars are dotted but are content, not bookkeeping.
+            name.starts_with('.') && !name.ends_with("oplan-comments.json")
         })
     })
 }

@@ -1,5 +1,6 @@
 import {
   Eye,
+  MessageSquareText,
   Moon,
   PanelLeft,
   Search,
@@ -35,6 +36,10 @@ interface HeaderProps {
   onFontSizeChange: (fontSize: FontSize) => void;
   outlineOpen: boolean;
   onToggleOutline: () => void;
+  commentsOpen: boolean;
+  onToggleComments: () => void;
+  /** Open discussions on the current plan, shown on the icon. */
+  openCommentCount: number;
   onOpenFind: () => void;
   /** Keep clear of the macOS traffic lights when the sidebar is hidden. */
   trafficLightGap: boolean;
@@ -57,6 +62,9 @@ export function Header({
   onFontSizeChange,
   outlineOpen,
   onToggleOutline,
+  commentsOpen,
+  onToggleComments,
+  openCommentCount,
   onOpenFind,
   trafficLightGap,
 }: HeaderProps) {
@@ -146,6 +154,26 @@ export function Header({
           className={cn(outlineOpen && "bg-accent text-accent-foreground")}
         >
           <TableOfContents className="size-4" />
+        </TooltipButton>
+      )}
+
+      {doc && inPreview && (
+        <TooltipButton
+          variant="ghost"
+          size="icon-sm"
+          onClick={onToggleComments}
+          tooltip="Comments"
+          tooltipSide="bottom" tooltipAlign="end"
+          aria-label="Comments"
+          aria-expanded={commentsOpen}
+          className={cn("relative", commentsOpen && "bg-accent text-accent-foreground")}
+        >
+          <MessageSquareText className="size-4" />
+          {openCommentCount > 0 && (
+            <span className="absolute top-0.5 right-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground">
+              {openCommentCount > 9 ? "9+" : openCommentCount}
+            </span>
+          )}
         </TooltipButton>
       )}
 

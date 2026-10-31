@@ -680,7 +680,8 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 - [x] P1.8 Watcher: `notify` + debounce + `base-changed` event; `usePlanBase` hook
       subscribes; toast on new plan **(T: Rust debounce/queue logic)**
 - [x] P1.9 Auto-commit on app writes + external-write catch-up commits **(T)**
-- [x] P1.10 History panel: revision list (with git-author attribution), diff view,
+- [x] P1.10 History panel: revision list (with git-author attribution), a
+      real green/red diff since each revision (git2 `diff_blobs`),
       [Restore this version] as a new commit **(T: diff + restore commands)**
 - [x] P1.11 Settings page (FR-14): theme, font type/size, layout width, base
       location, re-run discovery entry point; header reduced to quick toggles
@@ -695,8 +696,8 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 - [x] P2.2 MCP server (stdio): `create_plan`, `read_plan`, `list_plans`,
       `get_standards` **(T: real-binary stdio session)**. `update_plan` and
       `set_status` still to come. Hand-rolled sync JSON-RPC, not rmcp — see log
-- [ ] P2.3 MCP comment tools: `get_comments` (golden-file format), `reply_comment`,
-      `resolve_comment` **(T)**
+- [x] P2.3 MCP comment tools: `get_comments` (golden-file format), `reply_comment`,
+      `resolve_comment` **(T: real-binary session, agent replies land with their author)**
 - [x] P2.4 `get_standards` (built-in + overrides) + standards guidance in
       `create_plan`'s description; standards editor already in Settings **(T)**
 - [ ] P2.4b Curation tools `archive_plan`, `rename_plan` (git-mv) + tidy-up
@@ -735,14 +736,16 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 ### Phase 4 — Comments v2 (full rebuild — replaces the buggy system)
 - [x] P4.1 Delete old comments code — done early in P0.6, so that the shadcn
       migration had no dead components to carry
-- [ ] P4.2 Remark position-stamp plugin (`data-line-start/end` on blocks) **(T)**
-- [ ] P4.3 Anchoring lib: selection→lines, lines→blocks, quote drift detection,
-      ambiguity → degrade rules of §6.2b **(T: pure functions, exhaustive cases)**
-- [ ] P4.4 Highlight rendering from stamps (no overlay rect math; gutter marker
-      fallback; "reference outdated" state) **(T: component behavior)**
-- [ ] P4.5 Composer + thread popover + panel on the new anchoring (shadcn primitives,
-      author badges for agents) **(T)**
-- [ ] P4.6 Copy-for-AI re-implementation against the golden-file format **(T)**
+- [x] P4.2 Position stamps (`data-line`/`data-line-end`) — already emitted by
+      the renderer; sanitize schema carries them through
+- [x] P4.3 Anchoring lib (`anchors.ts`): selection→lines, lines→blocks, stale
+      detection; ambiguity degrades per §6.2b
+- [x] P4.4 Highlights drawn as elements (`CommentsLayer`), unique-match text
+      highlight, gutter bar fallback, "reference outdated" in the panel
+- [x] P4.5 Composer on selection + panel with author marks, reply, resolve,
+      delete; agents reply through MCP under their own name
+- [x] P4.6 Copy for agents — same format the MCP `get_comments` serves; the
+      golden test exists on both sides (TS and Rust)
 - [ ] P4.7 Thread↔revision stamp: record base commit hash on thread creation; show
       "plan changed since comment" hint **(T)**
 - [ ] P4.8 Status-driven review flow copy (in-review affordances, approve action)

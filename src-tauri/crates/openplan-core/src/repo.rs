@@ -160,6 +160,69 @@ fn commit_touched(repo: &Repository, commit: &git2::Commit, path: &Path) -> bool
         .unwrap_or(false)
 }
 
+/// One line of a diff between a revision and the working file.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DiffLine {
+    /// ' ' context, '+' added since the revision, '-' removed since it.
+    pub origin: char,
+    pub text: String,
+    pub old_line: Option<u32>,
+    pub new_line: Option<u32>,
+}
+
+/// What changed between a revision and the file as it is now, computed by
+/// git's own diff so it matches what any git tool would say.
+pub fn diff_since(
+    root: &Path,
+    relative_path: &Path,
+    revision: &str,
+) -> Result<Vec<DiffLine>, String> {
+    let repo = open_or_init(root)?;
+    let oid = git2::Oid::from_str(revision).map_err(|_| "That isn't a revision.".to_string())?;
+    let commit = repo
+        .find_commit(oid)
+        .map_err(|e| format!("Couldn't find that revision: {e}"))?;
+    let old_blob = commit
+        .tree()
+        .and_then(|t| t.get_path(relative_path).and_then(|e| repo.find_blob(e.id())))
+        .ok();
+    let current = std::fs::read(root.join(relative_path)).unwrap_or_default();
+    let new_oid = repo
+        .blob(&current)
+        .map_err(|e| format!("Couldn't diff that revision: {e}"))?;
+    let new_blob = repo
+        .find_blob(new_oid)
+        .map_err(|e| format!("Couldn't diff that revision: {e}"))?;
+
+    let mut lines = Vec::new();
+    repo.diff_blobs(
+        old_blob.as_ref(),
+        None,
+        Some(&new_blob),
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(&mut |_delta, _hunk, line| {
+            let origin = line.origin();
+            if matches!(origin, ' ' | '+' | '-') {
+                lines.push(DiffLine {
+                    origin,
+                    text: String::from_utf8_lossy(line.content())
+                        .trim_end_matches('\n')
+                        .to_string(),
+                    old_line: line.old_lineno(),
+                    new_line: line.new_lineno(),
+                });
+            }
+            true
+        }),
+    )
+    .map_err(|e| format!("Couldn't diff that revision: {e}"))?;
+    Ok(lines)
+}
+
 /// A plan's content as of one revision.
 pub fn read_at(root: &Path, relative_path: &Path, revision: &str) -> Result<String, String> {
     let repo = open_or_init(root)?;
@@ -254,6 +317,25 @@ mod tests {
         let oldest = &revisions.last().unwrap().id;
 
         assert_eq!(read_at(&root, Path::new("plans/a.md"), oldest).unwrap(), "# First");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_diff_says_what_changed_since_a_revision() {
+        let root = temp_repo("openplan-core-repo-diff");
+        write(&root, "plans/a.md", "# A\n\nkeep this\ndrop this\n");
+        commit_all(&root, &Author::user(), "edit: a").unwrap();
+        write(&root, "plans/a.md", "# A\n\nkeep this\nadd this\n");
+
+        let revisions = history(&root, Path::new("plans/a.md")).unwrap();
+        let lines = diff_since(&root, Path::new("plans/a.md"), &revisions[0].id).unwrap();
+
+        let removed: Vec<&str> = lines.iter().filter(|l| l.origin == '-').map(|l| l.text.as_str()).collect();
+        let added: Vec<&str> = lines.iter().filter(|l| l.origin == '+').map(|l| l.text.as_str()).collect();
+        assert_eq!(removed, vec!["drop this"]);
+        assert_eq!(added, vec!["add this"]);
+        let context = lines.iter().find(|l| l.origin == ' ').unwrap();
+        assert!(context.old_line.is_some() && context.new_line.is_some());
         let _ = std::fs::remove_dir_all(&root);
     }
 

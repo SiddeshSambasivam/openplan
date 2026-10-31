@@ -51,6 +51,14 @@ export interface Revision {
   message: string;
 }
 
+export interface DiffLine {
+  /** ' ' context, '+' added since the revision, '-' removed since it. */
+  origin: string;
+  text: string;
+  oldLine: number | null;
+  newLine: number | null;
+}
+
 export interface SearchHit {
   path: string;
   title: string;
@@ -99,6 +107,14 @@ export async function planHistory(path: string): Promise<Revision[]> {
 
 export async function planAtRevision(path: string, revision: string): Promise<string> {
   return invoke<string>("plan_at_revision", { path, revision });
+}
+
+export async function planDiff(path: string, revision: string): Promise<DiffLine[]> {
+  return invoke<DiffLine[]>("plan_diff", { path, revision });
+}
+
+export async function renamePlan(path: string, newTitle: string): Promise<string> {
+  return invoke<string>("rename_plan", { path, newTitle });
 }
 
 export async function restorePlanRevision(
