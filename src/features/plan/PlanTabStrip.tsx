@@ -9,7 +9,9 @@ import { WaitingBadge } from "./WaitingBadge";
  * A plan's tabs, along the top of the plan area, each the strip's full
  * height. The open tab joins the page below it, with a rule along its top.
  * The Alignment tab counts the questions still waiting on the person. The
- * corners are square by Sid's choice, for this strip only.
+ * corners are square by Sid's choice, for this strip only. The open tab is
+ * styled from `aria-selected`, because the tooltip writes its own
+ * `data-state` over the tab's.
  */
 export function PlanTabStrip({
   tab,
@@ -36,7 +38,7 @@ export function PlanTabStrip({
             <TooltipTrigger asChild>
               <TabsTrigger
                 value={option.value}
-                className="h-full flex-none rounded-none border-0 border-t-2 border-r border-t-transparent border-r-border bg-transparent px-4 text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-t-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-none dark:text-muted-foreground dark:hover:text-foreground dark:data-[state=active]:border-t-foreground dark:data-[state=active]:border-r-border dark:data-[state=active]:bg-background"
+                className="h-full flex-none rounded-none border-0 border-t-2 border-r border-t-transparent border-r-border bg-transparent px-4 text-muted-foreground transition-colors hover:text-foreground aria-selected:border-t-foreground aria-selected:bg-background aria-selected:text-foreground aria-selected:shadow-none dark:text-muted-foreground dark:hover:text-foreground dark:aria-selected:border-t-foreground dark:aria-selected:border-r-border dark:aria-selected:bg-background"
               >
                 {option.label}
                 {option.value === "alignment" && waiting > 0 && <WaitingBadge count={waiting} />}
