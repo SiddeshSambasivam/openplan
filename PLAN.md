@@ -166,7 +166,7 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 | FR-5 | **Comments (v2 — rebuilt)**: threads anchored to plan text with reply/edit/delete/resolve and `author` per comment (`user` or agent name), rendered distinctly. ⚠️ The existing comments/highlight implementation is **buggy and will NOT be reused** — the interactive layer (selection → anchor → highlight → popovers) is rebuilt test-first on a sturdier anchoring model (§6.2b). The sidecar **data format** (§6.2) and the agent-export **output format** survive as specs. "Copy for AI" export re-implemented against them. |
 | FR-6 | **Versioning & attribution**: every write to the base auto-commits **with the writer as git author** (`user`, `claude-code`, `codex`, `cursor`) — history always answers *who changed what, when*. Per-plan history view: revision list with authors, diff between any revision and current, and **[Restore this version]** (creates a new commit — history is never rewritten). |
 | FR-7 | **Live updates**: external changes to the base (agent writes) appear in the UI within 1s, without focus change. New-plan toast: "New plan from claude-code". |
-| FR-8 | **`openplan` CLI + MCP server**: one binary; MCP tools `create_plan, update_plan, read_plan, list_plans, set_status, get_comments, reply_comment, resolve_comment, get_standards`; CLI verbs mirror them. Reads the same base config the app writes. |
+| FR-8 | **`openplan` CLI + MCP server**: one binary; MCP tools `create_plan, update_plan, read_plan, list_plans, set_status, get_comments, reply_comment, resolve_comment, describe_project, get_standards`; CLI verbs mirror them. Reads the same base config the app writes. |
 | FR-9 | **Agent installers**: `openplan install claude-code` (MCP registration + plugin with skill and optional ExitPlanMode hook), `openplan install codex` (`config.toml` MCP entry + AGENTS.md snippet), and `openplan install cursor` (`~/.cursor/mcp.json` entry + rules snippet). App onboarding has Connect buttons that run these and verify. |
 | FR-10 | **Standards**: the house style ships **with the app**, not in the plan base — a base is plans and their history, and a copy per base would drift. Settings expose additions that layer on top, so a new build's improvements still reach someone who wrote their own rules. Served to agents via `get_standards` and summarized into the `create_plan` tool description. |
 | FR-11 | **Auto-discovery import**: onboarding (re-runnable from settings) scans `~/.claude/plans/*.md` (loose markdown — verified) and best-effort `~/.codex/sessions/**/rollout-*.jsonl` (`update_plan` payloads). Shows candidates with preview; selected ones are copied into the base with synthesized frontmatter; imported hashes remembered to prevent duplicates. |
@@ -819,10 +819,48 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
       and when in the sidecar **(T)**
 - [x] P6.9 Motion pass: transform and opacity only, reduced-motion guard, 60fps on
       a 2MB plan **(T: stagger cap and what a group mounted with)**
-- [ ] P6.10 Version 0.2.0 across `package.json`, Cargo, `tauri.conf.json`; release
+- [x] P6.10 Version 0.2.0 across `package.json`, Cargo, `tauri.conf.json`; release
 - [ ] **GATE 6 — Sid manual QA & approval** (board and status flow end to end with
       a live session; comments reach the session without copy and paste; HTML and
       markdown plans; idle CPU ~0% with the loopback server up)
+
+#### GATE 6 QA script
+
+Run the installed 0.2.0 build against the real base, not a debug build.
+
+1. Old plans (FR-2, P6.1). A plan whose frontmatter still says `tags: archived`
+   reads Completed; every other old plan reads Draft. No tag shows anywhere.
+2. Board (FR-16, P6.6). Four columns, Completed folded away until opened, counts
+   matching All plans. All plans groups and sorts by status, project and updated.
+3. For you (FR-16). Only what waits on you: In review, or a thread the agent
+   replied to last.
+4. Projects (FR-18, P6.2). Filter the board to one project. A `github.com` repo
+   shows the owner's avatar, others the fallback mark, and the name reads
+   `owner/repo` in the board, the list, the sidebar and the plan header.
+5. Plan page (P6.5). Open a plan from a card. The breadcrumb returns to the view
+   you came from. The status picker ticks the current status and only that one;
+   changing it rewrites the file's frontmatter.
+6. Rendered page (FR-4, P6.7). Read a real feature plan and a real bug plan:
+   sections laid out by type, decision runs in cards, Mermaid still draws.
+7. HTML plan (FR-19). Set authoring to HTML, have an agent file one, open it. It
+   renders in the frame and scrolls inside the article.
+8. Live session (FR-17, P6.4). Have a Claude Code session read a draft plan. The
+   top bar reads "1 session" and the plan moves to In progress. End the session:
+   the count goes, the status stays.
+9. Review (FR-5, P6.8). Two comments on that plan, so the panel reads "Send
+   review (2)". Send, and the session picks them up on its next tool call.
+10. Threads (P6.8). The agent replies in both, which reads as answered. Resolve
+    one from the app and one from the agent; each says who closed it.
+11. Reduced motion (NFR-2, P6.9). Turn on Reduce Motion in macOS Accessibility.
+    Views and cards appear at once, with no stagger and no hold.
+12. 720x480 and both themes (NFR-1). Nothing clips or scrolls sideways, the nav
+    and the picker still work, and no surface keeps the old palette after a toggle.
+13. Idle cost (NFR-8). App open, a session connected, nothing happening: watch
+    OpenPlan in Activity Monitor for a minute. CPU should sit near 0%.
+
+Known and decided, not bugs: HTML plans carry no comments, because anchors are
+markdown source lines; and a comment reaches the agent on its next tool call
+rather than at once, because MCP gives a server no way to speak first.
 
 ---
 
