@@ -19,7 +19,7 @@ import { EmptyState } from "./components/EmptyState";
 import { FindBar } from "./components/FindBar";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
-import { TableOfContents, type TocSide } from "./components/TableOfContents";
+import { Outline } from "./components/Outline";
 import { Viewer } from "./components/Viewer";
 import { directoryEntryToTree, fileListToTree } from "./lib/browserFs";
 import type { CommentThread, PendingDraft } from "./lib/comments";
@@ -47,13 +47,9 @@ import {
   updateInlineDoc,
 } from "./lib/tree";
 import { isFontSize, FONT_SIZE_SCALES, type FontSize } from "./lib/fontSize";
-import {
-  isTocVisibility,
-  TOC_VISIBILITY_ORDER,
-  type TocVisibility,
-} from "./lib/toc";
 import type { DocFile, FolderNode, LibraryItem, ViewMode } from "./lib/types";
 import { useComments } from "./lib/useComments";
+import { useOutline } from "./lib/useOutline";
 import { cn } from "./lib/utils";
 import { WELCOME_DOC_ID, WELCOME_MARKDOWN } from "./lib/welcome";
 import {
@@ -71,8 +67,7 @@ const STORE_SIDEBAR = "openplan:sidebar";
 const STORE_SIDEBAR_WIDTH = "openplan:sidebar-width";
 const STORE_WIDTH = "openplan:width";
 const STORE_FONT_SIZE = "openplan:font-size";
-const STORE_TOC_VISIBILITY = "openplan:toc-visibility";
-const STORE_TOC_SIDE = "openplan:toc-side";
+const STORE_OUTLINE = "openplan:outline";
 
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_DEFAULT_WIDTH = 256;
@@ -85,10 +80,13 @@ function clampSidebarWidth(width: number): number {
   return Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), max);
 }
 
-/** Below this, the TOC's "panel" mode (which assumes room to spare) and the
- * comments panel (normally an in-flow column) both switch to floating over
- * the content instead of permanently claiming layout width from it. */
+/** Below this the comments panel floats over the content instead of
+ * permanently claiming layout width from it. */
 const NARROW_VIEWPORT_BREAKPOINT = 900;
+
+/** The main area needs at least this much room to give the outline a column
+ * of its own and still leave a comfortable reading measure beside it. */
+const OUTLINE_COLUMN_MIN_WIDTH = 760;
 
 interface StoredItem {
   kind?: "file" | "folder";
@@ -193,40 +191,34 @@ export default function App() {
     }
   });
   const [sidebarResizing, setSidebarResizing] = useState(false);
-  const [isNarrowViewport, setIsNarrowViewport] = useState(
-    () => window.innerWidth < NARROW_VIEWPORT_BREAKPOINT,
-  );
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const [contentWidth, setContentWidth] = useState<ContentWidth>(() => {
     try {
       const stored = localStorage.getItem(STORE_WIDTH);
-      return stored && isContentWidth(stored) ? stored : "spaced";
+      return stored && isContentWidth(stored) ? stored : "compact";
     } catch {
-      return "spaced";
+      return "compact";
     }
   });
   const [fontSize, setFontSize] = useState<FontSize>(() => {
     try {
       const stored = localStorage.getItem(STORE_FONT_SIZE);
-      return stored && isFontSize(stored) ? stored : "normal";
+      return stored && isFontSize(stored) ? stored : "small";
     } catch {
-      return "normal";
+      return "small";
     }
   });
-  const [tocSide, setTocSide] = useState<TocSide>(() => {
+  const [outlineOpen, setOutlineOpen] = useState(() => {
     try {
-      return localStorage.getItem(STORE_TOC_SIDE) === "left" ? "left" : "right";
+      return localStorage.getItem(STORE_OUTLINE) !== "closed";
     } catch {
-      return "right";
+      return true;
     }
   });
-  const [tocVisibility, setTocVisibility] = useState<TocVisibility>(() => {
-    try {
-      const stored = localStorage.getItem(STORE_TOC_VISIBILITY);
-      return stored && isTocVisibility(stored) ? stored : "open";
-    } catch {
-      return "open";
-    }
-  });
+  // A floating outline covers the text it describes, so — unlike the column,
+  // whose open state is a saved preference — it is only ever shown on
+  // purpose, and never carries over from a wider window.
+  const [floatingOutlineOpen, setFloatingOutlineOpen] = useState(false);
 
   const [dirty, setDirty] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -907,15 +899,10 @@ export default function App() {
   // Re-clamp if the window shrinks enough that the current width now
   // exceeds 40% of it (also covers a width persisted from a wider display).
   useEffect(() => {
-    const onResize = () => setSidebarWidth((w) => clampSidebarWidth(w));
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  useEffect(() => {
-    const onResize = () =>
-      setIsNarrowViewport(window.innerWidth < NARROW_VIEWPORT_BREAKPOINT);
+    const onResize = () => {
+      setViewportWidth(window.innerWidth);
+      setSidebarWidth((w) => clampSidebarWidth(w));
+    };
     onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -962,29 +949,29 @@ export default function App() {
     }
   }, [fontSize]);
 
-  /** Cycle open -> autohide -> closed -> open. */
-  const cycleTocVisibility = useCallback(() => {
-    setTocVisibility((current) => {
-      const i = TOC_VISIBILITY_ORDER.indexOf(current);
-      return TOC_VISIBILITY_ORDER[(i + 1) % TOC_VISIBILITY_ORDER.length];
-    });
-  }, []);
+  // Whether there is room for the outline to have a column of its own; when
+  // there isn't, it floats instead, and the two have separate open states.
+  const outlineOverlays =
+    viewportWidth - (sidebarOpen ? sidebarWidth : 0) < OUTLINE_COLUMN_MIN_WIDTH;
+  const outlineShown = outlineOverlays ? floatingOutlineOpen : outlineOpen;
+  const toggleOutline = useCallback(() => {
+    if (outlineOverlays) setFloatingOutlineOpen((o) => !o);
+    else setOutlineOpen((o) => !o);
+  }, [outlineOverlays]);
+  const closeOutline = useCallback(() => setFloatingOutlineOpen(false), []);
+  const { items: outlineItems, activeId: outlineActiveId } = useOutline(
+    articleRef,
+    scrollRef,
+    content,
+  );
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORE_TOC_SIDE, tocSide);
+      localStorage.setItem(STORE_OUTLINE, outlineOpen ? "open" : "closed");
     } catch {
       // best-effort
     }
-  }, [tocSide]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORE_TOC_VISIBILITY, tocVisibility);
-    } catch {
-      // best-effort
-    }
-  }, [tocVisibility]);
+  }, [outlineOpen]);
 
   /* ---------- initial folder scans ---------- */
 
@@ -1190,7 +1177,7 @@ export default function App() {
         toggleTheme();
       } else if (key === "t" && e.shiftKey) {
         e.preventDefault();
-        cycleTocVisibility();
+        toggleOutline();
       } else if (key === "f" && !e.shiftKey) {
         // Editing has its own find (CodeMirror's built-in panel, bound via
         // searchKeymap on the editor itself) — don't intercept there.
@@ -1216,7 +1203,7 @@ export default function App() {
     flushSave,
     toggleEdit,
     toggleTheme,
-    cycleTocVisibility,
+    toggleOutline,
   ]);
 
   useEffect(() => {
@@ -1233,27 +1220,8 @@ export default function App() {
     return content.split(/\s+/).filter(Boolean).length;
   }, [content]);
 
-  const showToc =
-    view === "preview" &&
-    activeDoc != null &&
-    content != null &&
-    tocVisibility !== "closed";
-  // A floating TOC would sit on top of the text once it spans full width —
-  // give it its own column instead. autohide stays an overlay: it's only
-  // ever transiently visible, so a brief overlap on hover is fine. Panel
-  // mode assumes room to spare, so it's suppressed on narrow viewports even
-  // if the width setting would otherwise call for it.
-  const tocIsPanel =
-    showToc && tocVisibility === "open" && contentWidth === "full" && !isNarrowViewport;
-  // Narrowed for TableOfContents' prop type; only used once showToc/tocIsPanel
-  // have already ruled out "closed".
-  const openTocVisibility: Exclude<TocVisibility, "closed"> =
-    tocVisibility === "closed" ? "open" : tocVisibility;
-
-  const sidebarInsetPx = sidebarOpen ? sidebarWidth : 0;
-  // Matches the panel's own `w-80` — pushes the floating right-side TOC
-  // clear of it (open or overlay, either way it visually claims that edge).
-  const commentsInsetPx = commentsOpen ? 320 : 0;
+  const showOutline = view === "preview" && activeDoc != null && content != null;
+  const isNarrowViewport = viewportWidth < NARROW_VIEWPORT_BREAKPOINT;
   const openCommentCount = commentThreads.filter((t) => !t.resolved).length;
 
   return (
@@ -1273,8 +1241,6 @@ export default function App() {
           onToggleDir={toggleDir}
           onSelect={selectFile}
           onRemove={removeItem}
-          onOpenFileDialog={() => void openFileDialog()}
-          onOpenFolderDialog={() => void openFolderDialog()}
           padTop={isTauri && isMac}
         />
       </div>
@@ -1314,8 +1280,8 @@ export default function App() {
           onContentWidthChange={setContentWidth}
           fontSize={fontSize}
           onFontSizeChange={setFontSize}
-          tocVisibility={tocVisibility}
-          onTocVisibilityChange={setTocVisibility}
+          outlineOpen={outlineShown}
+          onToggleOutline={toggleOutline}
           onOpenFind={() => {
             setFindOpen(true);
             setFindFocusSeq((s) => s + 1);
@@ -1325,20 +1291,10 @@ export default function App() {
           openCommentCount={openCommentCount}
           trafficLightGap={isTauri && isMac}
         />
-        <div className="flex min-h-0 flex-1">
-          {tocIsPanel && tocSide === "left" && (
-            <TableOfContents
-              mode="panel"
-              articleRef={articleRef}
-              scrollRef={scrollRef}
-              watch={content}
-              side={tocSide}
-              onSideChange={setTocSide}
-              visibility="open"
-              leftInset={sidebarInsetPx}
-              rightInset={commentsInsetPx}
-            />
-          )}
+        {/* Clips the outline while it sits translated off-screen — otherwise
+            it enlarges the scrollable area and the browser can scroll the
+            whole layout sideways to reveal it. */}
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <div
             ref={scrollRef}
             style={
@@ -1348,7 +1304,7 @@ export default function App() {
               } as CSSProperties
             }
             className={cn(
-              "relative min-h-0 flex-1",
+              "relative min-h-0 min-w-0 flex-1",
               view === "edit" && activeDoc && content != null
                 ? "overflow-hidden"
                 : "overflow-y-auto",
@@ -1386,17 +1342,13 @@ export default function App() {
               />
             )}
           </div>
-          {tocIsPanel && tocSide === "right" && (
-            <TableOfContents
-              mode="panel"
-              articleRef={articleRef}
-              scrollRef={scrollRef}
-              watch={content}
-              side={tocSide}
-              onSideChange={setTocSide}
-              visibility="open"
-              leftInset={sidebarInsetPx}
-              rightInset={commentsInsetPx}
+          {showOutline && (
+            <Outline
+              items={outlineItems}
+              activeId={outlineActiveId}
+              open={outlineShown}
+              overlay={outlineOverlays}
+              onClose={closeOutline}
             />
           )}
         </div>
@@ -1439,20 +1391,6 @@ export default function App() {
         />
       )}
 
-      {showToc && !tocIsPanel && (
-        <TableOfContents
-          mode="floating"
-          articleRef={articleRef}
-          scrollRef={scrollRef}
-          watch={content}
-          side={tocSide}
-          onSideChange={setTocSide}
-          visibility={openTocVisibility}
-          leftInset={sidebarInsetPx}
-          rightInset={commentsInsetPx}
-        />
-      )}
-
       <FindBar
         articleRef={articleRef}
         open={findOpen}
@@ -1470,7 +1408,7 @@ export default function App() {
       {dragging && <DropOverlay />}
 
       {notice && (
-        <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-border bg-popover px-4 py-2 text-sm text-popover-foreground shadow-md">
+        <div className="animate-rise-in pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-border bg-popover px-4 py-2 text-sm text-popover-foreground shadow-md">
           {notice}
         </div>
       )}

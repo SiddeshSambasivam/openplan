@@ -62,7 +62,7 @@ export function IconMenu<T extends string>({
         <Icon className="size-4" />
       </Button>
       {open && (
-        <div className="absolute top-full right-0 z-50 mt-1.5 w-40 rounded-lg border border-border bg-popover p-1 shadow-md">
+        <div className="animate-pop-in absolute top-full right-0 z-50 mt-1.5 w-40 rounded-lg border border-border bg-popover p-1 shadow-md">
           {options.map((opt) => (
             <button
               key={opt.value}

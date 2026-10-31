@@ -10,7 +10,7 @@ export function EmptyState({
   onOpenFolderDialog: () => void;
 }) {
   return (
-    <div className="flex h-full items-center justify-center p-8">
+    <div className="animate-fade-in flex h-full items-center justify-center p-8">
       <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-xl border-2 border-dashed border-border px-8 py-16 text-center">
         <div className="flex size-12 items-center justify-center rounded-xl border border-border bg-muted">
           <FileText className="size-6 text-muted-foreground" />

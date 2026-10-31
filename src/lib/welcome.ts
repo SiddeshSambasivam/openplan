@@ -7,8 +7,8 @@ losing them across sessions, tools, and repos.
 
 ## Getting started
 
-- **Drag & drop** Markdown files — or **entire folders** — onto this window; folders appear as a collapsible tree
-- Click **File** or **Folder** in the sidebar (or press \`⌘O\` / \`Ctrl+O\`, and \`⇧⌘O\` / \`Ctrl+Shift+O\` for folders)
+- **Drag & drop** Markdown anywhere onto this window — a whole directory appears as a collapsible tree
+- Or press \`⌘O\` / \`Ctrl+O\` to browse (\`⇧⌘O\` / \`Ctrl+Shift+O\` for a directory)
 - Your library sticks around between sessions
 
 > OpenPlan never copies, moves, or indexes your files. It reads them from wherever they already live.
@@ -60,7 +60,7 @@ flowchart LR
 4. Press \`⌘B\` / \`Ctrl+B\` to hide the sidebar for distraction-free reading — drag its right edge to **resize** it, double-click the edge to reset
 5. Type in the **Search** box at the top of the sidebar to filter your library by name — matches inside folders reveal themselves automatically
 6. Use the **AA** icon in the header to adjust reading font size, and the width icon to pick **Compact**, **Spaced**, or **Full width** columns
-7. Long document? An **outline** appears on the side in preview — press \`⇧⌘T\` / \`Ctrl+Shift+T\` to cycle it between always shown, auto-hide, and hidden
+7. Long document? An **outline** sits beside the text in preview — press \`⇧⌘T\` / \`Ctrl+Shift+T\` (or the header icon) to show or hide it. On a narrow window it floats over the page instead, and closes as soon as you pick a heading
 8. Remove a file or folder from the sidebar by hovering over it — this never touches anything on disk
 9. Folders re-scan automatically when you return to the window, so new files just show up
 

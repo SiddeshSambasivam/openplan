@@ -6,17 +6,16 @@ import {
   Search,
   SquarePen,
   Sun,
+  TableOfContents,
 } from "lucide-react";
 import { isMac } from "../lib/platform";
 import type { FontSize } from "../lib/fontSize";
-import type { TocVisibility } from "../lib/toc";
 import type { DocFile, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
 import { cn } from "../lib/utils";
 import { Button } from "./Button";
 import { FontSizeMenu } from "./FontSizeMenu";
 import { MarqueeText } from "./MarqueeText";
-import { TocMenu } from "./TocMenu";
 import { WidthMenu } from "./WidthMenu";
 
 interface HeaderProps {
@@ -35,8 +34,8 @@ interface HeaderProps {
   onContentWidthChange: (width: ContentWidth) => void;
   fontSize: FontSize;
   onFontSizeChange: (fontSize: FontSize) => void;
-  tocVisibility: TocVisibility;
-  onTocVisibilityChange: (visibility: TocVisibility) => void;
+  outlineOpen: boolean;
+  onToggleOutline: () => void;
   onOpenFind: () => void;
   commentsOpen: boolean;
   onToggleComments: () => void;
@@ -61,8 +60,8 @@ export function Header({
   onContentWidthChange,
   fontSize,
   onFontSizeChange,
-  tocVisibility,
-  onTocVisibilityChange,
+  outlineOpen,
+  onToggleOutline,
   onOpenFind,
   commentsOpen,
   onToggleComments,
@@ -143,7 +142,18 @@ export function Header({
       {doc && <FontSizeMenu fontSize={fontSize} onChange={onFontSizeChange} />}
 
       {doc && inPreview && (
-        <TocMenu visibility={tocVisibility} onChange={onTocVisibilityChange} />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleOutline}
+          tooltip={`Outline (${modShift}T)`}
+          tooltipSide="bottom-end"
+          aria-label="Outline"
+          aria-expanded={outlineOpen}
+          className={cn(outlineOpen && "bg-accent text-accent-foreground")}
+        >
+          <TableOfContents className="size-4" />
+        </Button>
       )}
 
       {doc && inPreview && (

@@ -41,6 +41,7 @@ const theme = EditorView.theme({
   ".cm-content": {
     padding: "2.5rem 0 50vh 0", // trailing space so the last line isn't glued to the bottom
     maxWidth: "var(--content-max-width, 48rem)",
+    transition: "max-width 200ms ease-in-out",
     margin: "0 auto",
     caretColor: "var(--color-foreground)",
   },

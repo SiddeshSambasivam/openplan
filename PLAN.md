@@ -566,6 +566,12 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 - [ ] P0.6 Hide the existing (buggy) comments UI behind nothing — remove its entry
       points (header icon, `⇧⌘C`, selection trigger) so it can't be reached; code
       deleted for real in Phase 4
+- [x] P0.7 Outline (was "table of contents") rebuilt as an in-flow column that
+      cannot overlap the text, collapsing to a dismissable floating panel only
+      when the main area is too narrow; sidebar file/folder footer removed;
+      defaults changed to small font + compact width **(T: `outline.ts`)**
+- [x] P0.8 Motion layer (`animate-*` utilities + reduced-motion guard) and
+      animated reading-width changes; app shell no longer scrolls vertically
 - [ ] **GATE 0 — Sid manual QA & approval** (rename correct on all 3 OS targets,
       no regressions in viewing/editing, comments unreachable)
 
@@ -695,6 +701,11 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Attribution = git author per writer; history append-only from UI (restore = new commit) | Sid: always know who made a change; always able to roll back |
 | 2026-08-15 | GitHub/GitLab remote is the primary sync path (Phase 5); Drive via base relocation | Sid: integrate with existing workflows, not transient |
 | 2026-08-15 | Project code hosted at github.com/SiddeshSambasivam/openplan (origin) | Sid provided the remote |
+| 2026-08-15 | Outline is a column or a dismissable overlay — never a floating layer over text; side-switching, auto-hide, and the 3-state cycle were deleted | Sid: it overlapped content; those were concepts we don't need |
+| 2026-08-15 | Panels mount/unmount rather than parking off-screen | An element translated outside its container widens the scrollable area and can scroll the whole layout sideways |
+| 2026-08-15 | Default reading settings: small font, compact width | Sid's preference |
+| 2026-08-15 | Shared motion utilities in `index.css` (transform/opacity entrances, `prefers-reduced-motion` guard) | Sid: interactions felt too sudden; keeps motion consistent instead of per-component ad hoc |
+| 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
 | 2026-08-15 | No autostart/daemon for MCP; instead the MCP server is self-sufficient (auto-creates the base if missing) | Clients spawn `openplan mcp` per session over stdio — the app is never a runtime dependency; autostart would violate NFR-8 |
 | 2026-08-15 | Single design system: shadcn components + tokens only; Tailwind is plumbing, never a second design language | Sid: don't maintain two design systems |
 | 2026-08-15 | Settings page (FR-14) is the canonical preference surface; header keeps quick toggles only | Sid's request; Claude Code-style settings |

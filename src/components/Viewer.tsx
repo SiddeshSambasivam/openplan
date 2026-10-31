@@ -166,7 +166,7 @@ export function Viewer({
   return (
     <div
       ref={articleRef}
-      className="mx-auto w-full px-10 py-10"
+      className="mx-auto w-full px-10 py-10 transition-[max-width] duration-200 ease-in-out"
       style={{ maxWidth: "var(--content-max-width, 48rem)" }}
     >
       {truncated && (

@@ -1,10 +1,8 @@
-import { FilePlus2, FileText, FolderPlus, Search, X } from "lucide-react";
+import { FileText, Search, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { isMac } from "../lib/platform";
 import { filterLibraryItems } from "../lib/tree";
 import type { FileLibraryItem, LibraryItem } from "../lib/types";
 import { cn } from "../lib/utils";
-import { Button } from "./Button";
 import { FolderTree } from "./FolderTree";
 import { MarqueeText } from "./MarqueeText";
 import { TooltipLabel } from "./Tooltip";
@@ -16,8 +14,6 @@ interface SidebarProps {
   onToggleDir: (path: string) => void;
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
-  onOpenFileDialog: () => void;
-  onOpenFolderDialog: () => void;
   /** Reserve space for the macOS traffic lights (overlay titlebar). */
   padTop: boolean;
 }
@@ -73,8 +69,6 @@ export function Sidebar({
   onToggleDir,
   onSelect,
   onRemove,
-  onOpenFileDialog,
-  onOpenFolderDialog,
   padTop,
 }: SidebarProps) {
   const [query, setQuery] = useState("");
@@ -154,9 +148,9 @@ export function Sidebar({
               <>No files match &ldquo;{trimmedQuery}&rdquo;.</>
             ) : (
               <>
-                Nothing here yet.
+                No plans yet.
                 <br />
-                Drop Markdown files or folders to begin.
+                Drop Markdown here to begin.
               </>
             )}
           </p>
@@ -184,32 +178,6 @@ export function Sidebar({
           </ul>
         )}
       </nav>
-
-      <div className="shrink-0 border-t border-sidebar-border p-3">
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            onClick={onOpenFileDialog}
-            tooltip={`Open file (${isMac ? "⌘O" : "Ctrl+O"})`}
-            tooltipSide="top"
-          >
-            <FilePlus2 className="size-4" />
-            File
-          </Button>
-          <Button
-            variant="outline"
-            onClick={onOpenFolderDialog}
-            tooltip={`Open folder (${isMac ? "⇧⌘O" : "Ctrl+Shift+O"})`}
-            tooltipSide="top"
-          >
-            <FolderPlus className="size-4" />
-            Folder
-          </Button>
-        </div>
-        <p className="pt-2 text-center text-[11px] text-muted-foreground">
-          or drop files & folders anywhere
-        </p>
-      </div>
     </aside>
   );
 }

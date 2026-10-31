@@ -131,6 +131,12 @@
   #root {
     height: 100%;
   }
+  /* The app is a fixed shell: only the panes inside it scroll, never the
+     document, which would otherwise drag the whole window a few pixels. */
+  html,
+  body {
+    overflow: hidden;
+  }
   body {
     background: var(--color-background);
     color: var(--color-foreground);
@@ -161,6 +167,69 @@
   }
   ::-webkit-scrollbar-corner {
     background: transparent;
+  }
+}
+
+/* Mermaid appends a tooltip host to <body>; left in flow it adds a few
+   pixels below the fold and makes the whole shell scrollable. */
+.mermaidTooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---------------------------------- */
+/* Motion                             */
+/* ---------------------------------- */
+/* Entrances animate transform and opacity only, so they stay off the layout
+   path and hold 60fps. Durations are short enough to feel immediate. */
+@keyframes op-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes op-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+@keyframes op-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+@keyframes op-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.animate-fade-in {
+  animation: op-fade-in 150ms ease-out;
+}
+.animate-pop-in {
+  animation: op-pop-in 140ms ease-out;
+  transform-origin: top;
+}
+.animate-slide-in-right {
+  animation: op-slide-in-right 180ms ease-out;
+}
+.animate-rise-in {
+  animation: op-rise-in 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
