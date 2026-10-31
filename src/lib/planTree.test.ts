@@ -12,6 +12,11 @@ describe("documentLabel", () => {
   it("leaves a document that is not numbered alone", () => {
     expect(documentLabel("README.md")).toBe("README");
   });
+
+  it("reads an HTML document the same way", () => {
+    expect(documentLabel("02-diagram.html")).toBe("Diagram");
+    expect(documentLabel("README.html")).toBe("README");
+  });
 });
 
 describe("buildSetTree", () => {

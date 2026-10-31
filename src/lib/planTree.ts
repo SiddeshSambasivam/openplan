@@ -5,7 +5,7 @@ export type SetNode =
 
 /** `01-current-state.md` reads as "Current state" in a list of plans. */
 export function documentLabel(name: string): string {
-  const base = name.replace(/\.mdx?$/i, "");
+  const base = name.replace(/\.(mdx?|markdown|html?)$/i, "");
   const withoutNumber = base.replace(/^\d+[-_]/, "");
   return withoutNumber.replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
