@@ -129,8 +129,12 @@ pub struct Imported {
 /// it; a single document or a plan set files as one. `source` is who the
 /// plans are from — an agent's id for its own, "import" otherwise.
 #[tauri::command]
-pub async fn import_source(path: String, source: String) -> Result<Imported, String> {
-    let base = settings::resolve_default_base()?;
+pub async fn import_source(
+    path: String,
+    source: String,
+    state: tauri::State<'_, crate::plans::BaseState>,
+) -> Result<Imported, String> {
+    let base = state.get()?;
     let author = if source == "import" {
         settings::me()
     } else {
@@ -144,9 +148,9 @@ pub async fn import_source(path: String, source: String) -> Result<Imported, Str
     );
     let path = std::path::PathBuf::from(&path);
     let outcomes = if path.is_dir() {
-        openplan_core::import::import_folder(&base, &author, &source, &path, &now)?
+        openplan_core::import::import_folder(base, &author, &source, &path, &now)?
     } else {
-        vec![import_path(&base, &author, &source, &path, &now)?]
+        vec![import_path(base, &author, &source, &path, &now)?]
     };
     let mut result = Imported {
         filed: 0,

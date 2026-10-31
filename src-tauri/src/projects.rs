@@ -2,9 +2,10 @@
 //! the app and the CLI count them the same way.
 
 use openplan_core::project::{self, ProjectSummary};
-use openplan_core::settings;
 
 #[tauri::command]
-pub async fn list_projects() -> Result<Vec<ProjectSummary>, String> {
-    Ok(project::list(&settings::resolve_default_base()?))
+pub async fn list_projects(
+    state: tauri::State<'_, crate::plans::BaseState>,
+) -> Result<Vec<ProjectSummary>, String> {
+    Ok(project::list(state.get()?))
 }

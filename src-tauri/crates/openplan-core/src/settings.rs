@@ -153,8 +153,9 @@ fn retire_standards_file(base: &Base) -> Result<bool, String> {
 }
 
 /// The base this machine should use: whichever one was chosen before, or a
-/// fresh one in the home directory. Either way it exists by the time this
-/// returns, and the choice is recorded so the next caller agrees.
+/// fresh one in the home directory. Either way it exists as a git repository
+/// by the time this returns, and the choice is recorded so the next caller
+/// agrees. Nothing is committed here: see `sync_base`.
 pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
     let existing = read_settings(settings_file)?;
     let chosen = existing
@@ -162,28 +163,7 @@ pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
         .map(|s| s.base_path.clone())
         .unwrap_or_else(|| default_base_path(home));
     let base = ensure_base(&chosen)?;
-
-    // Record whatever is in the base before touching it, so the first run has
-    // a history and anything changed outside the app is captured rather than
-    // rolled into someone's next edit.
     repo::init(&base.root)?;
-    let first_run = !repo::has_commits(&base.root);
-    repo::commit_all(
-        &base.root,
-        &Author::user(),
-        if first_run {
-            "init: plan base"
-        } else {
-            "sync: changes made outside OpenPlan"
-        },
-    )?;
-    if retire_standards_file(&base)? {
-        repo::commit_all(
-            &base.root,
-            &Author::user(),
-            "remove: standards moved into OpenPlan's settings",
-        )?;
-    }
 
     let carried = existing.unwrap_or_default();
     write_settings(
@@ -194,6 +174,32 @@ pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
         },
     )?;
     Ok(base)
+}
+
+/// Records whatever changed in the base while nobody was watching, so the
+/// first run has a history and an outside edit is captured rather than rolled
+/// into whoever saves next. It takes git's index lock, so it belongs to the
+/// one place that owns the base, once at startup and then on each change the
+/// watcher reports; callers that only read must never run it.
+pub fn sync_base(base: &Base) -> Result<(), String> {
+    let first_run = !repo::has_commits(&base.root);
+    repo::commit_all(
+        &base.root,
+        &Author::user(),
+        if first_run {
+            "init: plan base"
+        } else {
+            "sync: changes made outside OpenPlan"
+        },
+    )?;
+    if retire_standards_file(base)? {
+        repo::commit_all(
+            &base.root,
+            &Author::user(),
+            "remove: standards moved into OpenPlan's settings",
+        )?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -376,7 +382,7 @@ mod tests {
         let standards = base.root.join("STANDARDS.md");
         std::fs::write(&standards, "# Plan standards\n\nold copy\n").unwrap();
 
-        resolve_base(&file, &home).unwrap();
+        sync_base(&resolve_base(&file, &home).unwrap()).unwrap();
 
         assert!(!standards.exists());
         // Recorded before removal, so it can still be read back.
@@ -394,9 +400,53 @@ mod tests {
         let standards = base.root.join("STANDARDS.md");
         std::fs::write(&standards, "# How we write plans on this team\n").unwrap();
 
-        resolve_base(&dir.join("settings.json"), &home).unwrap();
+        sync_base(&resolve_base(&dir.join("settings.json"), &home).unwrap()).unwrap();
 
         assert!(standards.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolving_the_base_records_nothing_until_it_is_asked_to() {
+        let dir = temp_dir("openplan-core-settings-resolve-is-quiet");
+        let home = dir.join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let file = dir.join("settings.json");
+
+        let base = resolve_base(&file, &home).unwrap();
+        std::fs::write(base.plans_dir().join("outside.md"), "# Filed elsewhere").unwrap();
+        resolve_base(&file, &home).unwrap();
+
+        assert!(!repo::has_commits(&base.root), "resolving committed the base");
+        sync_base(&base).unwrap();
+        assert!(repo::has_commits(&base.root));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn several_callers_can_resolve_the_base_at_once() {
+        // What the interface does at first paint: every pane asks for the
+        // base at the same moment. Resolving used to commit, and the commits
+        // collided on git's index lock.
+        let dir = temp_dir("openplan-core-settings-at-once");
+        let home = dir.join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let file = dir.join("settings.json");
+        let base = resolve_base(&file, &home).unwrap();
+        std::fs::write(base.plans_dir().join("outside.md"), "# Filed elsewhere").unwrap();
+
+        let failures: Vec<String> = std::thread::scope(|scope| {
+            let started: Vec<_> = (0..8)
+                .map(|_| scope.spawn(|| resolve_base(&file, &home)))
+                .collect();
+            started
+                .into_iter()
+                .filter_map(|handle| handle.join().unwrap().err())
+                .collect()
+        });
+
+        assert!(failures.is_empty(), "{failures:?}");
+        assert!(!repo::has_commits(&base.root), "resolving committed the base");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

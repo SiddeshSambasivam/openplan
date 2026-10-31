@@ -3,7 +3,7 @@
 //! one pass here rather than a call per plan from the interface.
 
 use openplan_core::comments::{self, CommentThread};
-use openplan_core::{library, settings};
+use openplan_core::library;
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -30,9 +30,10 @@ fn summarise(threads: &[CommentThread]) -> (usize, bool) {
 }
 
 #[tauri::command]
-pub async fn review_summaries() -> Result<Vec<ReviewSummary>, String> {
-    let base = settings::resolve_default_base()?;
-    Ok(library::scan(&base)
+pub async fn review_summaries(
+    state: tauri::State<'_, crate::plans::BaseState>,
+) -> Result<Vec<ReviewSummary>, String> {
+    Ok(library::scan(state.get()?)
         .into_iter()
         .filter_map(|entry| {
             // A set keeps its threads on the document they were written on,

@@ -6,7 +6,7 @@
 use openplan_core::base::Base;
 use openplan_core::comments::CommentThread;
 use openplan_core::local::{self, AppInfo, CommentNote, Event, Notice, SessionInfo};
-use openplan_core::{comments, library, settings};
+use openplan_core::{comments, library};
 use std::sync::OnceLock;
 use tauri::Emitter;
 
@@ -23,15 +23,19 @@ pub async fn live_sessions() -> Vec<SessionInfo> {
 /// Sends the named threads to every session working on that plan, and says how
 /// many got them. Zero means nobody is working on it right now.
 #[tauri::command]
-pub async fn send_comments(path: String, thread_ids: Vec<String>) -> Result<usize, String> {
+pub async fn send_comments(
+    path: String,
+    thread_ids: Vec<String>,
+    state: tauri::State<'_, crate::plans::BaseState>,
+) -> Result<usize, String> {
     let Some(server) = SERVER.get() else {
         return Ok(0);
     };
-    let base = settings::resolve_default_base()?;
+    let base = state.get()?;
     let path = std::path::PathBuf::from(&path);
     // A set keeps its threads on the document they were written on, so the
     // plan a comment belongs to can be the folder's, not the file's.
-    let plan = library::scan(&base)
+    let plan = library::scan(base)
         .into_iter()
         .find(|entry| {
             entry.path == path

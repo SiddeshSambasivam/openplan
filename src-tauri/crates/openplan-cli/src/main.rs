@@ -10,6 +10,11 @@ fn main() {
             std::process::exit(1);
         }
     };
+    // Whatever changed since the last tool ran, before this one writes.
+    if let Err(e) = settings::sync_base(&base) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
     if args.first().map(String::as_str) == Some("mcp") {
         let stdin = std::io::stdin();
         let stdout = std::io::stdout();

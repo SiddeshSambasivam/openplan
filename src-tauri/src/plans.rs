@@ -10,8 +10,19 @@ use std::sync::mpsc;
 use std::time::Duration;
 use tauri::Emitter;
 
-fn base() -> Result<Base, String> {
-    settings::resolve_default_base()
+/// The base, resolved once in setup and handed to every command that needs
+/// it. Resolving it commits the base, so commands that resolved it for
+/// themselves raced on git's index lock at first paint.
+pub struct BaseState(Result<Base, String>);
+
+impl BaseState {
+    pub fn new(base: Result<Base, String>) -> BaseState {
+        BaseState(base)
+    }
+
+    pub fn get(&self) -> Result<&Base, String> {
+        self.0.as_ref().map_err(String::clone)
+    }
 }
 
 fn relative<'a>(base: &Base, path: &'a Path) -> Result<&'a Path, String> {
@@ -63,10 +74,9 @@ pub struct BaseInfo {
 }
 
 #[tauri::command]
-pub async fn get_base() -> Result<BaseInfo, String> {
-    let base = base()?;
+pub async fn get_base(state: tauri::State<'_, BaseState>) -> Result<BaseInfo, String> {
     Ok(BaseInfo {
-        root: base.root,
+        root: state.get()?.root.clone(),
     })
 }
 
@@ -97,11 +107,14 @@ pub async fn get_authoring() -> Result<String, String> {
 
 /// Takes effect on the next plan an agent files.
 #[tauri::command]
-pub async fn set_authoring(mode: String) -> Result<(), String> {
+pub async fn set_authoring(
+    mode: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<(), String> {
     let path = settings::settings_path()?;
     let mut saved = settings::read_settings(&path)?.unwrap_or_default();
     if saved.base_path.as_os_str().is_empty() {
-        saved.base_path = base()?.root;
+        saved.base_path = state.get()?.root.clone();
     }
     saved.authoring = Some(settings::authoring_mode(Some(&mode)).to_string());
     settings::write_settings(&path, &saved)
@@ -109,11 +122,14 @@ pub async fn set_authoring(mode: String) -> Result<(), String> {
 
 /// Agents are told the built-in standards with these layered on top.
 #[tauri::command]
-pub async fn set_standards_overrides(text: String) -> Result<(), String> {
+pub async fn set_standards_overrides(
+    text: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<(), String> {
     let path = settings::settings_path()?;
     let mut saved = settings::read_settings(&path)?.unwrap_or_default();
     if saved.base_path.as_os_str().is_empty() {
-        saved.base_path = base()?.root;
+        saved.base_path = state.get()?.root.clone();
     }
     let trimmed = text.trim();
     saved.standards = (!trimmed.is_empty()).then(|| trimmed.to_string());
@@ -121,8 +137,11 @@ pub async fn set_standards_overrides(text: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn scan_plans() -> Result<Vec<PlanSummary>, String> {
-    Ok(library::scan(&base()?).into_iter().map(Into::into).collect())
+pub async fn scan_plans(state: tauri::State<'_, BaseState>) -> Result<Vec<PlanSummary>, String> {
+    Ok(library::scan(state.get()?)
+        .into_iter()
+        .map(Into::into)
+        .collect())
 }
 
 #[derive(Serialize)]
@@ -135,8 +154,11 @@ pub struct SearchHit {
 }
 
 #[tauri::command]
-pub async fn search_plans(query: String) -> Result<Vec<SearchHit>, String> {
-    Ok(library::search(&base()?, &query)
+pub async fn search_plans(
+    query: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<Vec<SearchHit>, String> {
+    Ok(library::search(state.get()?, &query)
         .into_iter()
         .map(|hit| SearchHit {
             path: hit.path,
@@ -150,16 +172,19 @@ pub async fn search_plans(query: String) -> Result<Vec<SearchHit>, String> {
 /// Rewrites only the plan's status line, leaving its body untouched. The
 /// person can set any status, completed included; agents cannot.
 #[tauri::command]
-pub async fn set_plan_status(path: String, status: plan::Status) -> Result<(), String> {
+pub async fn set_plan_status(
+    path: String,
+    status: plan::Status,
+    state: tauri::State<'_, BaseState>,
+) -> Result<(), String> {
     let path = PathBuf::from(&path);
     let text = openplan_core::fs::read_to_string(&path)?;
     let mut parsed = plan::parse(&text, &path);
     parsed.meta.status = status;
     openplan_core::fs::atomic_write(&path, &plan::serialize(&parsed))?;
 
-    let base = base()?;
     let _ = repo::commit_all(
-        &base.root,
+        &state.get()?.root,
         &settings::me(),
         &format!("{}: {}", status.as_str(), parsed.meta.id),
     );
@@ -169,9 +194,11 @@ pub async fn set_plan_status(path: String, status: plan::Status) -> Result<(), S
 /// Records whatever is currently in the base. Called after the app saves, and
 /// after an outside change lands, so nothing sits uncommitted for long.
 #[tauri::command]
-pub async fn commit_base(message: String) -> Result<Option<String>, String> {
-    let base = base()?;
-    repo::commit_all(&base.root, &settings::me(), &message)
+pub async fn commit_base(
+    message: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<Option<String>, String> {
+    repo::commit_all(&state.get()?.root, &settings::me(), &message)
 }
 
 #[derive(Serialize)]
@@ -184,10 +211,14 @@ pub struct DiffLine {
 }
 
 #[tauri::command]
-pub async fn plan_diff(path: String, revision: String) -> Result<Vec<DiffLine>, String> {
-    let base = base()?;
+pub async fn plan_diff(
+    path: String,
+    revision: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<Vec<DiffLine>, String> {
+    let base = state.get()?;
     let path = PathBuf::from(&path);
-    Ok(repo::diff_since(&base.root, relative(&base, &path)?, &revision)?
+    Ok(repo::diff_since(&base.root, relative(base, &path)?, &revision)?
         .into_iter()
         .map(|l| DiffLine {
             origin: l.origin,
@@ -199,10 +230,13 @@ pub async fn plan_diff(path: String, revision: String) -> Result<Vec<DiffLine>, 
 }
 
 #[tauri::command]
-pub async fn rename_plan(path: String, new_title: String) -> Result<PathBuf, String> {
-    let base = base()?;
+pub async fn rename_plan(
+    path: String,
+    new_title: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<PathBuf, String> {
     openplan_core::import::rename_plan(
-        &base,
+        state.get()?,
         &openplan_core::settings::me(),
         std::path::Path::new(&path),
         &new_title,
@@ -210,10 +244,13 @@ pub async fn rename_plan(path: String, new_title: String) -> Result<PathBuf, Str
 }
 
 #[tauri::command]
-pub async fn rename_document(path: String, new_name: String) -> Result<PathBuf, String> {
-    let base = base()?;
+pub async fn rename_document(
+    path: String,
+    new_name: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<PathBuf, String> {
     openplan_core::import::rename_document(
-        &base,
+        state.get()?,
         &openplan_core::settings::me(),
         std::path::Path::new(&path),
         &new_name,
@@ -252,18 +289,22 @@ pub async fn save_comment_threads(
     path: String,
     threads: Vec<comments::CommentThread>,
     commit: bool,
+    state: tauri::State<'_, BaseState>,
 ) -> Result<(), String> {
     comments::write_threads(std::path::Path::new(&path), &threads)?;
     if !commit {
         return Ok(());
     }
-    let base = base()?;
     let name = std::path::Path::new(&path)
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("plan")
         .to_string();
-    let _ = repo::commit_all(&base.root, &settings::me(), &format!("comments: {name}"));
+    let _ = repo::commit_all(
+        &state.get()?.root,
+        &settings::me(),
+        &format!("comments: {name}"),
+    );
     Ok(())
 }
 
@@ -277,10 +318,13 @@ pub struct Revision {
 }
 
 #[tauri::command]
-pub async fn plan_history(path: String) -> Result<Vec<Revision>, String> {
-    let base = base()?;
+pub async fn plan_history(
+    path: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<Vec<Revision>, String> {
+    let base = state.get()?;
     let path = PathBuf::from(&path);
-    Ok(repo::history(&base.root, relative(&base, &path)?)?
+    Ok(repo::history(&base.root, relative(base, &path)?)?
         .into_iter()
         .map(|r| Revision {
             id: r.id,
@@ -292,19 +336,27 @@ pub async fn plan_history(path: String) -> Result<Vec<Revision>, String> {
 }
 
 #[tauri::command]
-pub async fn plan_at_revision(path: String, revision: String) -> Result<String, String> {
-    let base = base()?;
+pub async fn plan_at_revision(
+    path: String,
+    revision: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<String, String> {
+    let base = state.get()?;
     let path = PathBuf::from(&path);
-    repo::read_at(&base.root, relative(&base, &path)?, &revision)
+    repo::read_at(&base.root, relative(base, &path)?, &revision)
 }
 
 /// Restores an earlier revision by writing it as the current text — the plan's
 /// history keeps both, since going back is itself a change worth recording.
 #[tauri::command]
-pub async fn restore_plan_revision(path: String, revision: String) -> Result<String, String> {
-    let base = base()?;
+pub async fn restore_plan_revision(
+    path: String,
+    revision: String,
+    state: tauri::State<'_, BaseState>,
+) -> Result<String, String> {
+    let base = state.get()?;
     let path_buf = PathBuf::from(&path);
-    let text = repo::read_at(&base.root, relative(&base, &path_buf)?, &revision)?;
+    let text = repo::read_at(&base.root, relative(base, &path_buf)?, &revision)?;
     openplan_core::fs::atomic_write(&path_buf, &text)?;
     let short: String = revision.chars().take(8).collect();
     let name = path_buf
@@ -321,9 +373,9 @@ pub async fn restore_plan_revision(path: String, revision: String) -> Result<Str
 }
 
 /// Watches the base for changes made outside the app — an agent filing a plan,
-/// or an editor saving one — and tells the interface to re-read. Events are
-/// coalesced so a burst of writes is one refresh, and the watcher is
-/// OS-driven, so an idle base costs nothing.
+/// or an editor saving one — records what arrived uncommitted, and tells the
+/// interface to re-read. Events are coalesced so a burst of writes is one
+/// refresh, and the watcher is OS-driven, so an idle base costs nothing.
 pub fn watch_base(app: tauri::AppHandle, base: Option<Base>) {
     std::thread::spawn(move || {
         let Some(base) = base else { return };
@@ -347,35 +399,100 @@ pub fn watch_base(app: tauri::AppHandle, base: Option<Base>) {
             // Block until something happens, then drain whatever else arrives
             // in the same burst before telling anyone.
             let Ok(first) = rx.recv() else { return };
-            let mut relevant = is_relevant(&base.root, &first);
+            let (mut content, mut plans) = touched(&base.root, &first);
             while let Ok(next) = rx.recv_timeout(debounce) {
-                relevant |= is_relevant(&base.root, &next);
+                let (c, p) = touched(&base.root, &next);
+                content |= c;
+                plans |= p;
             }
-            if relevant {
+            if plans {
+                let _ = settings::sync_base(&base);
+            }
+            if content {
                 let _ = app.emit("base-changed", ());
             }
         }
     });
 }
 
-/// Git's own bookkeeping and the comment sidecars churn constantly; only
-/// changes to plans should send the interface back to disk. Judged from
-/// inside the base, since the base itself is a dotted directory and every
-/// path under it would otherwise look hidden.
-fn is_relevant(root: &Path, event: &notify::Result<notify::Event>) -> bool {
-    let Ok(event) = event else { return false };
-    event.paths.iter().any(|path| {
+/// What a watched path is: content the interface should re-read, and whether
+/// it is a plan, which is what may need recording. Git's own bookkeeping
+/// churns constantly and is neither. Judged from inside the base, since the
+/// base itself is a dotted directory and every path under it would otherwise
+/// look hidden. A comment sidecar is content but is never recorded here: a
+/// pending thread is committed when its review is sent.
+fn touched(root: &Path, event: &notify::Result<notify::Event>) -> (bool, bool) {
+    let Ok(event) = event else { return (false, false) };
+    let mut content = false;
+    let mut plans = false;
+    for path in &event.paths {
         let Ok(inside) = path.strip_prefix(root) else {
-            return false;
+            continue;
         };
-        !inside.components().any(|c| {
+        let sidecar = |name: &str| name.ends_with("oplan-comments.json");
+        if inside.components().any(|c| {
             let name = c.as_os_str().to_str().unwrap_or("");
-            // Comment sidecars are dotted but are content, not bookkeeping.
-            name.starts_with('.') && !name.ends_with("oplan-comments.json")
-        })
-    })
+            name.starts_with('.') && !sidecar(name)
+        }) {
+            continue;
+        }
+        content = true;
+        plans |= !sidecar(&path.to_string_lossy());
+    }
+    (content, plans)
 }
 
 pub fn setup(app: &tauri::App, base: Option<Base>) {
     watch_base(app.handle().clone(), base);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(path: PathBuf) -> notify::Result<notify::Event> {
+        Ok(notify::Event {
+            kind: notify::EventKind::Any,
+            paths: vec![path],
+            attrs: Default::default(),
+        })
+    }
+
+    #[test]
+    fn a_plan_written_outside_is_read_again_and_recorded() {
+        let root = PathBuf::from("/base");
+
+        assert_eq!(
+            touched(&root, &event(root.join("plans").join("a.md"))),
+            (true, true)
+        );
+    }
+
+    #[test]
+    fn a_comment_sidecar_is_read_again_but_not_recorded() {
+        let root = PathBuf::from("/base");
+        let sidecar = root.join("plans").join(".a.md.oplan-comments.json");
+
+        assert_eq!(touched(&root, &event(sidecar)), (true, false));
+    }
+
+    #[test]
+    fn git_s_own_bookkeeping_is_neither() {
+        let root = PathBuf::from("/base");
+
+        assert_eq!(
+            touched(&root, &event(root.join(".git").join("index"))),
+            (false, false)
+        );
+    }
+
+    #[test]
+    fn a_path_outside_the_base_is_neither() {
+        let root = PathBuf::from("/base");
+
+        assert_eq!(
+            touched(&root, &event(PathBuf::from("/elsewhere/a.md"))),
+            (false, false)
+        );
+    }
 }

@@ -5,6 +5,7 @@ mod review;
 mod sessions;
 
 use std::path::Path;
+use tauri::Manager;
 
 const MARKDOWN_EXTENSIONS: [&str; 7] = ["md", "markdown", "mdown", "mkd", "mkdn", "mdx", "txt"];
 /// Safety valves so a scan of an enormous tree stays instant and the sidebar sane.
@@ -201,11 +202,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // Resolved once. Two callers resolving it for themselves each
-            // commit the base at startup, and collide on git's index lock.
-            let base = openplan_core::settings::resolve_default_base().ok();
-            plans::setup(app, base.clone());
-            sessions::setup(app, base);
+            // Resolved once and handed on. Callers resolving it for
+            // themselves used to commit the base each time, and collided on
+            // git's index lock at startup.
+            let base = openplan_core::settings::resolve_default_base();
+            if let Ok(base) = &base {
+                // Whatever arrived while the app was closed, before anything
+                // in it can write.
+                let _ = openplan_core::settings::sync_base(base);
+            }
+            plans::setup(app, base.as_ref().ok().cloned());
+            sessions::setup(app, base.as_ref().ok().cloned());
+            app.manage(plans::BaseState::new(base));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
