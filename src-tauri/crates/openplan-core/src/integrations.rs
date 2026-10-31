@@ -61,8 +61,9 @@ pub fn conventions() -> String {
 Plans are managed by the `{}` MCP server, not by loose files.
 
 - Before writing a plan, call `get_standards` and follow it.
-- When a plan is agreed, file it with `create_plan` (title + full markdown
-  body). Do not leave it only in the conversation.
+- When a plan is agreed, file it with `create_plan`: the title, and the full
+  body in the format `get_standards` names. Do not leave it only in the
+  conversation.
 - To see or reread existing plans, use `list_plans` and `read_plan` rather
   than searching the filesystem for them.
 - A plan is draft, in-progress, in-review, or completed. Call `set_status`
