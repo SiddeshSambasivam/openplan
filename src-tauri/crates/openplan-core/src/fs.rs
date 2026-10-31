@@ -38,7 +38,9 @@ pub fn friendly_read_error(e: &std::io::Error) -> String {
 
 /// Write `contents` to `target` via a temp file in the same directory, renamed
 /// over the target — so a crash mid-write cannot corrupt what was already there.
+/// A symlink is written through, so the link survives.
 pub fn atomic_write(target: &Path, contents: &str) -> Result<(), String> {
+    let target = &link_target(target);
     let dir = target
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -71,6 +73,17 @@ pub fn atomic_write(target: &Path, contents: &str) -> Result<(), String> {
 
 pub fn read_to_string(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| friendly_read_error(&e))
+}
+
+/// The file a symlink points at, or the path itself. Renaming over a link
+/// would replace the link with a plain file, as people keep their agent
+/// instructions in a dotfiles repo behind one.
+fn link_target(path: &Path) -> std::path::PathBuf {
+    let is_link = std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink());
+    match is_link {
+        true => std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()),
+        false => path.to_path_buf(),
+    }
 }
 
 #[cfg(test)]
@@ -112,6 +125,22 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().contains("tmp"))
             .collect();
         assert!(leftovers.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn writes_through_a_symlink_and_keeps_the_link() {
+        let dir = temp_dir("openplan-core-symlink");
+        let real = dir.join("dotfiles-CLAUDE.md");
+        let link = dir.join("CLAUDE.md");
+        std::fs::write(&real, "theirs").unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        atomic_write(&link, "theirs, then ours").unwrap();
+
+        assert!(std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert_eq!(read_to_string(&real).unwrap(), "theirs, then ours");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
