@@ -13,6 +13,43 @@ interface PlanListProps {
   onSelectDocument: (plan: PlanSummary, document: string) => void;
   /** Double-click a row to rename; commits on Enter. */
   onRename: (plan: PlanSummary, newTitle: string) => void;
+  /** Renames one document inside a set, given its path inside the folder. */
+  onRenameDocument: (plan: PlanSummary, document: string, newName: string) => void;
+}
+
+interface Renaming {
+  path: string;
+  value: string;
+}
+
+/** The inline input a row turns into while it is being renamed. */
+function RenameInput({
+  renaming,
+  onChange,
+  onCancel,
+  onCommit,
+}: {
+  renaming: Renaming;
+  onChange: (value: string) => void;
+  onCancel: () => void;
+  onCommit: (value: string) => void;
+}) {
+  return (
+    <input
+      autoFocus
+      value={renaming.value}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onCancel}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && renaming.value.trim()) {
+          onCommit(renaming.value.trim());
+        }
+        if (e.key === "Escape") onCancel();
+      }}
+      className="min-w-0 flex-1 cursor-text rounded border border-ring bg-background px-1 text-xs text-foreground outline-none"
+    />
+  );
 }
 
 /** One level of a set's tree. Folders start open — a set is small, and a
@@ -22,12 +59,21 @@ function SetBranch({
   depth,
   activeDocument,
   onOpen,
+  renamePrefix,
+  renaming,
+  setRenaming,
+  onRenameDocument,
 }: {
   nodes: SetNode[];
   depth: number;
   /** Which document of this set is open, relative to the set's folder. */
   activeDocument: string | null;
   onOpen: (document: string) => void;
+  /** Distinguishes this set's documents from same-named ones elsewhere. */
+  renamePrefix: string;
+  renaming: Renaming | null;
+  setRenaming: (renaming: Renaming | null) => void;
+  onRenameDocument: (document: string, newName: string) => void;
 }) {
   return (
     <ul className="flex flex-col gap-px">
@@ -36,6 +82,12 @@ function SetBranch({
           <li key={node.path}>
             <button
               onClick={() => onOpen(node.path)}
+              onDoubleClick={() =>
+                setRenaming({
+                  path: `${renamePrefix}/${node.path}`,
+                  value: node.label,
+                })
+              }
               style={{ paddingLeft: 22 + depth * 12 }}
               className={cn(
                 "flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
@@ -45,7 +97,21 @@ function SetBranch({
               )}
             >
               <FileText className="size-3.5 shrink-0 opacity-70" />
-              <span className="truncate">{node.label}</span>
+              {renaming?.path === `${renamePrefix}/${node.path}` ? (
+                <RenameInput
+                  renaming={renaming}
+                  onChange={(value) =>
+                    setRenaming({ path: `${renamePrefix}/${node.path}`, value })
+                  }
+                  onCancel={() => setRenaming(null)}
+                  onCommit={(value) => {
+                    onRenameDocument(node.path, value);
+                    setRenaming(null);
+                  }}
+                />
+              ) : (
+                <span className="truncate">{node.label}</span>
+              )}
             </button>
           </li>
         ) : (
@@ -55,6 +121,10 @@ function SetBranch({
             depth={depth}
             activeDocument={activeDocument}
             onOpen={onOpen}
+            renamePrefix={renamePrefix}
+            renaming={renaming}
+            setRenaming={setRenaming}
+            onRenameDocument={onRenameDocument}
           />
         ),
       )}
@@ -67,11 +137,19 @@ function SetFolder({
   depth,
   activeDocument,
   onOpen,
+  renamePrefix,
+  renaming,
+  setRenaming,
+  onRenameDocument,
 }: {
   node: Extract<SetNode, { kind: "folder" }>;
   depth: number;
   activeDocument: string | null;
   onOpen: (document: string) => void;
+  renamePrefix: string;
+  renaming: Renaming | null;
+  setRenaming: (renaming: Renaming | null) => void;
+  onRenameDocument: (document: string, newName: string) => void;
 }) {
   // Opens itself when what is being read is inside it, so nothing is hidden
   // behind a closed folder.
@@ -111,6 +189,10 @@ function SetFolder({
             depth={depth + 1}
             activeDocument={activeDocument}
             onOpen={onOpen}
+            renamePrefix={renamePrefix}
+            renaming={renaming}
+            setRenaming={setRenaming}
+            onRenameDocument={onRenameDocument}
           />
         </div>
       </div>
@@ -124,6 +206,7 @@ export function PlanList({
   onSelect,
   onSelectDocument,
   onRename,
+  onRenameDocument,
 }: PlanListProps) {
   // Newest first; a plan without a date sorts by name at the end.
   const sorted = useMemo(
@@ -144,9 +227,7 @@ export function PlanList({
   // Archived plans are kept, not shown: the group starts closed, and opens
   // itself only when the plan being read is inside it.
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [renaming, setRenaming] = useState<{ path: string; value: string } | null>(
-    null,
-  );
+  const [renaming, setRenaming] = useState<Renaming | null>(null);
   const readingArchived = archived.some((plan) => {
     const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
     return plan.path === activePath || !!activePath?.startsWith(folder);
@@ -211,22 +292,14 @@ export function PlanList({
             <FileText className="size-4 shrink-0 text-muted-foreground" />
           )}
           {renaming?.path === plan.path ? (
-            <input
-              autoFocus
-              value={renaming.value}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) =>
-                setRenaming({ path: plan.path, value: e.target.value })
-              }
-              onBlur={() => setRenaming(null)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && renaming.value.trim()) {
-                  onRename(plan, renaming.value.trim());
-                  setRenaming(null);
-                }
-                if (e.key === "Escape") setRenaming(null);
+            <RenameInput
+              renaming={renaming}
+              onChange={(value) => setRenaming({ path: plan.path, value })}
+              onCancel={() => setRenaming(null)}
+              onCommit={(value) => {
+                onRename(plan, value);
+                setRenaming(null);
               }}
-              className="min-w-0 flex-1 cursor-text rounded border border-ring bg-background px-1 text-sm text-foreground outline-none"
             />
           ) : (
             <MarqueeText text={plan.title} className="flex-1" />
@@ -263,6 +336,12 @@ export function PlanList({
                     : null
                 }
                 onOpen={(document) => onSelectDocument(plan, document)}
+                renamePrefix={plan.path}
+                renaming={renaming}
+                setRenaming={setRenaming}
+                onRenameDocument={(document, newName) =>
+                  onRenameDocument(plan, document, newName)
+                }
               />
             </div>
           </div>

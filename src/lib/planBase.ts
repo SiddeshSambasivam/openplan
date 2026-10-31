@@ -117,6 +117,11 @@ export async function renamePlan(path: string, newTitle: string): Promise<string
   return invoke<string>("rename_plan", { path, newTitle });
 }
 
+/** Renames one document inside a set; returns the file's new path. */
+export async function renameDocument(path: string, newName: string): Promise<string> {
+  return invoke<string>("rename_document", { path, newName });
+}
+
 export async function restorePlanRevision(
   path: string,
   revision: string,

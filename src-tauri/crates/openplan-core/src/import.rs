@@ -229,6 +229,62 @@ pub fn rename_plan(
     Ok(entry_inside)
 }
 
+/// Renames one document inside a set. The numeric prefix that gives a set
+/// its reading order survives unless the new name brings its own number,
+/// and a set's entry document is refused — renaming that is renaming the
+/// plan, which `rename_plan` does properly.
+pub fn rename_document(
+    base: &Base,
+    author: &Author,
+    path: &Path,
+    new_name: &str,
+) -> Result<std::path::PathBuf, String> {
+    let new_name = new_name.trim();
+    if new_name.is_empty() {
+        return Err("A document needs a name.".to_string());
+    }
+    if path
+        .parent()
+        .and_then(library::set_entry)
+        .is_some_and(|entry| entry == path)
+    {
+        return Err(
+            "This is the plan's entry document. Rename the plan itself instead.".to_string(),
+        );
+    }
+    let old_stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    let prefix: String = old_stem
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .chain(old_stem.chars().skip_while(|c| c.is_ascii_digit()).take(1))
+        .collect();
+    let numeric_prefix = if prefix.len() > 1 && matches!(prefix.chars().last(), Some('-' | '_')) {
+        prefix
+    } else {
+        String::new()
+    };
+    let slug = slugify(new_name);
+    let file_name = if !numeric_prefix.is_empty() && !new_name.starts_with(|c: char| c.is_ascii_digit()) {
+        format!("{numeric_prefix}{slug}.md")
+    } else {
+        format!("{slug}.md")
+    };
+    let target = path.parent().unwrap().join(&file_name);
+    if target.exists() && target != path {
+        return Err(format!("There is already a document called {file_name}."));
+    }
+    std::fs::rename(path, &target).map_err(|e| format!("Couldn't rename: {e}"))?;
+    repo::commit_all(
+        &base.root,
+        author,
+        &format!("rename: {old_stem} to {}", target.file_stem().unwrap().to_string_lossy()),
+    )?;
+    Ok(target)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -331,6 +387,56 @@ mod tests {
         assert!(moved.ends_with("new-set/README.md"), "{moved:?}");
         assert!(base.plans_dir().join("new-set/01-a.md").exists(), "documents came along");
         assert!(!folder.exists());
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn renaming_a_set_document_keeps_its_reading_order() {
+        let base = temp_base("openplan-core-rename-doc");
+        let folder = base.plans_dir().join("set");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("README.md"), "# Set\n").unwrap();
+        std::fs::write(folder.join("01-current-state.md"), "# Current state\n").unwrap();
+
+        let moved = rename_document(
+            &base,
+            &Author::user(),
+            &folder.join("01-current-state.md"),
+            "Current situation",
+        )
+        .unwrap();
+
+        assert!(moved.ends_with("01-current-situation.md"), "{moved:?}");
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_new_number_in_the_name_renumbers_the_document() {
+        let base = temp_base("openplan-core-rename-doc-renumber");
+        let folder = base.plans_dir().join("set");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("README.md"), "# Set\n").unwrap();
+        std::fs::write(folder.join("03-late.md"), "# Late\n").unwrap();
+
+        let moved =
+            rename_document(&base, &Author::user(), &folder.join("03-late.md"), "01 early")
+                .unwrap();
+
+        assert!(moved.ends_with("01-early.md"), "{moved:?}");
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn the_entry_document_refuses_and_points_at_the_plan() {
+        let base = temp_base("openplan-core-rename-doc-entry");
+        let folder = base.plans_dir().join("set");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("README.md"), "# Set\n").unwrap();
+
+        let err = rename_document(&base, &Author::user(), &folder.join("README.md"), "x")
+            .unwrap_err();
+
+        assert!(err.contains("Rename the plan itself"), "{err}");
         let _ = std::fs::remove_dir_all(&base.root);
     }
 

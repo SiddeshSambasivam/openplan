@@ -58,6 +58,7 @@ import { usePlanBase } from "./lib/usePlanBase";
 import {
   commitBase,
   renamePlan,
+  renameDocument,
   setPlanTags,
   SOURCE_LABELS,
   type PlanSummary,
@@ -1200,6 +1201,20 @@ export default function App() {
     [refreshPlans, openFilePaths],
   );
 
+  const handleRenameDocument = useCallback(
+    (plan: PlanSummary, document: string, newName: string) => {
+      const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
+      const docPath = folder + document;
+      void renameDocument(docPath, newName)
+        .then((newPath) => {
+          refreshPlans();
+          if (activeIdRef.current === docPath) openFilePaths([newPath]);
+        })
+        .catch((err) => notify(String(err)));
+    },
+    [refreshPlans, openFilePaths, notify],
+  );
+
   const wordCount = useMemo(() => {
     if (content == null) return null;
     return content.split(/\s+/).filter(Boolean).length;
@@ -1230,6 +1245,7 @@ export default function App() {
           onSelectPlan={selectPlan}
           onSelectDocument={selectDocument}
           onRenamePlan={handleRename}
+          onRenameDocument={handleRenameDocument}
           onOpenSettings={() => setSettingsOpen(true)}
           activeId={activeDocId}
           expanded={expanded}

@@ -20,6 +20,7 @@ interface SidebarProps {
   onSelectPlan: (plan: PlanSummary) => void;
   onSelectDocument: (plan: PlanSummary, document: string) => void;
   onRenamePlan: (plan: PlanSummary, newTitle: string) => void;
+  onRenameDocument: (plan: PlanSummary, document: string, newName: string) => void;
   onOpenSettings: () => void;
   activeId: string | null;
   expanded: Set<string>;
@@ -82,6 +83,7 @@ export function Sidebar({
   onSelectPlan,
   onSelectDocument,
   onRenamePlan,
+  onRenameDocument,
   onOpenSettings,
   activeId,
   expanded,
@@ -194,6 +196,7 @@ export function Sidebar({
             onSelect={onSelectPlan}
             onSelectDocument={onSelectDocument}
             onRename={onRenamePlan}
+            onRenameDocument={onRenameDocument}
           />
         )}
         {trimmedQuery && (

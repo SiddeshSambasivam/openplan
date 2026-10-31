@@ -195,6 +195,17 @@ pub async fn rename_plan(path: String, new_title: String) -> Result<PathBuf, Str
 }
 
 #[tauri::command]
+pub async fn rename_document(path: String, new_name: String) -> Result<PathBuf, String> {
+    let base = base()?;
+    openplan_core::import::rename_document(
+        &base,
+        &openplan_core::repo::Author::user(),
+        std::path::Path::new(&path),
+        &new_name,
+    )
+}
+
+#[tauri::command]
 pub async fn comment_threads(path: String) -> Result<Vec<comments::CommentThread>, String> {
     Ok(comments::read_threads(std::path::Path::new(&path)))
 }
