@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Status } from "./planBase";
 import { isTauri } from "./platform";
+import personRoles from "../../src-tauri/crates/openplan-core/src/person_roles.json";
 
 /** The work record beside a plan: what the agents recorded about the work. */
 export interface WorkRecord {
@@ -287,26 +288,16 @@ export function roundTitle(round: number, latest: boolean): string {
   return latest ? `Round ${round} · after your ${ordinal(round)} review` : `Round ${round}`;
 }
 
-/** Each role as the person on the team who asks, and what they ask about. */
-export const PERSONAS: Record<Role, { name: string; title: string; focus: string }> = {
-  product: { name: "Mila", title: "Product owner", focus: "Who it is for and what is left out" },
-  engineering: { name: "Theo", title: "Tech lead", focus: "How it is built and tested" },
-  design: { name: "Iris", title: "Designer", focus: "What people see and do" },
-  oncall: { name: "Kai", title: "On-call", focus: "What breaks, and at what size" },
-  research: {
-    name: "Noor",
-    title: "Researcher",
-    focus: "What we know about the people using it",
-  },
-  accessibility: {
-    name: "Ada",
-    title: "Accessibility",
-    focus: "Keyboard, screen readers and contrast",
-  },
-  data: { name: "Remy", title: "Data analyst", focus: "How we will know it worked" },
-  security: { name: "Sol", title: "Security", focus: "Who can reach what" },
-  support: { name: "Juno", title: "Support lead", focus: "What customers will ask" },
-};
+export interface Persona {
+  name: string;
+  title: string;
+  /** What they ask about. */
+  focus: string;
+}
+
+/** Each role as the person on the team who asks. The agent reads the same
+ * file, so both name the same people. */
+export const PERSONAS: Record<Role, Persona> = personRoles.personas;
 
 export const ROLES = Object.keys(PERSONAS) as Role[];
 

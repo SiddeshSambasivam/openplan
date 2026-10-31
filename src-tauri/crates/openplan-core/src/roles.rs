@@ -48,19 +48,96 @@ pub struct PersonRolePanel {
     pub owners: BTreeMap<String, Role>,
 }
 
+/// The reviewer behind a question role.
+#[derive(Debug, Deserialize)]
+pub struct Persona {
+    pub name: String,
+    pub title: String,
+    /// What they ask about, as a sentence fragment.
+    pub focus: String,
+}
+
 /// The areas every plan needs an answer on, in the order they are named.
 pub const REQUIRED_AREAS: [&str; 3] = ["edge cases", "error handling", "scale"];
 
 /// Every role, in the order the cards show.
 pub fn all() -> &'static [PersonRolePanel] {
-    static PANELS: OnceLock<Vec<PersonRolePanel>> = OnceLock::new();
-    PANELS.get_or_init(|| {
-        serde_json::from_str(include_str!("person_roles.json")).expect("person_roles.json parses")
-    })
+    &table().roles
 }
 
 pub fn panel_of(role: PersonRole) -> &'static PersonRolePanel {
     all().iter().find(|entry| entry.id == role).expect("every role has a panel")
+}
+
+/// None for a role from a newer build.
+pub fn persona(role: &Role) -> Option<&'static Persona> {
+    table().personas.get(role.as_str())
+}
+
+/// What `get_standards` adds for a person who picked a role: who sits on
+/// their panel, how each one talks, and who owns each required area.
+pub fn who_is_answering(role: PersonRole) -> String {
+    let entry = panel_of(role);
+    let mut section = format!(
+        "**Who is answering.** The person is {}. Ask only from this panel:\n",
+        entry.who
+    );
+    for member in &entry.panel {
+        section.push_str(&member_line(entry, member));
+    }
+    section.push_str(
+        "\nIn depth means the field's own terms, and a request for the person's reasoning \
+         on the hardest question. Plain words means no jargon, at most two questions a round, \
+         and a recommended option the person can accept without knowing the field.\n",
+    );
+    section
+}
+
+#[derive(Deserialize)]
+struct Table {
+    personas: BTreeMap<String, Persona>,
+    roles: Vec<PersonRolePanel>,
+}
+
+fn table() -> &'static Table {
+    static TABLE: OnceLock<Table> = OnceLock::new();
+    TABLE.get_or_init(|| {
+        serde_json::from_str(include_str!("person_roles.json")).expect("person_roles.json parses")
+    })
+}
+
+/// "- Ada (`accessibility`), in depth, owns edge cases: keyboard, ..."
+fn member_line(entry: &PersonRolePanel, member: &PanelMember) -> String {
+    let persona = persona(&member.role).expect("every panel member has a persona");
+    let voice = match member.voice {
+        Voice::Deep => "in depth",
+        Voice::Plain => "in plain words",
+    };
+    let owned: Vec<&str> = REQUIRED_AREAS
+        .into_iter()
+        .filter(|area| entry.owners.get(*area) == Some(&member.role))
+        .collect();
+    let owns = if owned.is_empty() { String::new() } else { format!(", owns {}", spoken(&owned)) };
+    format!(
+        "- {} (`{}`), {voice}{owns}: {}.\n",
+        persona.name,
+        member.role.as_str(),
+        lowercase_first(&persona.focus)
+    )
+}
+
+/// "a", "a and b", "a, b and c".
+fn spoken(items: &[&str]) -> String {
+    match items {
+        [] => String::new(),
+        [one] => one.to_string(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
+}
+
+fn lowercase_first(text: &str) -> String {
+    let mut chars = text.chars();
+    chars.next().map(|first| first.to_lowercase().chain(chars).collect()).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -132,6 +209,53 @@ mod tests {
             ]
         );
         assert_eq!(designer.owners["edge cases"], Role::Accessibility);
+    }
+
+    #[test]
+    fn every_question_role_has_a_persona() {
+        for role in Role::KNOWN {
+            let persona = persona(&role).unwrap_or_else(|| panic!("no persona for {role:?}"));
+            assert!(!persona.name.is_empty() && !persona.title.is_empty() && !persona.focus.is_empty());
+        }
+        assert_eq!(persona(&Role::Research).unwrap().name, "Noor");
+        assert!(persona(&Role::Other("legal".to_string())).is_none());
+    }
+
+    #[test]
+    fn a_designer_is_told_who_is_answering_in_the_words_the_plan_gave() {
+        assert_eq!(
+            who_is_answering(PersonRole::Designer),
+            "**Who is answering.** The person is a designer. Ask only from this panel:\n\
+             - Iris (`design`), in depth: what people see and do.\n\
+             - Noor (`research`), in depth: what we know about the people using it.\n\
+             - Ada (`accessibility`), in depth, owns edge cases: keyboard, screen readers and contrast.\n\
+             - Theo (`engineering`), in plain words, owns error handling and scale: how it is built and tested.\n\
+             \n\
+             In depth means the field's own terms, and a request for the person's reasoning on the hardest question. \
+             Plain words means no jargon, at most two questions a round, and a recommended option the person can accept without knowing the field.\n"
+        );
+    }
+
+    #[test]
+    fn every_role_names_its_panel_and_who_owns_each_required_area() {
+        for entry in all() {
+            let section = who_is_answering(entry.id);
+            let bullets: Vec<&str> = section.lines().filter(|line| line.starts_with("- ")).collect();
+
+            assert!(section.contains(&format!("The person is {}.", entry.who)), "{section}");
+            assert_eq!(bullets.len(), 4, "{section}");
+            for (member, bullet) in entry.panel.iter().zip(&bullets) {
+                let persona = persona(&member.role).unwrap();
+                let voice = if member.voice == Voice::Deep { "in depth" } else { "in plain words" };
+                assert!(bullet.starts_with(&format!("- {} (`{}`), {voice}", persona.name, member.role.as_str())), "{bullet}");
+            }
+            for area in REQUIRED_AREAS {
+                assert_eq!(bullets.iter().filter(|bullet| bullet.contains(area)).count(), 1, "{area}: {section}");
+            }
+            assert_eq!(crate::standards::writing_faults(&section), Vec::<String>::new());
+        }
+        assert!(who_is_answering(PersonRole::Founder).contains("owns edge cases, error handling and scale"));
+        assert!(who_is_answering(PersonRole::Other).contains("The person is in another field."));
     }
 
     #[test]
