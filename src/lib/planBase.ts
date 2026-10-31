@@ -86,6 +86,9 @@ export interface PlanSummary {
   updated: string | null;
   /** When it was marked completed. Null for any other status. */
   completed: string | null;
+  /** One of the plans onboarding writes to show the app. Agents never see
+   * it. */
+  demo: boolean;
   path: string;
   relativePath: string;
   /** A set's documents, in reading order. Empty for a single-file plan. */

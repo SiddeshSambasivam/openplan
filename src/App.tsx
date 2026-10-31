@@ -118,7 +118,7 @@ import {
   SOURCE_LABELS,
   type PlanSummary,
 } from "./lib/planBase";
-import { forYou, pageTitle, steppedPlan, viewOrder, type ReviewSummary } from "./lib/board";
+import { demoBuildPlan, forYou, pageTitle, steppedPlan, viewOrder, type ReviewSummary } from "./lib/board";
 import { useShortcuts, type ShortcutHandlers } from "./lib/shortcuts";
 import {
   listWorkProgress,
@@ -677,12 +677,23 @@ export default function App() {
   // work has.
   const beforeWork =
     activePlan != null && (activePlan.status === "draft" || activePlan.status === "alignment");
+  // No agent reads a demo plan, so Build there shows the next stage instead.
   const build = useCallback(() => {
     if (!activePlan) return;
+    if (activePlan.demo) {
+      const next = demoBuildPlan(plans);
+      if (next) selectPlan(next);
+      setSendNotice(
+        next
+          ? "Demo plans don't build. This is the next stage."
+          : "Demo plans don't build. There is no In progress demo plan to show.",
+      );
+      return;
+    }
     void sendBuild(activePlan.path)
       .then((sessions) => setSendNotice(deliveryLine(sessions)))
       .catch(() => setSendNotice("Could not send. Your comments are saved."));
-  }, [activePlan]);
+  }, [activePlan, plans, selectPlan]);
 
   // A session that got a send tries to start its agent's turn, and says how
   // that went a moment after the delivery line.
@@ -1850,7 +1861,11 @@ export default function App() {
           offerCompletion={offerCompletion}
           onBuild={beforeWork ? build : undefined}
           buildBlocked={!aligned}
-          buildTooltip={buildTooltip(workRecord, preferences.alignmentTarget)}
+          buildTooltip={
+            activePlan?.demo && aligned
+              ? "Shows the next stage. Agents never build a demo plan."
+              : buildTooltip(workRecord, preferences.alignmentTarget)
+          }
           folders={knownFolders}
           folder={folder}
           onSelectFolder={setChosenFolder}

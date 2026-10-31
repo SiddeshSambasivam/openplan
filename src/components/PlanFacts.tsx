@@ -243,6 +243,15 @@ export function NewBadge({ className }: { className?: string }) {
   return <Badge className={cn("px-1.5 py-0", className)}>New</Badge>;
 }
 
+/** One of the plans onboarding writes to show the app. */
+export function DemoBadge({ className }: { className?: string }) {
+  return (
+    <Badge variant="outline" className={cn("bg-card px-1.5 py-0", className)}>
+      Demo
+    </Badge>
+  );
+}
+
 /** Agents working on this plan right now. Nothing is shown when nobody is.
  * The dot pulses on opacity alone; the reduced-motion guard stills it. */
 export function LiveMark({

@@ -45,6 +45,7 @@ pub struct PlanSummary {
     created: Option<String>,
     updated: Option<String>,
     completed: Option<String>,
+    demo: bool,
     path: PathBuf,
     relative_path: PathBuf,
     documents: Vec<PathBuf>,
@@ -63,6 +64,7 @@ impl From<library::PlanEntry> for PlanSummary {
             created: entry.meta.created,
             updated: entry.meta.updated,
             completed: entry.meta.completed,
+            demo: entry.meta.demo,
             path: entry.path,
             relative_path: entry.relative_path,
             documents: entry.documents,
@@ -741,6 +743,23 @@ mod tests {
             json,
             serde_json::json!({ "name": "Sid", "email": "sid@example.com", "avatar": null })
         );
+    }
+
+    #[test]
+    fn a_plan_summary_says_whether_it_is_a_demo() {
+        let path = PathBuf::from("/base/plans/demo-add-dark-mode.md");
+        let entry = |text: &str| library::PlanEntry {
+            meta: plan::parse(text, &path).meta,
+            path: path.clone(),
+            relative_path: PathBuf::from("plans/demo-add-dark-mode.md"),
+            documents: Vec::new(),
+        };
+
+        let demo = serde_json::to_value(PlanSummary::from(entry("---\ndemo: true\n---\n# Demo\n"))).unwrap();
+        let mine = serde_json::to_value(PlanSummary::from(entry("# Mine\n"))).unwrap();
+
+        assert_eq!(demo["demo"], true);
+        assert_eq!(mine["demo"], false);
     }
 
     #[test]

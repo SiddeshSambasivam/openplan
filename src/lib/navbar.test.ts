@@ -28,6 +28,7 @@ function plan(id: string, folders: string[] = []): PlanSummary {
     updated: null,
     path: `/base/${id}.md`,
     relativePath: `${id}.md`,
+    demo: false,
     documents: [],
     folders,
     completed: null,

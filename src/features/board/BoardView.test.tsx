@@ -18,6 +18,7 @@ function plan(id: string, status: Status, extra: Partial<PlanSummary> = {}): Pla
     updated: null,
     path: `/base/${id}.md`,
     relativePath: `${id}.md`,
+    demo: false,
     documents: [],
     folders: [],
     completed: null,
@@ -120,6 +121,14 @@ describe("BoardView card display", () => {
     const hidden = board([long], { ...CARD_DISPLAY_DEFAULTS, repos: false, prs: false }, progress);
     expect(hidden).not.toContain("owner/openplan");
     expect(hidden).not.toContain("owner/openplan#3");
+  });
+
+  it("tags a demo plan as Demo, in place of New", () => {
+    const demo = plan("d", "draft", { demo: true, created: new Date().toISOString() });
+
+    expect(board([demo])).toContain(">Demo<");
+    expect(board([demo])).not.toContain(">New<");
+    expect(board([plan("e", "draft")])).not.toContain(">Demo<");
   });
 
   it("tags a plan filed in the last few minutes as New", () => {

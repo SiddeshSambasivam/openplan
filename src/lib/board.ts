@@ -19,6 +19,15 @@ export interface StatusGroup {
   plans: PlanSummary[];
 }
 
+/** What Build on a demo plan opens instead of starting an agent: the In
+ * progress demo plan, where the work Build starts shows. */
+export function demoBuildPlan(plans: PlanSummary[]): PlanSummary | undefined {
+  const building = plans.filter((plan) => plan.demo && plan.status === "in-progress");
+  return building.find((plan) => plan.id === DEMO_BUILDING) ?? building[0];
+}
+
+const DEMO_BUILDING = "demo-sync-notes-across-devices";
+
 /** Newest first; a plan with no date sorts by title at the end. */
 export function sortPlans(plans: PlanSummary[]): PlanSummary[] {
   return [...plans].sort(

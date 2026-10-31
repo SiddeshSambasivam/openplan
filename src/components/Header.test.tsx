@@ -65,6 +65,7 @@ const planA = {
   updated: null,
   path: "/base/a.md",
   relativePath: "a.md",
+  demo: false,
   documents: [],
   folders: [],
   completed: null,

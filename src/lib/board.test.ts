@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   boardColumns,
+  demoBuildPlan,
   FOLDED,
   forYou,
   pageTitle,
@@ -26,6 +27,7 @@ function plan(overrides: Partial<PlanSummary> & { id: string }): PlanSummary {
     completed: null,
     path: `/base/${overrides.id}.md`,
     relativePath: `${overrides.id}.md`,
+    demo: false,
     documents: [],
     ...overrides,
   };
@@ -287,5 +289,33 @@ describe("steppedPlan", () => {
     expect(steppedPlan(order, null, 1)?.id).toBe("a");
     expect(steppedPlan(order, "/elsewhere.md", -1)?.id).toBe("c");
     expect(steppedPlan([], null, 1)).toBeNull();
+  });
+});
+
+describe("demoBuildPlan", () => {
+  it("is the In progress demo plan, which shows what Build leads to", () => {
+    const building = plan({ id: "demo-sync-notes-across-devices", status: "in-progress", demo: true });
+    const plans = [
+      plan({ id: "demo-export-notes-as-pdf", status: "alignment", demo: true }),
+      plan({ id: "mine", status: "in-progress" }),
+      building,
+    ];
+
+    expect(demoBuildPlan(plans)).toBe(building);
+  });
+
+  it("is any demo plan in progress once the usual one is gone", () => {
+    const moved = plan({ id: "demo-faster-search", status: "in-progress", demo: true });
+
+    expect(demoBuildPlan([plan({ id: "mine", status: "in-progress" }), moved])).toBe(moved);
+  });
+
+  it("is none when no demo plan is in progress", () => {
+    const plans = [
+      plan({ id: "demo-sync-notes-across-devices", status: "in-review", demo: true }),
+      plan({ id: "mine", status: "in-progress" }),
+    ];
+
+    expect(demoBuildPlan(plans)).toBeUndefined();
   });
 });

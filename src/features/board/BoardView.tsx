@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FolderPicker } from "@/components/FolderPicker";
 import { StatusGlyph } from "@/components/StatusGlyph";
 import {
+  DemoBadge,
   FolderBadges,
   HandledBy,
   LiveMark,
@@ -71,7 +72,8 @@ function Card({
   sessions: number;
   work?: PlanProgress;
   display: CardDisplay;
-  /** Filed in the last few minutes: the card carries a New tag. */
+  /** Filed in the last few minutes: the card carries a New tag, unless it
+   * is a demo plan, which carries a Demo tag. */
   fresh: boolean;
   /** Where the card sits in its column, which sets its entrance delay. */
   index: number;
@@ -82,6 +84,8 @@ function Card({
   const enter = entrance(index, mountedWith);
   const selected = useSelectedMark(plan.path);
   const completable = offersCompletion(plan.status, work?.prs.reported);
+  const tagClass =
+    "pointer-events-none absolute top-2.5 right-2 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0";
   return (
     // The menu sits beside the card's button rather than inside it: a
     // button cannot hold another one.
@@ -100,7 +104,7 @@ function Card({
           <span
             className={cn(
               "text-sm leading-snug font-medium text-balance text-foreground",
-              fresh ? "pr-11" : "pr-6",
+              fresh || plan.demo ? "pr-12" : "pr-6",
               display.clampTitle && "line-clamp-2",
             )}
           >
@@ -144,8 +148,10 @@ function Card({
           </TooltipButton>
         )}
         {/* The tag gives way to the folder menu, which opens in its place. */}
-        {fresh && (
-          <NewBadge className="pointer-events-none absolute top-2.5 right-2 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0" />
+        {plan.demo ? (
+          <DemoBadge className={tagClass} />
+        ) : (
+          fresh && <NewBadge className={tagClass} />
         )}
         <FolderPicker
           folders={plan.folders}

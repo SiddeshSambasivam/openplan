@@ -19,6 +19,7 @@ function plan(id: string, status: Status = "draft"): PlanSummary {
     updated: null,
     path: `/base/${id}.md`,
     relativePath: `${id}.md`,
+    demo: false,
     documents: [],
     folders: [],
     completed: null,

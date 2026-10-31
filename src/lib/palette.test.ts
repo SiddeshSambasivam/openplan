@@ -17,6 +17,7 @@ function plan(title: string): PlanSummary {
     completed: null,
     path: `/base/${id}.md`,
     relativePath: `${id}.md`,
+    demo: false,
     documents: [],
   };
 }
