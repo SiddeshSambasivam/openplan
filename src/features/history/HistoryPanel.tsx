@@ -73,7 +73,7 @@ export function HistoryPanel({
   return (
     <aside className="absolute inset-y-0 right-0 z-30 flex w-96 animate-in flex-col border-l border-border bg-background shadow-lg slide-in-from-right-4 duration-200">
       <div className="flex shrink-0 items-center justify-between px-4 pt-3.5 pb-2">
-        <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+        <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
           History
         </p>
         <TooltipButton
@@ -112,18 +112,18 @@ export function HistoryPanel({
                   <span className="truncate text-xs font-medium text-foreground">
                     {SOURCE_LABELS[revision.author] ?? revision.author}
                   </span>
-                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                     {formatWhen(revision.timestamp)}
                   </span>
                 </span>
-                <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                   {revision.message}
                 </span>
               </button>
 
               {selected?.id === revision.id && (
                 <div className="mt-1 mb-2 px-2">
-                  <div className="max-h-72 overflow-auto rounded-md border border-border font-mono text-[11px] leading-5">
+                  <div className="max-h-72 overflow-auto rounded-md border border-border font-mono text-xs leading-5">
                     {diff == null ? (
                       <p className="p-2 text-muted-foreground">Loading…</p>
                     ) : diff.length === 0 ? (

@@ -40,7 +40,7 @@ export function Outline({
 
   const panel = (
     <div className="flex h-full w-56 flex-col border-l border-border bg-background">
-      <p className="shrink-0 px-4 pt-3.5 pb-1.5 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+      <p className="shrink-0 px-4 pt-3.5 pb-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
         On this page
       </p>
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">

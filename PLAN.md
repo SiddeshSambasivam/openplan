@@ -920,16 +920,16 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [ ] R1.3 Navbar: two modes only, expanded and minimized, with a smooth transition;
       the toggle morphs over the OpenPlan mark on hover; no new-plan button; the
       wordmark in EB Garamond, no name or base line
-- [ ] R1.4 Cards show repos; a Display menu on the board picks which attributes a
+- [x] R1.4 Cards show repos; a Display menu on the board picks which attributes a
       card shows, persisted
-- [ ] R1.5 Settings: an app font size separate from the plan text size; the default
+- [x] R1.5 Settings: an app font size separate from the plan text size; the default
       app text one step smaller
 - [ ] R1.6 Segmented tabs: the selected item keeps its background on hover in dark mode
 - [x] R1.7 Video: confirm playback in the desktop app (the media setting was turned
       on after the app had launched); standards ask for Remotion explainers in a
       clean, minimal, Apple-like style with smooth motion
-- [ ] R1.8 Cards: a Display option clamps the title to two lines
-- [ ] R1.9 Cards: a plan filed in the last few minutes carries a "New" tag- [ ] R1.10 Navbar: the macOS traffic lights no longer overlap the minimized rail or
+- [x] R1.8 Cards: a Display option clamps the title to two lines
+- [x] R1.9 Cards: a plan filed in the last few minutes carries a "New" tag- [ ] R1.10 Navbar: the macOS traffic lights no longer overlap the minimized rail or
       the top bar's first control- [ ] R1.11 Folders: a "+" on the navbar's Folders section creates one; empty folders
       live in the base's `openplan.json` and the navbar lists the union with frontmatter
 - [ ] R1.12 Navbar: `cmd+shift+[` and `cmd+shift+]` step through the navbar rows
@@ -1144,6 +1144,9 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | The command palette is shadcn `command` on `cmdk` (the one new dependency, for its fuzzy filter); it lists five recent plans untyped and the top 20 title matches typed, plus content matches from the on-demand search; it and the shortcut sheet mount only while open | Mounting every plan made opening the palette grow with the base (NFR-1); the overlays re-render only themselves |
 | 2026-10-29 | Tooltips with keys go on every icon and action button; rows that open a plan, breadcrumbs, section toggles and inline form buttons carry none | A tooltip on a list row says what the row already says |
 | 2026-10-29 | The asset protocol scope sets `requireLiteralLeadingDot: false` | The base is `~/.openplan`, a dot-directory, and Tauri's `**` does not match one on Unix by default, so every local image and video under the base was refused (found at GATE 7: the video showed WebKit's cannot-play glyph and an image beside it broke the same way) |
+| 2026-10-29 | App text size is a root token (`--app-font-size`, 12, 13 or 14px, default 13) that redefines Tailwind's text-xs to text-lg at their usual ratios; the plan body keeps its own px size | Sid: app text one step smaller, and a size apart from the plan text. Scaling `html` would have shrunk rem spacing and the plan's reading width too |
+| 2026-10-29 | Card attributes come from a Display menu on the board, stored in localStorage; list and For you rows read the same options except the two-line clamp | Sid: toggle what a card shows, clamp the title to two lines. Rows are always one line |
+| 2026-10-29 | A plan filed in the last 10 minutes carries a New badge, cleared by one timeout armed to the earliest expiry and re-armed on change, never an interval | Sid: spot what just arrived. One timeout per change is not the periodic wake NFR-8 forbids |
 
 ---
 

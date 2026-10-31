@@ -44,7 +44,7 @@ function resolvedLine(thread: CommentThread): string | null {
 
 function GroupHeading({ children }: { children: React.ReactNode }) {
   return (
-    <li className="pt-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+    <li className="pt-2 text-xs font-medium tracking-wider text-muted-foreground uppercase">
       {children}
     </li>
   );
@@ -151,7 +151,7 @@ export function CommentsPanel({
         <span className="line-clamp-2 text-xs text-muted-foreground italic">
           {thread.quote}
         </span>
-        <span className="mt-0.5 block text-[10px] text-muted-foreground/70">
+        <span className="mt-0.5 block text-xs text-muted-foreground/70">
           {thread.lineStart === thread.lineEnd
             ? `Line ${thread.lineStart}`
             : `Lines ${thread.lineStart}-${thread.lineEnd}`}
@@ -174,7 +174,7 @@ export function CommentsPanel({
       </div>
 
       {thread.resolved && resolvedLine(thread) && (
-        <p className="mt-2 text-[10px] text-muted-foreground">{resolvedLine(thread)}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{resolvedLine(thread)}</p>
       )}
 
       {!thread.resolved && <Reply onReply={(text) => onReply(thread.id, text)} />}
@@ -218,7 +218,7 @@ export function CommentsPanel({
   return (
     <aside className="absolute inset-y-0 right-0 z-30 flex w-80 animate-in flex-col border-l border-border bg-background shadow-lg slide-in-from-right-4 duration-200">
       <div className="flex shrink-0 items-center justify-between px-4 pt-3.5 pb-2">
-        <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+        <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
           Comments
         </p>
         <div className="flex items-center gap-1">
@@ -283,7 +283,7 @@ export function CommentsPanel({
               <button
                 onClick={() => setShowResolved((shown) => !shown)}
                 aria-expanded={showResolved}
-                className="flex w-full cursor-default items-center gap-1 pt-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
+                className="flex w-full cursor-default items-center gap-1 pt-2 text-xs font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
               >
                 <ChevronRight
                   className={cn(
