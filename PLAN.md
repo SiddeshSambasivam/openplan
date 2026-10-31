@@ -524,6 +524,25 @@ What the transcripts *do* carry, for the 4 that exist, is good metadata:
 `timestamp`, `cwd` (→ `project:`), `gitBranch`, `sessionId`, and a body that
 already opens with an H1 and `## Context`.
 
+**Importing Sid's real folder, measured 2026-08-15.** `openplan add` over
+`~/Desktop/Hypo Fable Plans/` filed 11 plans and refused none. It also showed
+what a file-at-a-time importer cannot do:
+
+- The folder holds **109 documents**; 11 were captured. A plan set is 2–38
+  documents (`pdb-search-v1` is 38) and only its entry point came across.
+- `pdb-projects-overhaul` became **two** plans — its README and its PLAN — which
+  are the same plan.
+- Every import landed as `draft`, though the bodies carry their own status
+  (`**Status:** PLANNING (2026-07-29)`, `documented, not yet fixed`).
+- One slug truncated mid-word at 60 characters (`…coerce-to-date`).
+
+**A plan can be a folder.** The contract (§6.1) assumes one plan is one file,
+but the standards tell people to use a directory for anything large, and Sid's
+own corpus is six sets and four loose files. Import must treat a directory with
+a `README.md` as one plan with many documents, and `library::scan` must list it
+once rather than 38 times. This is a change to the contract, not just the
+importer.
+
 **Consequence for onboarding (P3.0):** auto-discovery of agent internals is a
 garnish, not the main course. The plans a person already has live in a folder
 they maintain by hand. Onboarding should lead with *"point us at where you keep
@@ -609,6 +628,8 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       defaults changed to small font + compact width **(T: `outline.ts`)**
 - [x] P0.8 Motion layer (`animate-*` utilities + reduced-motion guard) and
       animated reading-width changes; app shell no longer scrolls vertically
+- [ ] **GATE 1 waived for Phase 2** — Sid, 2026-08-15: "gate waived for phase 2".
+      Phase 1 remains unverified at runtime; its QA is still owed before a release.
 - [x] **GATE 0 — Sid manual QA & approval** — approved 2026-08-15 on macOS.
       Windows and Linux were not exercised; the rename is config-level, so CI
       on the first `v*` tag is the real check for those
@@ -640,7 +661,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       updates, history; idle CPU ~0% with watcher running — NFR-8)
 
 ### Phase 2 — Agent integration
-- [ ] P2.1 `cli/` crate scaffold: `openplan init|list|add|doctor` **(T: temp base)**
+- [x] P2.1 `cli/` crate scaffold: `openplan init|list|add|doctor` **(T: temp base)**
 - [ ] P2.2 MCP server (`rmcp`, stdio): `create_plan`, `read_plan`, `list_plans`,
       `update_plan`, `set_status` **(T: in-process stdio harness)**
 - [ ] P2.3 MCP comment tools: `get_comments` (golden-file format), `reply_comment`,
@@ -744,6 +765,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Default reading settings: small font, compact width | Sid's preference |
 | 2026-08-15 | Shared motion utilities in `index.css` (transform/opacity entrances, `prefers-reduced-motion` guard) | Sid: interactions felt too sudden; keeps motion consistent instead of per-component ad hoc |
 | 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
+| 2026-08-15 | GATE 1 waived so Phase 2 could start; Phase 1 QA still owed | Sid, explicitly. Recorded per §2 Process, which requires a waiver be logged rather than assumed |
 | 2026-08-15 | Onboarding leads with importing an existing folder, not with mining agent transcripts | Measured (§6.7): agent internals yield 4 plans on a machine whose real corpus is a 10-set folder. Codex has no prose plan to find |
 | 2026-08-15 | Standards belong to the app, not the plan base; settings expose additions that layer on top | Sid: standards are a settings concept. A copy per base drifts, and nobody edits the one that shipped. Interoperability is preserved through `get_standards` rather than a file |
 | 2026-08-15 | Settings is a modal with its own section nav, opened from the sidebar's footer | Sid; matches where people look for it |

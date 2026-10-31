@@ -2423,6 +2423,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "openplan-cli"
+version = "0.1.0"
+dependencies = [
+ "openplan-core",
+]
+
+[[package]]
 name = "openplan-core"
 version = "0.1.0"
 dependencies = [

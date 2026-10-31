@@ -210,6 +210,29 @@ pub fn serialize(plan: &Plan) -> String {
     out
 }
 
+/// A filename for a plan, made from its title. Agents pick titles, not
+/// filenames, and a title is what someone recognises in a directory listing.
+pub fn slugify(title: &str) -> String {
+    let mut slug = String::new();
+    let mut pending_dash = false;
+    for ch in title.chars() {
+        if ch.is_ascii_alphanumeric() {
+            if pending_dash && !slug.is_empty() {
+                slug.push('-');
+            }
+            pending_dash = false;
+            slug.push(ch.to_ascii_lowercase());
+        } else {
+            pending_dash = true;
+        }
+    }
+    if slug.is_empty() {
+        "untitled".to_string()
+    } else {
+        slug.chars().take(60).collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,6 +322,19 @@ mod tests {
 
         assert_eq!(plan.body, text);
         assert!(plan.derived);
+    }
+
+    #[test]
+    fn a_title_becomes_a_filename_someone_would_recognise() {
+        assert_eq!(slugify("Auth refactor"), "auth-refactor");
+        assert_eq!(slugify("PDB filter schema bug: number `between`"), "pdb-filter-schema-bug-number-between");
+        assert_eq!(slugify("  React 17 → 19  "), "react-17-19");
+    }
+
+    #[test]
+    fn a_title_with_nothing_usable_still_gives_a_filename() {
+        assert_eq!(slugify("→ ✨ ///"), "untitled");
+        assert_eq!(slugify(""), "untitled");
     }
 
     #[test]
