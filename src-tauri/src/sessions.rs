@@ -83,12 +83,13 @@ fn notes(threads: &[CommentThread], wanted: &[String]) -> Vec<CommentNote> {
 }
 
 pub fn setup(app: &tauri::App, base: Option<Base>) {
-    let Some(base) = base else { return };
+    if base.is_none() {
+        return;
+    }
     let handle = app.handle().clone();
-    let Ok(server) = local::Server::start(base, move |notice| {
+    let Ok(server) = local::Server::start(move |notice| {
         let _ = handle.emit(
             match notice {
-                Notice::BaseChanged => "base-changed",
                 Notice::SessionsChanged => "sessions-changed",
             },
             (),
