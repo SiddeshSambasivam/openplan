@@ -912,6 +912,68 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       and archive; video and LaTeX; every action by shortcut with the key in its
       tooltip; idle CPU ~0%)
 
+#### GATE 7 QA script
+
+Run a release build of 0.3.0 against the real base, with Claude Code connected
+through `openplan install claude-code` (which now writes the two hooks).
+
+1. First launch (P7.10, P7.12). Reset onboarding from Settings. Hello then Connect,
+   no import step. The app lands on the empty state, "No plan open". Settings >
+   Import plans lists what discovery finds and imports a copy.
+2. Shell (P7.12). `cmd+b` hides and shows the navbar, `cmd+shift+b` gives the icon
+   rail with tooltips. Hidden mode: resting the pointer on the left edge reveals the
+   navbar as an overlay, which leaves with the pointer. Sections fold and stay
+   folded after a relaunch. The body typeface is Inter, the wordmark EB Garamond.
+   Every surface has rounded corners.
+3. Board (P7.1, P7.4). Columns Draft, Alignment, In progress, In review, then one
+   Hidden control that opens into Completed and Archived. The folder filter lists
+   every folder. A card's folder picker adds a folder, and the Folders section in
+   the navbar shows it. Hovering a card lifts it without clipping its top edge.
+4. Draft to alignment (P7.3, P7.6, P7.7). Have Claude Code file a plan and revise
+   it with `update_plan` (no duplicate plan appears). Set Alignment from the
+   picker. The top bar reads "Delivered to 1 session." The session asks its
+   questions with AskUserQuestion, the first being "Accept all N recommendations".
+   Answer, and the session calls `record_alignment`, `add_todos` and `set_status`.
+   The plan moves to In progress and the page shows the Q&A and the todos.
+5. Guards (P7.3). In the session, ask it to call `set_status in-progress` on a draft
+   plan without alignment: the server refuses with a reason that names
+   `record_alignment`. Ask it to set In review with a todo open: refused, listing
+   the todo.
+6. Live todos (P7.5). While the session works, `update_todo` moves items and the
+   checklist updates with who and when. The board card reads `n/m` with a bar.
+   Adding a todo to an In review plan moves it back to In progress.
+7. Hooks (P7.7). Send a review while the session is idle. The top bar reads
+   "Waiting for the session. Type anything in it to deliver." Type anything in
+   the session: the comments arrive as context before the agent answers. Send a
+   review while the agent is mid-turn: the Stop hook keeps it going and it calls
+   `get_comments` on its own.
+8. PRs (P7.3, P7.6). The session calls `pr_body`, opens a PR with that text, and
+   `record_pr`. The plan page shows the PR with its badges. Report it merged
+   through `record_pr`: the top bar offers "Mark completed", one click sets it, and
+   `completed` is written to the frontmatter.
+9. Archive (P7.6). Set "Archive completed plans after" to 0 days, relaunch: nothing
+   archives. Set 1 day, change a completed plan's `completed` to two days ago,
+   open the board: it moves to Archived with one `archive: 1 plan` commit by
+   `openplan`.
+10. Rendering (P7.9). A plan with `$$E = mc^2$$` inline, a `$$` block, "$5 to $10"
+    in prose, a `media/clip.mp4` video and an `html` fence with a button that
+    changes its own text. With Media off, the fence shows as code and the video as
+    a link. With Media on, all render, the price stays text, a `fetch` in the
+    fence fails, and the frame cannot navigate away.
+11. Shortcuts (P7.11). `?` lists every binding. `cmd+k` opens the palette, finds a
+    plan by a fuzzy title and opens it. Every action button shows its key in its
+    tooltip. `cmd+1` to `cmd+4`, `[` and `]`, `cmd+shift+a`, `cmd+shift+s` and
+    `cmd+enter` do what the sheet says. None fire while typing in a field.
+12. 720x480 and both themes (NFR-1). Nothing clips or scrolls sideways; the navbar
+    floats below 900px; the switch in settings is legible in dark mode.
+13. Idle cost (NFR-8). App open, a session connected, nothing happening: CPU near
+    0% for a minute in Activity Monitor. Entering the board with no stale plans
+    writes no commit.
+
+Known and decided, not bugs: an idle session hears about a review on its next
+keystroke, not at once (D11); record decisions render as plain text; only the
+upright Inter face is vendored, so italics are synthesised.
+
 ---
 
 ## 9. Decision log
