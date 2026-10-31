@@ -134,13 +134,20 @@ function slice(lines: string[], from: number, to: number): PlanSlice | null {
   return { body: lines.slice(start, end).join("\n"), line: start + 1 };
 }
 
-/** Whether the body's first H1 is the title the meta bar already shows. A
- * plan often shortens its title in the file, so a prefix counts. */
+/** Whether one title is the other's opening words. A plan shortens or extends
+ * its title in the file constantly, so the two rarely match exactly. */
+function samePrefix(a: string, b: string): boolean {
+  const normalise = (text: string) =>
+    text.toLowerCase().replace(/[\s.:,—–-]+$/, "").trim();
+  const [short, long] = [normalise(a), normalise(b)].sort((x, y) => x.length - y.length);
+  if (short.length === 0 || !long.startsWith(short)) return false;
+  // A prefix that cuts a word in half is a different title.
+  return long.length === short.length || !/[a-z0-9]/.test(long[short.length]);
+}
+
+/** Whether the body's first H1 is the title the meta bar already shows. */
 function isTitleHeading(heading: Heading, title: string): boolean {
-  if (heading.level !== 1) return false;
-  const normalise = (text: string) => text.toLowerCase().replace(/[\s.:,—–-]+$/, "").trim();
-  const head = normalise(heading.text);
-  return head.length > 0 && normalise(title).startsWith(head);
+  return heading.level === 1 && samePrefix(heading.text, title);
 }
 
 /**
@@ -151,7 +158,14 @@ function isTitleHeading(heading: Heading, title: string): boolean {
 export function splitSections(body: string, title: string): PlanBody {
   const lines = body.split("\n");
   const all = headings(lines);
-  const titleHeading = all[0] && isTitleHeading(all[0], title) ? all[0] : null;
+  const titleHeading =
+    all[0] &&
+    // A lone H1 over everything else is the title however it is worded: the
+    // alternative is a page of one section holding the whole plan.
+    (isTitleHeading(all[0], title) ||
+      (all[0].level === 1 && all.filter((h) => h.level === 1).length === 1))
+      ? all[0]
+      : null;
   const rest = titleHeading ? all.slice(1) : all;
   const start = titleHeading ? titleHeading.index + 1 : 0;
 

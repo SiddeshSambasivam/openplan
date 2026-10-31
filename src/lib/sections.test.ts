@@ -76,6 +76,30 @@ describe("splitSections", () => {
     expect(plan.sections.map((s) => s.heading)).toEqual(["1. Overview"]);
   });
 
+  it("treats the opening H1 as the title when it extends the plan title", () => {
+    const body = "# Hypotenuse status page, implementation plan\n\n## Summary\n\nIt works.\n";
+
+    const plan = splitSections(body, "Hypotenuse status page");
+
+    expect(plan.sections.map((s) => s.heading)).toEqual(["Summary"]);
+  });
+
+  it("does not take a title that only cuts a word in half", () => {
+    const body = "# Authentication overview\n\n# Steps\n\nDo it.\n";
+
+    const plan = splitSections(body, "Auth");
+
+    expect(plan.sections.map((s) => s.heading)).toEqual(["Authentication overview", "Steps"]);
+  });
+
+  it("takes a lone opening H1 as the title however it is worded", () => {
+    const body = "# Something else entirely\n\n## Summary\n\nIt works.\n\n## Steps\n\nDo it.\n";
+
+    const plan = splitSections(body, "Auth refactor");
+
+    expect(plan.sections.map((s) => s.heading)).toEqual(["Summary", "Steps"]);
+  });
+
   it("keeps an opening H1 that is a section of its own", () => {
     const body = "# Overview\n\nOne server.\n\n# Steps\n\nDo it.\n";
 

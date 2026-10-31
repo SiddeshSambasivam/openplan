@@ -429,8 +429,16 @@
 .plan-section {
   margin-bottom: 2rem;
 }
+/* One scale inside a section, whatever heading level the author used, so a
+   subheading never outranks the section it sits in. */
+.plan-section .markdown-body :where(h1, h2, h3) {
+  font-size: 1.02em;
+}
+.plan-section .markdown-body :where(h4, h5, h6) {
+  font-size: 0.95em;
+}
 .plan-section .markdown-body :where(h1, h2, h3, h4):first-child {
-  font-size: 1.1em;
+  font-size: 1.12em;
   margin-top: 0;
   padding-bottom: 0;
   border-bottom: 0;
@@ -472,6 +480,10 @@
   border-radius: var(--radius-lg);
   padding: 0 0.9rem;
 }
+.plan-section[data-kind="approach"] .markdown-body :where(tr:last-child td),
+.plan-section[data-kind="steps"] .markdown-body :where(tr:last-child td) {
+  border-bottom: 0;
+}
 
 /* Decisions: one card per decision, with its labels quietened. */
 .plan-decision {
@@ -488,6 +500,10 @@
 }
 .plan-decision .markdown-body :where(p) > strong:first-child {
   font-weight: 500;
+}
+/* The decision's name reads as the card's title, above what it says. */
+.plan-decision .markdown-body > p:first-child > strong:first-child {
+  display: block;
 }
 
 /* Risks and alternatives: each item is a cell you can read on its own. */

@@ -92,7 +92,7 @@ export function PlanPage({ body, title, type, docPath, dark }: PlanPageProps) {
   return (
     <div className="plan-page">
       {plan.lead && (
-        <div className="plan-section" data-kind="summary">
+        <div className="plan-section" data-kind="lead">
           <Body
             content={plan.lead.body}
             line={plan.lead.line}
