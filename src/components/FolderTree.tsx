@@ -9,11 +9,6 @@ import {
 import type { FileLeaf, FolderLibraryItem, FolderNode } from "../lib/types";
 import { cn } from "../lib/utils";
 import { MarqueeText } from "./MarqueeText";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { TooltipButton } from "./TooltipButton";
 
 interface TreeContext {
@@ -42,24 +37,19 @@ function FileRow({
 }) {
   return (
     <li>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={() => ctx.onSelect(leaf.id)}
-            style={indent(depth)}
-            className={cn(
-              rowClass,
-              leaf.id === ctx.activeId &&
-                "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
-            )}
-          >
-            <span className="size-3.5 shrink-0" />
-            <FileText className="size-4 shrink-0 text-muted-foreground" />
-            <MarqueeText text={leaf.name} className="flex-1" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right">{leaf.path ?? leaf.name}</TooltipContent>
-      </Tooltip>
+      <button
+        onClick={() => ctx.onSelect(leaf.id)}
+        style={indent(depth)}
+        className={cn(
+          rowClass,
+          leaf.id === ctx.activeId &&
+            "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+        )}
+      >
+        <span className="size-3.5 shrink-0" />
+        <FileText className="size-4 shrink-0 text-muted-foreground" />
+        <MarqueeText text={leaf.name} className="flex-1" />
+      </button>
     </li>
   );
 }
@@ -91,40 +81,33 @@ function NoteRow({
 function DirRow({
   name,
   path,
-  tooltip,
   depth,
   open,
   onToggle,
 }: {
   name: string;
   path: string;
-  tooltip?: string;
   depth: number;
   open: boolean;
   onToggle: (path: string) => void;
 }) {
   const FolderIcon = open ? FolderOpen : Folder;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={() => onToggle(path)}
-          style={indent(depth)}
-          className={rowClass}
-          aria-expanded={open}
-        >
-          <ChevronRight
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-              open && "rotate-90",
-            )}
-          />
-          <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate">{name}</span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right">{tooltip ?? path}</TooltipContent>
-    </Tooltip>
+    <button
+      onClick={() => onToggle(path)}
+      style={indent(depth)}
+      className={rowClass}
+      aria-expanded={open}
+    >
+      <ChevronRight
+        className={cn(
+          "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+          open && "rotate-90",
+        )}
+      />
+      <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+    </button>
   );
 }
 
@@ -192,7 +175,6 @@ export function FolderTree({ item, ctx, onRemove }: FolderTreeProps) {
         <DirRow
           name={item.name}
           path={item.path}
-          tooltip={item.path.startsWith("mem:") ? item.name : item.path}
           depth={0}
           open={open}
           onToggle={ctx.onToggleDir}

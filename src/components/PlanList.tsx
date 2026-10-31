@@ -1,11 +1,6 @@
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
 import { useMemo, useState } from "react";
-import { SOURCE_LABELS, type PlanSummary } from "@/lib/planBase";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import type { PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
 import { MarqueeText } from "./MarqueeText";
@@ -167,10 +162,8 @@ export function PlanList({
                 isSet && (toggled[plan.path] ?? !!activePath?.startsWith(folder));
               return (
               <li key={plan.path}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => {
+                <button
+                  onClick={() => {
                         if (!isSet) {
                           onSelect(plan);
                           return;
@@ -217,12 +210,7 @@ export function PlanList({
                           {plan.tags.length > 1 && ` +${plan.tags.length - 1}`}
                         </span>
                       )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    {SOURCE_LABELS[plan.source] ?? plan.source} · {plan.relativePath}
-                  </TooltipContent>
-                </Tooltip>
+                </button>
 
                 {/* A set opens at its entry point; the rest of it is only
                     reachable if the documents are listed. */}

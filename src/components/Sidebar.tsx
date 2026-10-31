@@ -8,11 +8,6 @@ import { FolderTree } from "./FolderTree";
 import { PlanList } from "./PlanList";
 import { searchPlans, type PlanSummary, type SearchHit } from "@/lib/planBase";
 import { MarqueeText } from "./MarqueeText";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TooltipButton } from "./TooltipButton";
@@ -49,23 +44,18 @@ function LooseFileRow({
 }) {
   return (
     <li className="group relative">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={() => onSelect(file.id)}
-            className={cn(
-              "relative flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-              active &&
-                "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
-            )}
-          >
-            {inset && <span className="size-3.5 shrink-0" />}
-            <FileText className="size-4 shrink-0 text-muted-foreground" />
-            <MarqueeText text={file.name} className="flex-1 pr-3" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right">{file.path ?? file.name}</TooltipContent>
-      </Tooltip>
+      <button
+        onClick={() => onSelect(file.id)}
+        className={cn(
+          "relative flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+          active &&
+            "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+        )}
+      >
+        {inset && <span className="size-3.5 shrink-0" />}
+        <FileText className="size-4 shrink-0 text-muted-foreground" />
+        <MarqueeText text={file.name} className="flex-1 pr-3" />
+      </button>
       <TooltipButton
         variant="ghost"
         size="icon-xs"

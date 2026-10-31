@@ -169,6 +169,11 @@ pub fn serialize(plan: &Plan) -> String {
     if let Some(updated) = &plan.meta.updated {
         set("updated", updated);
     }
+    if plan.meta.tags.is_empty() {
+        // A cleared tag list removes the line; leaving the old one behind
+        // would make the last tag impossible to remove.
+        pairs.retain(|(k, _)| k != "tags");
+    }
 
     let mut out = String::from("---\n");
     for (key, value) in &pairs {
@@ -252,6 +257,17 @@ mod tests {
         let plan = parse_str("---\nstatus: in-review\ntitle: X\n---\n# X\n");
 
         assert!(serialize(&plan).contains("status: in-review"), "unknown keys survive");
+    }
+
+    #[test]
+    fn removing_the_last_tag_removes_the_line() {
+        let mut plan = parse_str("---\ntitle: X\ntags: search\n---\n# X\n");
+        plan.meta.tags = Vec::new();
+
+        let out = serialize(&plan);
+
+        assert!(!out.contains("tags:"), "{out}");
+        assert!(parse_str(&out).meta.tags.is_empty());
     }
 
     #[test]

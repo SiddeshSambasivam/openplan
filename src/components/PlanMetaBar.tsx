@@ -77,7 +77,7 @@ export function PlanMetaBar({
             <button
               onClick={() => onTagsChange(plan.tags.filter((t) => t !== tag))}
               aria-label={`Remove tag ${tag}`}
-              className="cursor-default rounded-full p-0.5 opacity-0 transition-opacity group-hover/tag:opacity-100 hover:bg-border"
+              className="cursor-default rounded-full p-0.5 opacity-40 transition-opacity group-hover/tag:opacity-100 hover:bg-border"
             >
               <X className="size-2.5" />
             </button>
