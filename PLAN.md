@@ -876,14 +876,14 @@ rather than at once, because MCP gives a server no way to speak first.
 ### Phase 7 — 0.3.0: alignment, work record, folders, rich pages
 Entity model agreed with Sid 2026-10-28. Specification and decisions D1 to D13: the
 filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GATE 6 waiver (§9).
-- [ ] P7.1 Contract: `Status` gains alignment and archived; frontmatter gains
+- [x] P7.1 Contract: `Status` gains alignment and archived; frontmatter gains
       `folders` and `completed`, stops writing `project` and `pr`; legacy reads **(T)**
 - [x] P7.2 Work record: schema, atomic read-modify-write under the base lock,
       `pr` migrated on first write **(T)**
 - [ ] P7.3 MCP: `update_plan`, `record_alignment`, `add_decisions`, `add_todos`,
       `update_todo`, `record_pr`, `pr_body`, `set_repos`; `create_plan` takes
       `repos`; guards on `set_status`; presence no longer sets status **(T)**
-- [ ] P7.4 Delete projects: `project.rs`, `projects.json`, `describe_project`,
+- [x] P7.4 Delete projects: `project.rs`, `projects.json`, `describe_project`,
       `list_projects`, avatars, project filter; folders replace them in every view
 - [ ] P7.5 Plan page: alignment Q&A, decision cards, live todo checklist, repos and
       PRs block; board card progress **(T: record parsing and progress)**
@@ -1025,6 +1025,10 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 | 2026-10-28 | **GATE 6 waived and Phase 7 (0.3.0) starts** | Sid, 2026-10-28: "Gate waived", after the rule was pointed out. Recorded per §2 Process. GATE 7 remains |
 | 2026-10-28 | Inline math is `$$x$$` on one line, never a single dollar pair | Plans quote prices ("$5 to $10"), and `remark-math`'s default would render the text between them as a formula |
 | 2026-10-28 | KaTeX runs after `rehype-sanitize`, like the highlighter, and the app page carries `frame-src 'none'` | Allowing `style` on spans for KaTeX would let any raw HTML carry inline styles. A fence script could navigate its own frame to a web page, which the frame's CSP does not cover; the page directive blocks it and `srcdoc` frames still load |
+| 2026-10-28 | An agent may set `alignment` only from draft; from any later status the person reopens it from the app | Reopening is the person's call, and the picker is where they make it |
+| 2026-10-28 | Frontmatter block lists are rewritten as flow lists, and `tags:` reads through the same list parser | The parser folded block lists under an empty key, so an unknown block list used to vanish on rewrite |
+| 2026-10-28 | Folder names are trimmed, whitespace collapsed, and `, [ ] { } " ' : #` dropped; matching ignores case | They are written as a YAML flow list, and the picker warns while typing rather than quoting |
+| 2026-10-28 | Completed and Archived sit folded in one rail at the end of the board, open per visit; the "Hide completed" toggle is gone | Two folded groups replaced one hidden one, and a rail keeps four open columns at 1280px |
 
 ---
 
