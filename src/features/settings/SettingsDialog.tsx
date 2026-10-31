@@ -1,4 +1,4 @@
-import { FileText, Folder, Info, SlidersHorizontal } from "lucide-react";
+import { Download, FileText, Folder, Info, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { FONT_SIZE_LABELS, FONT_SIZE_ORDER, type FontSize } from "@/lib/fontSize";
 import { WIDTH_LABELS, WIDTH_ORDER, type ContentWidth } from "@/lib/width";
@@ -22,11 +22,13 @@ import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 import { isTauri } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { ImportPlans } from "./ImportPlans";
 
 const SECTIONS = [
   { id: "general", label: "General", icon: SlidersHorizontal },
   { id: "standards", label: "Standards", icon: FileText },
   { id: "base", label: "Plan base", icon: Folder },
+  { id: "import", label: "Import plans", icon: Download },
   { id: "about", label: "About", icon: Info },
 ] as const;
 
@@ -325,10 +327,27 @@ export function SettingsDialog({
                       Replay onboarding
                     </Button>
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      Shows the welcome flow again. Your plans are not affected,
-                      and importing again skips anything already here.
+                      Shows the welcome flow again. Your plans are not affected.
                     </p>
                   </div>
+                )}
+              </>
+            )}
+
+            {section === "import" && (
+              <>
+                <h2 className="text-sm font-semibold">Import plans</h2>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Bring in plans your agents already wrote on this machine.
+                  Importing makes a copy. Your original files stay where they
+                  are, and plans already here are skipped.
+                </p>
+                {isTauri ? (
+                  <ImportPlans />
+                ) : (
+                  <p className="mt-4 text-xs text-muted-foreground">
+                    Available in the desktop app.
+                  </p>
                 )}
               </>
             )}
