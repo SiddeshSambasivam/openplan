@@ -33,6 +33,7 @@ pub struct PlanSummary {
     updated: Option<String>,
     path: PathBuf,
     relative_path: PathBuf,
+    documents: Vec<PathBuf>,
 }
 
 impl From<library::PlanEntry> for PlanSummary {
@@ -47,6 +48,7 @@ impl From<library::PlanEntry> for PlanSummary {
             updated: entry.meta.updated,
             path: entry.path,
             relative_path: entry.relative_path,
+            documents: entry.documents,
         }
     }
 }

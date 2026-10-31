@@ -15,8 +15,9 @@ pub struct PlanEntry {
     pub path: PathBuf,
     /// Path within the base — what history is recorded against.
     pub relative_path: PathBuf,
-    /// 1 for a plan that is one file; for a set, every document in it.
-    pub documents: usize,
+    /// The documents in a set, in reading order, relative to the set's folder.
+    /// Empty for a plan that is a single file.
+    pub documents: Vec<PathBuf>,
 }
 
 /// The entry point of a plan set. A large change is written as a folder — see
@@ -69,28 +70,32 @@ fn is_markdown(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn count_markdown(dir: &Path) -> usize {
+/// Every document in a set, in reading order — which is the order the names
+/// sort in, since plan sets number their documents.
+fn set_documents(dir: &Path, prefix: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
-        return 0;
+        return;
     };
-    entries
-        .flatten()
-        .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
-        .map(|e| {
-            let path = e.path();
-            match e.file_type() {
-                Ok(t) if t.is_dir() => count_markdown(&path),
-                Ok(t) if t.is_file() && is_markdown(&path) => 1,
-                _ => 0,
-            }
-        })
-        .sum()
+    let mut entries: Vec<_> = entries.flatten().collect();
+    entries.sort_by_key(|e| e.file_name().to_string_lossy().to_lowercase());
+    for entry in entries {
+        if entry.file_name().to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let path = entry.path();
+        let relative = prefix.join(entry.file_name());
+        match entry.file_type() {
+            Ok(t) if t.is_dir() => set_documents(&path, &relative, out),
+            Ok(t) if t.is_file() && is_markdown(&path) => out.push(relative),
+            _ => {}
+        }
+    }
 }
 
 /// Walks the base, treating a folder with a `README.md` as one plan rather
 /// than descending into its documents. Hidden entries are skipped — that is
 /// where git and the sidecars live.
-fn walk(dir: &Path, out: &mut Vec<(PathBuf, usize)>) {
+fn walk(dir: &Path, out: &mut Vec<(PathBuf, Vec<PathBuf>)>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -103,10 +108,14 @@ fn walk(dir: &Path, out: &mut Vec<(PathBuf, usize)>) {
         let path = entry.path();
         match entry.file_type() {
             Ok(t) if t.is_dir() => match set_entry(&path) {
-                Some(entry) => out.push((entry, count_markdown(&path))),
+                Some(entry) => {
+                    let mut documents = Vec::new();
+                    set_documents(&path, Path::new(""), &mut documents);
+                    out.push((entry, documents));
+                }
                 None => walk(&path, out),
             },
-            Ok(t) if t.is_file() && is_markdown(&path) => out.push((path, 1)),
+            Ok(t) if t.is_file() && is_markdown(&path) => out.push((path, Vec::new())),
             _ => {}
         }
     }
@@ -147,7 +156,7 @@ pub fn scan(base: &Base) -> Vec<PlanEntry> {
             let relative_path = path.strip_prefix(&base.root).ok()?.to_path_buf();
             let mut meta = plan::parse(&text, &path).meta;
             // A set is named by its folder, not by the README inside it.
-            if documents > 1 {
+            if !documents.is_empty() {
                 if let Some(folder) = path.parent().and_then(|p| p.file_name()) {
                     meta.id = folder.to_string_lossy().into_owned();
                 }
@@ -229,7 +238,7 @@ mod tests {
         assert!(titles.contains(&"Beta"), "got {titles:?}");
         let alpha = entries.iter().find(|e| e.meta.title == "Alpha").unwrap();
         assert_eq!(alpha.relative_path, Path::new("plans/a.md"));
-        assert_eq!(alpha.documents, 1);
+        assert!(alpha.documents.is_empty(), "a single file is not a set");
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
@@ -259,7 +268,8 @@ mod tests {
         assert_eq!(entries.len(), 1, "{entries:?}");
         assert_eq!(entries[0].meta.title, "React 17 to 19");
         assert_eq!(entries[0].meta.id, "react-migration", "named by its folder");
-        assert_eq!(entries[0].documents, 4, "counts everything in the set");
+        assert_eq!(entries[0].documents.len(), 4, "every document in the set");
+        assert_eq!(entries[0].documents[0], Path::new("01-current-state.md"), "in reading order");
         assert!(entries[0].path.ends_with("README.md"), "opens at its entry point");
         let _ = std::fs::remove_dir_all(&base.root);
     }
@@ -274,7 +284,7 @@ mod tests {
 
         assert_eq!(entries.len(), 1, "{entries:?}");
         assert_eq!(entries[0].meta.title, "PDB Search v1");
-        assert_eq!(entries[0].documents, 2);
+        assert_eq!(entries[0].documents.len(), 2);
         let _ = std::fs::remove_dir_all(&base.root);
     }
 

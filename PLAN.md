@@ -566,6 +566,11 @@ a `README.md` as one plan with many documents, and `library::scan` must list it
 once rather than 38 times. This is a change to the contract, not just the
 importer.
 
+**Importing is never automatic.** It runs as a step of onboarding, or when
+someone asks for it — `openplan add`, or the app's import action. Nothing scans
+and files on its own: the base is the user's, and a tool that copies things into
+it unbidden is one they stop trusting.
+
 **Consequence for onboarding (P3.0):** auto-discovery of agent internals is a
 garnish, not the main course. The plans a person already has live in a folder
 they maintain by hand. Onboarding should lead with *"point us at where you keep

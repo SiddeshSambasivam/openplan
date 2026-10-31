@@ -47,9 +47,23 @@ interface PlanListProps {
   plans: PlanSummary[];
   activePath: string | null;
   onSelect: (plan: PlanSummary) => void;
+  /** Opens one document of a set, given its path inside the set's folder. */
+  onSelectDocument: (plan: PlanSummary, document: string) => void;
 }
 
-export function PlanList({ plans, activePath, onSelect }: PlanListProps) {
+/** `01-current-state.md` reads as "Current state" in a list. */
+function documentLabel(name: string): string {
+  const base = name.replace(/\.mdx?$/i, "").split("/").pop() ?? name;
+  const withoutNumber = base.replace(/^\d+[-_]/, "");
+  return withoutNumber.replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+export function PlanList({
+  plans,
+  activePath,
+  onSelect,
+  onSelectDocument,
+}: PlanListProps) {
   const groups = useMemo(() => groupByStatus(plans), [plans]);
 
   if (plans.length === 0) {
@@ -85,6 +99,11 @@ export function PlanList({ plans, activePath, onSelect }: PlanListProps) {
                     >
                       <FileText className="size-4 shrink-0 text-muted-foreground" />
                       <MarqueeText text={plan.title} className="flex-1" />
+                      {plan.documents.length > 1 && (
+                        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                          {plan.documents.length}
+                        </span>
+                      )}
                       {plan.status === "in-review" && (
                         <StatusBadge status={plan.status} className="px-1" />
                       )}
@@ -94,6 +113,23 @@ export function PlanList({ plans, activePath, onSelect }: PlanListProps) {
                     {SOURCE_LABELS[plan.source] ?? plan.source} · {plan.relativePath}
                   </TooltipContent>
                 </Tooltip>
+
+                {/* A set opens at its entry point; the rest of it is only
+                    reachable if the documents are listed. */}
+                {plan.path === activePath && plan.documents.length > 1 && (
+                  <ul className="mb-1 flex flex-col gap-px">
+                    {plan.documents.map((document) => (
+                      <li key={document}>
+                        <button
+                          onClick={() => onSelectDocument(plan, document)}
+                          className="block w-full cursor-default truncate rounded-md py-1 pr-2 pl-9 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+                        >
+                          {documentLabel(document)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

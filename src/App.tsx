@@ -44,6 +44,7 @@ import {
 } from "./lib/tree";
 import { isFontSize, FONT_SIZE_SCALES, type FontSize } from "./lib/fontSize";
 import type { DocFile, FolderNode, LibraryItem, ViewMode } from "./lib/types";
+import { stripFrontmatter } from "./lib/frontmatter";
 import { useOutline } from "./lib/useOutline";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
@@ -449,6 +450,15 @@ export default function App() {
   const selectPlan = useCallback(
     (plan: PlanSummary) => {
       openFilePaths([plan.path]);
+    },
+    [openFilePaths],
+  );
+
+  /** Opens one document of a set. The set's folder is its entry point's. */
+  const selectDocument = useCallback(
+    (plan: PlanSummary, document: string) => {
+      const folder = plan.path.slice(0, plan.path.lastIndexOf("/"));
+      openFilePaths([`${folder}/${document}`]);
     },
     [openFilePaths],
   );
@@ -1085,6 +1095,13 @@ export default function App() {
 
   /* ---------- render ---------- */
 
+  // The metadata block is shown as a header, so the preview renders what is
+  // left. Editing still works on the whole file.
+  const previewContent = useMemo(
+    () => (content != null && activePlan ? stripFrontmatter(content) : content),
+    [content, activePlan],
+  );
+
   const wordCount = useMemo(() => {
     if (content == null) return null;
     return content.split(/\s+/).filter(Boolean).length;
@@ -1113,6 +1130,7 @@ export default function App() {
           plans={plans}
           activePlanPath={activePlan?.path ?? null}
           onSelectPlan={selectPlan}
+          onSelectDocument={selectDocument}
           onOpenSettings={() => setSettingsOpen(true)}
           activeId={activeDocId}
           expanded={expanded}
@@ -1203,7 +1221,7 @@ export default function App() {
             {activeDoc ? (
               <Viewer
                 doc={activeDoc}
-                content={content}
+                content={view === "preview" ? previewContent : content}
                 error={error}
                 loading={loading}
                 view={view}

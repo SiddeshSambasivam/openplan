@@ -40,6 +40,8 @@ export interface PlanSummary {
   updated: string | null;
   path: string;
   relativePath: string;
+  /** A set's documents, in reading order. Empty for a single-file plan. */
+  documents: string[];
 }
 
 export interface BaseInfo {
