@@ -14,6 +14,8 @@ interface PlanListProps {
   avatars: Map<string, string>;
   /** Open threads by plan path, for the plans that have any. */
   openThreads: Map<string, number>;
+  /** Live agent sessions by plan id, for the plans anyone is working on. */
+  sessions: Map<string, number>;
   onSelect: (plan: PlanSummary) => void;
   /** Opens one document of a set, given its path inside the set's folder. */
   onSelectDocument: (plan: PlanSummary, document: string) => void;
@@ -216,6 +218,7 @@ const PlanRow = memo(function PlanRow({
   activePath,
   avatarUrl,
   openThreads,
+  sessions,
   expanded,
   renaming,
   onToggleExpand,
@@ -230,6 +233,7 @@ const PlanRow = memo(function PlanRow({
   activePath: string | null;
   avatarUrl: string | null;
   openThreads: number;
+  sessions: number;
   expanded: boolean;
   /** Null unless this row is the one being renamed. */
   renaming: Renaming | null;
@@ -303,7 +307,12 @@ const PlanRow = memo(function PlanRow({
               {plan.documents.length} docs
             </span>
           )}
-          <PlanRowFacts plan={plan} avatarUrl={avatarUrl} open={openThreads} />
+          <PlanRowFacts
+            plan={plan}
+            avatarUrl={avatarUrl}
+            open={openThreads}
+            sessions={sessions}
+          />
         </span>
       </button>
 
@@ -345,6 +354,7 @@ export function PlanList({
   activePath,
   avatars,
   openThreads,
+  sessions,
   onSelect,
   onSelectDocument,
   onRename,
@@ -403,6 +413,7 @@ export function PlanList({
         activePath={holdsActive ? activePath : null}
         avatarUrl={(plan.project && avatars.get(plan.project)) || null}
         openThreads={openThreads.get(plan.path) ?? 0}
+        sessions={sessions.get(plan.id) ?? 0}
         expanded={expanded}
         renaming={rowRenaming}
         onToggleExpand={toggleExpand}

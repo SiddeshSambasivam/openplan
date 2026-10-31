@@ -1,5 +1,5 @@
 import { StatusGlyph } from "@/components/StatusGlyph";
-import { HandledBy, ProjectTag, ThreadCount } from "@/components/PlanFacts";
+import { HandledBy, LiveMark, ProjectTag, ThreadCount } from "@/components/PlanFacts";
 import {
   boardColumns,
   shortDate,
@@ -14,6 +14,8 @@ interface BoardViewProps {
   summaries: ReviewSummary[];
   /** Owner avatars by project, for the plans that have one. */
   avatars: Map<string, string>;
+  /** Live agent sessions by plan id. */
+  sessions: Map<string, number>;
   hideCompleted: boolean;
   onOpen: (plan: PlanSummary) => void;
 }
@@ -22,11 +24,13 @@ function Card({
   plan,
   avatarUrl,
   open,
+  sessions,
   onOpen,
 }: {
   plan: PlanSummary;
   avatarUrl: string | null;
   open: number;
+  sessions: number;
   onOpen: (plan: PlanSummary) => void;
 }) {
   return (
@@ -39,6 +43,7 @@ function Card({
       </span>
       <span className="flex items-center gap-2 text-xs text-muted-foreground">
         <ProjectTag project={plan.project} avatarUrl={avatarUrl} />
+        <LiveMark sessions={sessions} />
         <HandledBy source={plan.source} />
         <ThreadCount open={open} />
         <span className="ml-auto shrink-0 tabular-nums">
@@ -53,11 +58,13 @@ function Column({
   group,
   summaries,
   avatars,
+  sessions,
   onOpen,
 }: {
   group: StatusGroup;
   summaries: Map<string, ReviewSummary>;
   avatars: Map<string, string>;
+  sessions: Map<string, number>;
   onOpen: (plan: PlanSummary) => void;
 }) {
   return (
@@ -81,6 +88,7 @@ function Column({
             plan={plan}
             avatarUrl={(plan.project && avatars.get(plan.project)) || null}
             open={summaries.get(plan.path)?.open ?? 0}
+            sessions={sessions.get(plan.id) ?? 0}
             onOpen={onOpen}
           />
         ))}
@@ -94,6 +102,7 @@ export function BoardView({
   plans,
   summaries,
   avatars,
+  sessions,
   hideCompleted,
   onOpen,
 }: BoardViewProps) {
@@ -127,6 +136,7 @@ export function BoardView({
             group={group}
             summaries={byPath}
             avatars={avatars}
+            sessions={sessions}
             onOpen={onOpen}
           />
         ))}
