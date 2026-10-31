@@ -1,4 +1,4 @@
-import { Download, FileText, Folder, Info, SlidersHorizontal } from "lucide-react";
+import { Download, FileText, Folder, Info, SlidersHorizontal, UserRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { FONT_SIZE_LABELS, FONT_SIZE_ORDER, type FontSize } from "@/lib/fontSize";
 import { WIDTH_LABELS, WIDTH_ORDER, type ContentWidth } from "@/lib/width";
@@ -26,9 +26,12 @@ import { BrandMark } from "@/components/BrandMark";
 import { Segmented } from "@/components/Segmented";
 import { isTauri } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import type { Identity } from "@/lib/comments";
 import { ImportPlans } from "./ImportPlans";
+import { ProfileSettings } from "./ProfileSettings";
 
 const SECTIONS = [
+  { id: "profile", label: "Profile", icon: UserRound },
   { id: "general", label: "General", icon: SlidersHorizontal },
   { id: "standards", label: "Standards", icon: FileText },
   { id: "base", label: "Plan base", icon: Folder },
@@ -36,7 +39,7 @@ const SECTIONS = [
   { id: "about", label: "About", icon: Info },
 ] as const;
 
-type SectionId = (typeof SECTIONS)[number]["id"];
+export type SettingsSection = (typeof SECTIONS)[number]["id"];
 
 const FONT_SIZE_OPTIONS = FONT_SIZE_ORDER.map((value) => ({
   value,
@@ -66,6 +69,11 @@ function Row({
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The section shown, kept by the app so a menu can open on one. */
+  section: SettingsSection;
+  onSectionChange: (section: SettingsSection) => void;
+  identity: Identity | null;
+  onIdentityChange: (identity: Identity) => void;
   dark: boolean;
   onToggleTheme: () => void;
   fontSize: FontSize;
@@ -123,6 +131,10 @@ function ArchiveDays({
 export function SettingsDialog({
   open,
   onOpenChange,
+  section,
+  onSectionChange,
+  identity,
+  onIdentityChange,
   dark,
   onToggleTheme,
   fontSize,
@@ -136,7 +148,6 @@ export function SettingsDialog({
   onMediaChange,
   onArchiveAfterDaysChange,
 }: SettingsDialogProps) {
-  const [section, setSection] = useState<SectionId>("general");
   const [version, setVersion] = useState<string | null>(null);
   const [standards, setStandards] = useState<Standards | null>(null);
   const [draft, setDraft] = useState("");
@@ -190,7 +201,7 @@ export function SettingsDialog({
             {SECTIONS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                onClick={() => setSection(id)}
+                onClick={() => onSectionChange(id)}
                 className={cn(
                   "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
                   section === id
@@ -205,6 +216,10 @@ export function SettingsDialog({
           </nav>
 
           <div className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
+            {section === "profile" && (
+              <ProfileSettings identity={identity} onIdentityChange={onIdentityChange} />
+            )}
+
             {section === "general" && (
               <>
                 <h2 className="pb-1 text-sm font-semibold">Appearance</h2>

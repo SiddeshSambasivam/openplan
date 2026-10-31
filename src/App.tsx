@@ -21,7 +21,7 @@ import { Sidebar } from "./components/Sidebar";
 import { PlanMetaBar } from "./components/PlanMetaBar";
 import { Segmented } from "./components/Segmented";
 import { HistoryPanel } from "./features/history/HistoryPanel";
-import { SettingsDialog } from "./features/settings/SettingsDialog";
+import { SettingsDialog, type SettingsSection } from "./features/settings/SettingsDialog";
 import { Onboarding } from "./features/onboarding/Onboarding";
 import { CommentComposer } from "./features/comments/CommentComposer";
 import { CommentsLayer, type AnchorState } from "./features/comments/CommentsLayer";
@@ -307,6 +307,7 @@ export default function App() {
   const [focusThreadId, setFocusThreadId] = useState<string | null>(null);
   const [anchorStates, setAnchorStates] = useState<Record<string, AnchorState>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const paletteRef = useRef<OverlayHandle>(null);
   const sheetRef = useRef<OverlayHandle>(null);
   // Where the plan page was entered from, last entry first to go back to.
@@ -1522,6 +1523,10 @@ export default function App() {
   );
 
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const editProfile = useCallback(() => {
+    setSettingsSection("profile");
+    setSettingsOpen(true);
+  }, []);
   const openShortcuts = useCallback(() => sheetRef.current?.open(), []);
 
   const wordCount = useMemo(() => {
@@ -1687,6 +1692,7 @@ export default function App() {
               forYouCount={forYouCount}
               activePlanPath={activePlanPath}
               onSelectPlan={selectPlan}
+              onEditProfile={editProfile}
               onOpenSettings={openSettings}
               onOpenShortcuts={openShortcuts}
               identity={identity}
@@ -1963,6 +1969,10 @@ export default function App() {
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+        section={settingsSection}
+        onSectionChange={setSettingsSection}
+        identity={identity}
+        onIdentityChange={setIdentity}
         dark={dark}
         onToggleTheme={toggleTheme}
         fontSize={fontSize}

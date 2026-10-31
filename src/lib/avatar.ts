@@ -1,3 +1,5 @@
+import type { Identity } from "./comments";
+
 /** One of the theme's five chart colours, `--chart-1` to `--chart-5`. */
 export type ChartColor = 1 | 2 | 3 | 4 | 5;
 
@@ -17,6 +19,11 @@ export interface Marble {
 
 /** The side of the square the shapes are drawn in, in SVG units. */
 export const MARBLE_SIZE = 80;
+
+/** What a person's marble is drawn from: the email, or the name without one. */
+export function avatarSeed(identity: Identity | null): string {
+  return identity?.email || identity?.name || "";
+}
 
 /** The same seed always draws the same marble. The seed is an email or a
  * name, so case and surrounding space do not count. */

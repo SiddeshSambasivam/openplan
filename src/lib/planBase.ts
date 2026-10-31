@@ -132,6 +132,25 @@ export async function getIdentity(): Promise<Identity | null> {
   return invoke<Identity>("app_identity");
 }
 
+/** A blank field falls back to the git config. Returns the fresh identity. */
+export async function setProfile(name: string, email: string): Promise<Identity> {
+  return invoke<Identity>("set_profile", { name, email });
+}
+
+export async function setAvatar(path: string): Promise<Identity> {
+  return invoke<Identity>("set_avatar", { path });
+}
+
+export async function clearAvatar(): Promise<Identity> {
+  return invoke<Identity>("clear_avatar");
+}
+
+/** Whether the typed name or email differs from what is saved. */
+export function profileChanged(identity: Identity | null, name: string, email: string): boolean {
+  if (!identity) return false;
+  return name.trim() !== identity.name || email.trim() !== identity.email;
+}
+
 export async function getBase(): Promise<BaseInfo | null> {
   if (!isTauri) return null;
   return invoke<BaseInfo>("get_base");
