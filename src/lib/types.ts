@@ -5,7 +5,7 @@ export interface DocFile {
   name: string;
   /** Absolute path on disk — present for real files opened via Tauri. */
   path?: string;
-  /** Inline markdown content — used by the welcome doc and the browser demo. */
+  /** Inline markdown content — used by the browser demo. */
   inline?: string;
 }
 

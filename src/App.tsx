@@ -50,6 +50,25 @@ import {
   isPathWithin,
   updateInlineDoc,
 } from "./lib/tree";
+import {
+  initialMainView,
+  loadLibrary,
+  STORE_ACTIVE,
+  STORE_EXPANDED,
+  STORE_ITEMS,
+  STORE_MAIN_VIEW,
+} from "./lib/library";
+import {
+  loadNavbarMode,
+  movePointer,
+  NAVBAR_OVERLAY_BREAKPOINT,
+  navbarLayout,
+  navbarSections,
+  pressNavbarKey,
+  saveNavbarMode,
+  type NavbarKey,
+  type NavbarState,
+} from "./lib/navbar";
 import { isFontSize, FONT_SIZE_SCALES, type FontSize } from "./lib/fontSize";
 import type {
   DocFile,
@@ -84,125 +103,41 @@ import {
 import { forYou, planCrumb, type ReviewSummary } from "./lib/board";
 import { listWorkProgress, offersCompletion, type TodoCount } from "./lib/work";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
-import { allFolders, filterByFolder, type FolderFilter } from "./lib/folders";
+import { filterByFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
 import { BoardView } from "./features/board/BoardView";
 import { ForYouView } from "./features/board/ForYouView";
 import { ListView } from "./features/board/ListView";
 import { cn } from "./lib/utils";
-import { WELCOME_DOC_ID, WELCOME_MARKDOWN } from "./lib/welcome";
 import {
   isContentWidth,
   WIDTH_VALUES,
   type ContentWidth,
 } from "./lib/width";
 
-const STORE_ITEMS = "openplan:items";
-const STORE_ITEMS_V1 = "openplan:files";
-const STORE_ACTIVE = "openplan:active";
 const STORE_THEME = "openplan:theme";
-const STORE_EXPANDED = "openplan:expanded";
-const STORE_SIDEBAR = "openplan:sidebar";
 const STORE_SIDEBAR_WIDTH = "openplan:sidebar-width";
 const STORE_WIDTH = "openplan:width";
 const STORE_FONT_SIZE = "openplan:font-size";
 const STORE_OUTLINE = "openplan:outline";
-const STORE_MAIN_VIEW = "openplan:main-view";
 const STORE_FOLDER = "openplan:folder";
 
-const MAIN_VIEWS: MainView[] = ["board", "list", "for-you", "plan"];
-
-function isMainView(value: string): value is MainView {
-  return (MAIN_VIEWS as string[]).includes(value);
-}
-
 const SIDEBAR_MIN_WIDTH = 200;
-const SIDEBAR_DEFAULT_WIDTH = 256;
-const SIDEBAR_MAX_RATIO = 0.4;
+const SIDEBAR_DEFAULT_WIDTH = 240;
+const SIDEBAR_MAX_WIDTH = 320;
+/** The rail's width: one icon button and its padding. */
+const RAIL_WIDTH = 48;
 
-/** Clamp to [SIDEBAR_MIN_WIDTH, 40% of the current window width] — the max
- * is evaluated live so a wide sidebar shrinks along if the window does. */
 function clampSidebarWidth(width: number): number {
-  const max = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth * SIDEBAR_MAX_RATIO);
-  return Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), max);
+  return Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH);
 }
 
 /** The main area needs at least this much room to give the outline a column
  * of its own and still leave a comfortable reading measure beside it. */
 const OUTLINE_COLUMN_MIN_WIDTH = 760;
 
-interface StoredItem {
-  kind?: "file" | "folder";
-  id: string;
-  name: string;
-  path?: string;
-}
-
-interface PersistedState {
-  items: LibraryItem[];
-  activeId: string | null;
-  expanded: Set<string>;
-}
-
-function loadPersisted(): PersistedState {
-  const welcome: LibraryItem = {
-    kind: "file",
-    id: WELCOME_DOC_ID,
-    name: "Welcome",
-    inline: WELCOME_MARKDOWN,
-  };
-  try {
-    let raw = localStorage.getItem(STORE_ITEMS);
-    if (raw == null) {
-      // Migrate the v1 flat-files key, if present.
-      raw = localStorage.getItem(STORE_ITEMS_V1);
-      if (raw != null) localStorage.removeItem(STORE_ITEMS_V1);
-    }
-    if (raw == null) {
-      // First launch: show the welcome document.
-      return { items: [welcome], activeId: WELCOME_DOC_ID, expanded: new Set() };
-    }
-    const stored = JSON.parse(raw) as StoredItem[];
-    const items = stored
-      .map((s): LibraryItem | null => {
-        if (s.id === WELCOME_DOC_ID) return welcome;
-        // Path-backed entries are only readable inside the Tauri shell.
-        if (!s.path || !isTauri) return null;
-        if (s.kind === "folder") {
-          return { kind: "folder", id: s.id, name: s.name, path: s.path, tree: null };
-        }
-        return { kind: "file", id: s.id, name: s.name, path: s.path };
-      })
-      .filter((s): s is LibraryItem => s !== null);
-
-    let expanded = new Set<string>();
-    try {
-      const rawExpanded = localStorage.getItem(STORE_EXPANDED);
-      if (rawExpanded) expanded = new Set(JSON.parse(rawExpanded) as string[]);
-    } catch {
-      // ignore — expansion state is cosmetic
-    }
-
-    // Folder trees resolve asynchronously after the initial scan, so keep the
-    // stored active id if it matches an item or could live inside a stored
-    // folder; otherwise fall back to the first item.
-    const storedActive = localStorage.getItem(STORE_ACTIVE);
-    const plausible =
-      storedActive != null &&
-      items.some(
-        (it) =>
-          it.id === storedActive ||
-          (it.kind === "folder" && isPathWithin(storedActive, it.path)),
-      );
-    const activeId = plausible ? storedActive : (items[0]?.id ?? null);
-    return { items, activeId, expanded };
-  } catch {
-    return { items: [welcome], activeId: WELCOME_DOC_ID, expanded: new Set() };
-  }
-}
-
 export default function App() {
-  const initial = useMemo(loadPersisted, []);
+  const initial = useMemo(() => loadLibrary(), []);
   const [items, setItems] = useState<LibraryItem[]>(initial.items);
   const [activeId, setActiveId] = useState<string | null>(initial.activeId);
   const [expanded, setExpanded] = useState<Set<string>>(initial.expanded);
@@ -220,13 +155,10 @@ export default function App() {
   const [dark, setDark] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    try {
-      return localStorage.getItem(STORE_SIDEBAR) !== "closed";
-    } catch {
-      return true;
-    }
-  });
+  const [navbar, setNavbar] = useState<NavbarState>(() => ({
+    mode: loadNavbarMode(),
+    revealed: false,
+  }));
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     try {
       const stored = Number(localStorage.getItem(STORE_SIDEBAR_WIDTH));
@@ -269,15 +201,7 @@ export default function App() {
 
   // Which surface is on screen. There is no router: the app is one window
   // with one main area, and the last one open is where you come back to.
-  const [mainView, setMainView] = useState<MainView>(() => {
-    try {
-      const stored = localStorage.getItem(STORE_MAIN_VIEW);
-      if (stored && isMainView(stored)) return stored;
-    } catch {
-      // best-effort
-    }
-    return initial.activeId ? "plan" : "board";
-  });
+  const [mainView, setMainView] = useState<MainView>(() => initialMainView());
   const [chosenFolder, setChosenFolder] = useState<FolderFilter>(() => {
     try {
       return localStorage.getItem(STORE_FOLDER);
@@ -343,6 +267,7 @@ export default function App() {
   // null until the answer is known, so the wizard neither flashes for people
   // who have been here before nor gets skipped for people who haven't.
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
+  const [personName, setPersonName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isTauri) {
@@ -351,7 +276,10 @@ export default function App() {
     }
     void import("@tauri-apps/api/core").then(({ invoke }) =>
       invoke<{ name: string | null; onboarded: boolean }>("app_settings")
-        .then((s) => setNeedsOnboarding(!s.onboarded))
+        .then((s) => {
+          setPersonName(s.name);
+          setNeedsOnboarding(!s.onboarded);
+        })
         .catch(() => setNeedsOnboarding(false)),
     );
   }, []);
@@ -360,6 +288,7 @@ export default function App() {
     (name: string | null) => {
       void import("@tauri-apps/api/core").then(({ invoke }) =>
         invoke("complete_onboarding", { name }).then(() => {
+          setPersonName(name?.trim() || null);
           setNeedsOnboarding(false);
           refreshPlans();
         }),
@@ -542,7 +471,6 @@ export default function App() {
 
   const canEdit =
     activeDoc != null &&
-    activeDoc.id !== WELCOME_DOC_ID &&
     (activeDoc.path != null || activeDoc.inline != null) &&
     error == null;
   const canEnterEdit = canEdit && content != null;
@@ -893,9 +821,7 @@ export default function App() {
   useEffect(() => {
     const storable = items
       .filter((it) =>
-        it.kind === "folder"
-          ? !it.path.startsWith("mem:")
-          : it.path || it.id === WELCOME_DOC_ID,
+        it.kind === "folder" ? !it.path.startsWith("mem:") : it.path,
       )
       .map(({ kind, id, name, ...rest }) => ({
         kind,
@@ -933,15 +859,32 @@ export default function App() {
     );
   }, [arrivals, needsOnboarding, notify]);
 
-  const toggleSidebar = useCallback(() => setSidebarOpen((o) => !o), []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORE_SIDEBAR, sidebarOpen ? "open" : "closed");
-    } catch {
-      // best-effort
-    }
-  }, [sidebarOpen]);
+  // A narrow window has no room for the open navbar beside the main area,
+  // so the open navbar floats over it instead.
+  const narrow = viewportWidth < NAVBAR_OVERLAY_BREAKPOINT;
+  const layout = navbarLayout(navbar.mode, narrow);
+  const pressNavbar = useCallback(
+    (key: NavbarKey) => setNavbar((state) => pressNavbarKey(state, key, narrow)),
+    [narrow],
+  );
+  const toggleSidebar = useCallback(() => pressNavbar("toggle"), [pressNavbar]);
+  const openNavbar = useCallback(
+    () => setNavbar((state) => ({ ...state, mode: "open" })),
+    [],
+  );
+  const revealNavbar = useCallback(
+    () => setNavbar((state) => movePointer(state, "edge", narrow)),
+    [narrow],
+  );
+  const concealNavbar = useCallback(
+    () => setNavbar((state) => movePointer(state, "leave", narrow)),
+    [narrow],
+  );
+  // Crossing the breakpoint changes what floats; a reveal from the other
+  // side must not linger.
+  useEffect(() => concealNavbar(), [narrow, concealNavbar]);
+  useEffect(() => saveNavbarMode(navbar.mode), [navbar.mode]);
+  const navbarWidth = layout === "open" ? sidebarWidth : layout === "rail" ? RAIL_WIDTH : 0;
 
   useEffect(() => {
     try {
@@ -1007,7 +950,7 @@ export default function App() {
   // Whether there is room for the outline to have a column of its own; when
   // there isn't, it floats instead, and the two have separate open states.
   const outlineOverlays =
-    viewportWidth - (sidebarOpen ? sidebarWidth : 0) < OUTLINE_COLUMN_MIN_WIDTH;
+    viewportWidth - navbarWidth < OUTLINE_COLUMN_MIN_WIDTH;
   const outlineShown = outlineOverlays ? floatingOutlineOpen : outlineOpen;
   const toggleOutline = useCallback(() => {
     if (outlineOverlays) setFloatingOutlineOpen((o) => !o);
@@ -1261,9 +1204,9 @@ export default function App() {
         e.preventDefault();
         if (e.shiftKey) void openFolderDialog();
         else void openFileDialog();
-      } else if (key === "b" && !e.shiftKey) {
+      } else if (key === "b") {
         e.preventDefault();
-        toggleSidebar();
+        pressNavbar(e.shiftKey ? "rail" : "toggle");
       } else if (key === "s" && !e.shiftKey) {
         e.preventDefault();
         void flushSave();
@@ -1294,7 +1237,7 @@ export default function App() {
   }, [
     openFileDialog,
     openFolderDialog,
-    toggleSidebar,
+    pressNavbar,
     flushSave,
     toggleEdit,
     toggleTheme,
@@ -1416,15 +1359,8 @@ export default function App() {
 
   useEffect(() => saveRecent(recentPaths), [recentPaths]);
 
-  const recentPlans = useMemo(
-    () =>
-      recentPaths
-        .map((path) => plans.find((plan) => plan.path === path))
-        .filter((plan): plan is PlanSummary => plan != null),
-    [recentPaths, plans],
-  );
-
-  const knownFolders = useMemo(() => allFolders(plans), [plans]);
+  const sections = useMemo(() => navbarSections(plans, recentPaths), [plans, recentPaths]);
+  const knownFolders = sections.folders;
   // A folder the last plan left is no filter at all, so the views fall back
   // to every plan rather than showing an empty board.
   const folder = knownFolders.includes(chosenFolder ?? "") ? chosenFolder : null;
@@ -1447,6 +1383,15 @@ export default function App() {
       setMainView(next);
     },
     [flushSave],
+  );
+
+  /** A folder row filters the board and shows it. */
+  const chooseFolder = useCallback(
+    (next: FolderFilter) => {
+      setChosenFolder(next);
+      showView("board");
+    },
+    [showView],
   );
 
   /** The breadcrumb's first part: the plan one of its documents belongs to. */
@@ -1477,28 +1422,46 @@ export default function App() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
-      <div
-        className={cn(
-          "h-full shrink-0 overflow-hidden",
-          !sidebarResizing && "transition-[width] duration-200 ease-in-out",
-        )}
-        style={{ width: sidebarOpen ? sidebarWidth : 0 }}
-        aria-hidden={!sidebarOpen}
-      >
-        <Sidebar
-          plans={plans}
-          recent={recentPlans}
-          view={mainView}
-          onSelectView={showView}
-          forYouCount={forYouCount}
-          activePlanPath={activePlanPath}
-          onSelectPlan={selectPlan}
-          onOpenSettings={openSettings}
-          padTop={isTauri && isMac && !fullscreen}
-        />
+      {/* The column holds the navbar's place in the layout. Hidden, it holds
+          none, and the navbar floats over the main area when revealed, so
+          nothing beside it reflows. */}
+      <div className="h-full shrink-0" style={{ width: navbarWidth }}>
+        <div
+          inert={layout === "hidden" && !navbar.revealed}
+          onPointerLeave={layout === "hidden" ? concealNavbar : undefined}
+          className={cn(
+            "h-full overflow-hidden",
+            layout === "hidden" &&
+              "fixed inset-y-0 left-0 z-40 transition-transform duration-200 ease-out",
+            layout === "hidden" && (navbar.revealed ? "shadow-lg" : "-translate-x-full"),
+          )}
+          style={{ width: layout === "rail" ? RAIL_WIDTH : sidebarWidth }}
+        >
+          <Sidebar
+            rail={layout === "rail"}
+            onRequestOpen={openNavbar}
+            name={personName ?? identity?.name ?? null}
+            baseName={base ? basename(base.root) : null}
+            plans={plans}
+            folders={knownFolders}
+            folder={folder}
+            onSelectFolder={chooseFolder}
+            recent={sections.recent}
+            view={mainView}
+            onSelectView={showView}
+            forYouCount={forYouCount}
+            activePlanPath={activePlanPath}
+            onSelectPlan={selectPlan}
+            onOpenSettings={openSettings}
+            padTop={isTauri && isMac && !fullscreen}
+          />
+        </div>
       </div>
+      {layout === "hidden" && !navbar.revealed && (
+        <div aria-hidden onPointerEnter={revealNavbar} className="fixed inset-y-0 left-0 z-40 w-2" />
+      )}
 
-      {sidebarOpen && (
+      {layout === "open" && (
         <div
           onPointerDown={startSidebarResize}
           onDoubleClick={resetSidebarWidth}
@@ -1539,7 +1502,7 @@ export default function App() {
           onToggleView={toggleEdit}
           dark={dark}
           onToggleTheme={toggleTheme}
-          sidebarOpen={sidebarOpen}
+          navbar={layout}
           onToggleSidebar={toggleSidebar}
           contentWidth={contentWidth}
           onContentWidthChange={setContentWidth}
@@ -1682,10 +1645,7 @@ export default function App() {
                 onRemove={() => removeItem(activeDoc.id)}
               />
             ) : (
-              <EmptyState
-                onOpenFileDialog={() => void openFileDialog()}
-                onOpenFolderDialog={() => void openFolderDialog()}
-              />
+              <EmptyState />
             )}
           </div>
           {loading && content != null && (
