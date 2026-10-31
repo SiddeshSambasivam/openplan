@@ -5,6 +5,7 @@ import {
   CursorIcon,
 } from "@/components/AgentIcons";
 import { SOURCE_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
+import { projectName } from "@/lib/projects";
 import { Button } from "@/components/ui/button";
 import { StatusPicker } from "./StatusPicker";
 
@@ -49,7 +50,7 @@ export function PlanMetaBar({
       {plan.project && (
         <>
           <span aria-hidden>·</span>
-          <span className="truncate">{plan.project}</span>
+          <span className="truncate">{projectName(plan.project)}</span>
         </>
       )}
       {updated && (

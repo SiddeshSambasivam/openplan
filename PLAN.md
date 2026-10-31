@@ -809,9 +809,9 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 - [ ] P6.4 Loopback server in the app; MCP server registers sessions and plans,
       receives comments; session presence drives In progress and the live count
       **(T: server and client against a local port)**
-- [ ] P6.5 Shell: nav (Board, All plans, For you, Projects, Recent), top bar with
+- [x] P6.5 Shell: nav (Board, All plans, For you, Projects, Recent), top bar with
       the plan title and a status picker, spaced width 60rem
-- [ ] P6.6 Board, list and For you views; project filter; repo marks
+- [x] P6.6 Board, list and For you views; project filter; repo marks
 - [ ] P6.7 Rendered plan page: section-aware layout by type for markdown; HTML plans
       and HTML documents in a set rendered in a sandbox **(T: section parsing)**
 - [ ] P6.8 Comments as a review: threads accumulate as pending, one Send delivers
@@ -893,6 +893,9 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 | 2026-09-22 | Comments are sent as a review: pending threads go to the session in one Send; replies inside a thread go at once; resolution records who and when | Sid asked how submission and resolution work. A reviewer writes several comments and wants the agent to take them together |
 | 2026-09-22 | No accounts, no hosted sharing in 0.2.0; the Google-auth share page from the first prototype is dropped | Sid: local-first, no accounts for now. Sharing stays with the Phase 5 git remote |
 | 2026-09-22 | Unslop writing rules ship in the built-in standards and in the installers' managed block, covering plan bodies and agent comment replies | Sid: the default writing style, set up as part of installing the MCP, not a skill each machine may lack |
+| 2026-09-22 | The main area is one of four surfaces (board, all plans, For you, plan page) chosen by a stored `view` in `App.tsx`; the sidebar's plan tree, the loose files and the folders move into All plans | No router (§5.4), and the nav has to be the only way around. Keeping the tree means nothing that worked before is lost, and the plan page keeps its breadcrumb back to the board |
+| 2026-09-22 | Open and answered threads for every plan come from one `review_summaries` command, not a `comment_threads` call per plan | "For you" needs a fact about every plan in the base. One read per base change stays event-driven (NFR-8); a call per plan is O(plans) round trips each time an agent writes |
+| 2026-09-22 | A project is shown as `owner/repo` everywhere, through one `projectName` helper over the stored remote | The stored key carries the host so tools can find the repo; people read the owner and the repo. One helper keeps the board, the list, the sidebar and the plan header saying the same thing |
 
 ---
 

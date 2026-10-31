@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   Eye,
   MessageSquareText,
   Moon,
@@ -10,15 +11,46 @@ import {
 } from "lucide-react";
 import { isMac } from "../lib/platform";
 import type { FontSize } from "../lib/fontSize";
-import type { DocFile, ViewMode } from "../lib/types";
+import type { DocFile, MainView, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
+import type { Crumb, ProjectFilter } from "../lib/board";
+import { projectName } from "../lib/projects";
+import type { PlanSummary, ProjectInfo, Status } from "../lib/planBase";
 import { cn } from "../lib/utils";
 import { TooltipButton } from "./TooltipButton";
 import { FontSizeMenu } from "./FontSizeMenu";
 import { MarqueeText } from "./MarqueeText";
+import { StatusPicker } from "./StatusPicker";
 import { WidthMenu } from "./WidthMenu";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+const VIEW_LABELS: Record<Exclude<MainView, "plan">, string> = {
+  board: "Board",
+  list: "All plans",
+  "for-you": "For you",
+};
 
 interface HeaderProps {
+  mainView: MainView;
+  /** The trail above the open plan. Null away from the plan page. */
+  crumb: Crumb | null;
+  /** The open plan, for the status picker. */
+  plan: PlanSummary | null;
+  onStatusChange: (status: Status) => void;
+  /** Opens what the crumb sits under: the project, or the plan of a document. */
+  onOpenLead: () => void;
+  projects: ProjectInfo[];
+  project: ProjectFilter;
+  onSelectProject: (project: ProjectFilter) => void;
+  hideCompleted: boolean;
+  onToggleHideCompleted: () => void;
   doc: DocFile | null;
   wordCount: number | null;
   view: ViewMode;
@@ -45,7 +77,23 @@ interface HeaderProps {
   trafficLightGap: boolean;
 }
 
+/** The label of the project a view is filtered to. */
+function projectLabel(project: ProjectFilter): string {
+  if (project == null) return "All projects";
+  return projectName(project) ?? "No project";
+}
+
 export function Header({
+  mainView,
+  crumb,
+  plan,
+  onStatusChange,
+  onOpenLead,
+  projects,
+  project,
+  onSelectProject,
+  hideCompleted,
+  onToggleHideCompleted,
   doc,
   wordCount,
   view,
@@ -75,6 +123,8 @@ export function Header({
     view === "preview" ? `Edit (${mod}E)` : `Preview (${mod}E)`;
   const toggleThemeLabel = `${dark ? "Switch to light theme" : "Switch to dark theme"} (${modShift}L)`;
   const inPreview = view === "preview";
+  const onPlan = mainView === "plan";
+  const showDocTools = onPlan && doc != null;
   return (
     <header
       data-tauri-drag-region
@@ -101,11 +151,27 @@ export function Header({
       >
         <PanelLeft className="size-4" />
       </TooltipButton>
-      <div className="pointer-events-none flex min-w-0 flex-1 items-center gap-2">
-        {doc && (
+
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+        {onPlan && crumb ? (
           <>
-            <h1 className="min-w-0 cursor-default pointer-events-auto text-sm font-medium text-foreground">
-              <MarqueeText text={doc.name} />
+            {crumb.lead && (
+              <>
+                {/* The trail is the first thing to go when the window is
+                    narrow: the title is what someone needs to see. */}
+                <button
+                  onClick={onOpenLead}
+                  className="hidden max-w-40 shrink-0 cursor-default truncate rounded-md px-1.5 py-0.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:block"
+                >
+                  {crumb.lead.label}
+                </button>
+                <span aria-hidden className="hidden text-muted-foreground/50 md:inline">
+                  /
+                </span>
+              </>
+            )}
+            <h1 className="min-w-0 flex-1 cursor-default text-sm font-medium text-foreground">
+              <MarqueeText text={crumb.title} />
             </h1>
             {dirty && (
               <span
@@ -115,16 +181,80 @@ export function Header({
               />
             )}
           </>
+        ) : (
+          <h1 className="cursor-default text-sm font-medium text-foreground">
+            {VIEW_LABELS[mainView as Exclude<MainView, "plan">]}
+          </h1>
         )}
       </div>
 
-      {doc && wordCount != null && (
+      {!onPlan && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="xs"
+              className={cn(
+                "gap-1.5 font-normal text-muted-foreground",
+                project != null && "bg-accent text-accent-foreground",
+              )}
+            >
+              {projectLabel(project)}
+              <ChevronDown className="text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuRadioGroup
+              value={project ?? "all"}
+              onValueChange={(next) =>
+                onSelectProject(next === "all" ? null : next)
+              }
+            >
+              <DropdownMenuRadioItem value="all" className="pl-2 [&>span:first-child]:hidden">
+                All projects
+              </DropdownMenuRadioItem>
+              {projects.map((info) => (
+                <DropdownMenuRadioItem
+                  key={info.project ?? ""}
+                  value={info.project ?? ""}
+                  className="pl-2 [&>span:first-child]:hidden"
+                >
+                  <span className="truncate">
+                    {projectName(info.project) ?? info.name}
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
+      {mainView === "board" && (
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={onToggleHideCompleted}
+          aria-pressed={hideCompleted}
+          className={cn(
+            "font-normal text-muted-foreground",
+            hideCompleted && "bg-accent text-accent-foreground",
+          )}
+        >
+          Hide completed
+        </Button>
+      )}
+
+      {onPlan && plan && (
+        <StatusPicker status={plan.status} onChange={onStatusChange} />
+      )}
+
+      {showDocTools && wordCount != null && (
         <span className="pointer-events-none pr-1.5 text-xs tabular-nums text-muted-foreground">
           {wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"}
         </span>
       )}
 
-      {doc && inPreview && (
+      {showDocTools && inPreview && (
         <TooltipButton
           variant="ghost"
           size="icon-sm"
@@ -136,13 +266,15 @@ export function Header({
         </TooltipButton>
       )}
 
-      {doc && (
+      {showDocTools && (
         <WidthMenu width={contentWidth} onChange={onContentWidthChange} />
       )}
 
-      {doc && <FontSizeMenu fontSize={fontSize} onChange={onFontSizeChange} />}
+      {showDocTools && (
+        <FontSizeMenu fontSize={fontSize} onChange={onFontSizeChange} />
+      )}
 
-      {doc && inPreview && (
+      {showDocTools && inPreview && (
         <TooltipButton
           variant="ghost"
           size="icon-sm"
@@ -157,7 +289,7 @@ export function Header({
         </TooltipButton>
       )}
 
-      {doc && inPreview && (
+      {showDocTools && inPreview && (
         <TooltipButton
           variant="ghost"
           size="icon-sm"
@@ -177,7 +309,7 @@ export function Header({
         </TooltipButton>
       )}
 
-      {doc && canEdit && (
+      {showDocTools && canEdit && (
         <TooltipButton
           variant="ghost"
           size="icon-sm"

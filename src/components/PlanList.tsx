@@ -1,14 +1,19 @@
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
-import { STATUS_LABELS, STATUS_ORDER, type PlanSummary } from "@/lib/planBase";
+import { statusGroups } from "@/lib/board";
+import { STATUS_LABELS, type PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
-import { MarqueeText } from "./MarqueeText";
+import { PlanRowFacts } from "./PlanFacts";
 import { StatusGlyph } from "./StatusGlyph";
 
 interface PlanListProps {
   plans: PlanSummary[];
   activePath: string | null;
+  /** Owner avatars by project, for the plans that have one. */
+  avatars: Map<string, string>;
+  /** Open threads by plan path, for the plans that have any. */
+  openThreads: Map<string, number>;
   onSelect: (plan: PlanSummary) => void;
   /** Opens one document of a set, given its path inside the set's folder. */
   onSelectDocument: (plan: PlanSummary, document: string) => void;
@@ -89,9 +94,9 @@ function SetBranch({
                   value: node.label,
                 })
               }
-              style={{ paddingLeft: 22 + depth * 12 }}
+              style={{ paddingLeft: 44 + depth * 12 }}
               className={cn(
-                "flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                "flex w-full cursor-default items-center gap-1.5 border-b border-border py-1.5 pr-4 text-left text-xs transition-colors hover:bg-sidebar",
                 node.path === activeDocument
                   ? "bg-sidebar-accent/70 text-sidebar-foreground"
                   : "text-muted-foreground",
@@ -161,8 +166,8 @@ function SetFolder({
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        style={{ paddingLeft: 10 + depth * 12 }}
-        className="flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+        style={{ paddingLeft: 32 + depth * 12 }}
+        className="flex w-full cursor-default items-center gap-1.5 border-b border-border py-1.5 pr-4 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar"
       >
         <ChevronRight
           className={cn(
@@ -209,6 +214,8 @@ function SetFolder({
 const PlanRow = memo(function PlanRow({
   plan,
   activePath,
+  avatarUrl,
+  openThreads,
   expanded,
   renaming,
   onToggleExpand,
@@ -221,6 +228,8 @@ const PlanRow = memo(function PlanRow({
   plan: PlanSummary;
   /** Null unless this row's plan or one of its documents is open. */
   activePath: string | null;
+  avatarUrl: string | null;
+  openThreads: number;
   expanded: boolean;
   /** Null unless this row is the one being renamed. */
   renaming: Renaming | null;
@@ -258,28 +267,23 @@ const PlanRow = memo(function PlanRow({
         }}
         aria-expanded={isSet ? expanded : undefined}
         className={cn(
-          "flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-          (plan.path === activePath || expanded) &&
-            "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+          "flex w-full cursor-default items-center gap-3 border-b border-border px-4 py-2 text-left text-sm text-foreground transition-colors hover:bg-sidebar",
+          (plan.path === activePath || expanded) && "bg-sidebar-accent/60",
         )}
       >
-        {isSet ? (
-          <>
+        <span className="flex shrink-0 items-center gap-1">
+          {isSet ? (
             <ChevronRight
               className={cn(
-                "-ml-1 size-3 shrink-0 text-muted-foreground transition-transform duration-200",
+                "size-3 shrink-0 text-muted-foreground transition-transform duration-200",
                 expanded && "rotate-90",
               )}
             />
-            {expanded ? (
-              <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
-            ) : (
-              <Folder className="size-4 shrink-0 text-muted-foreground" />
-            )}
-          </>
-        ) : (
-          <FileText className="size-4 shrink-0 text-muted-foreground" />
-        )}
+          ) : (
+            <span className="size-3 shrink-0" />
+          )}
+          <StatusGlyph status={plan.status} />
+        </span>
         {renaming?.path === plan.path ? (
           <RenameInput
             renaming={renaming}
@@ -291,13 +295,16 @@ const PlanRow = memo(function PlanRow({
             }}
           />
         ) : (
-          <MarqueeText text={plan.title} className="flex-1" />
+          <span className="flex-1 truncate font-medium">{plan.title}</span>
         )}
-        {isSet && (
-          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-            {plan.documents.length}
-          </span>
-        )}
+        <span className="flex items-center gap-3 text-xs text-muted-foreground">
+          {isSet && (
+            <span className="hidden shrink-0 tabular-nums sm:inline">
+              {plan.documents.length} docs
+            </span>
+          )}
+          <PlanRowFacts plan={plan} avatarUrl={avatarUrl} open={openThreads} />
+        </span>
       </button>
 
       {/* A set opens at its entry point; the rest of it is only reachable
@@ -336,25 +343,15 @@ const PlanRow = memo(function PlanRow({
 export function PlanList({
   plans,
   activePath,
+  avatars,
+  openThreads,
   onSelect,
   onSelectDocument,
   onRename,
   onRenameDocument,
 }: PlanListProps) {
-  // Newest first; a plan without a date sorts by name at the end.
-  const sorted = useMemo(
-    () =>
-      [...plans].sort(
-        (a, b) =>
-          (b.updated ?? "").localeCompare(a.updated ?? "") ||
-          a.title.localeCompare(b.title),
-      ),
-    [plans],
-  );
-  const groups = STATUS_ORDER.map((state) => ({
-    state,
-    plans: sorted.filter((plan) => plan.status === state),
-  })).filter((group) => group.plans.length > 0);
+  const groups = useMemo(() => statusGroups(plans), [plans]);
+  const sorted = useMemo(() => groups.flatMap((group) => group.plans), [groups]);
 
   // A set follows whatever is being read until someone says otherwise, and
   // then it stays where they put it.
@@ -378,7 +375,7 @@ export function PlanList({
 
   if (plans.length === 0) {
     return (
-      <p className="px-2 py-6 text-center text-xs leading-5 text-muted-foreground">
+      <p className="p-10 text-center text-sm leading-6 text-muted-foreground">
         No plans yet.
         <br />
         Your agents will file them here.
@@ -404,6 +401,8 @@ export function PlanList({
         key={plan.path}
         plan={plan}
         activePath={holdsActive ? activePath : null}
+        avatarUrl={(plan.project && avatars.get(plan.project)) || null}
+        openThreads={openThreads.get(plan.path) ?? 0}
         expanded={expanded}
         renaming={rowRenaming}
         onToggleExpand={toggleExpand}
@@ -417,41 +416,46 @@ export function PlanList({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      {groups.map(({ state, plans: inState }) => {
+    <div className="flex flex-col">
+      {groups.map(({ status, plans: inState }) => {
         // Only finished work folds away; the states you are working in are
         // always open, so nothing live is ever a click from view.
-        const collapsible = state === "completed";
+        const collapsible = status === "completed";
         const shown = !collapsible || shownDone;
         const heading = (
           <>
+            <StatusGlyph status={status} />
+            {STATUS_LABELS[status]}
+            <span className="font-normal tabular-nums text-muted-foreground">
+              {inState.length}
+            </span>
             {collapsible && (
-              <ChevronRight
-                className={cn(
-                  "size-3 shrink-0 transition-transform duration-200",
-                  shown && "rotate-90",
-                )}
-              />
+              <span className="ml-auto flex items-center gap-1 font-normal text-muted-foreground">
+                {shown ? "Fold" : "Show"}
+                <ChevronRight
+                  className={cn(
+                    "size-3 shrink-0 transition-transform duration-200",
+                    shown && "rotate-90",
+                  )}
+                />
+              </span>
             )}
-            <StatusGlyph status={state} className="size-3" />
-            {STATUS_LABELS[state]}
-            <span className="tabular-nums opacity-60">{inState.length}</span>
           </>
         );
+        const headingClass =
+          "flex w-full items-center gap-2 border-b border-border bg-sidebar px-4 py-2 text-left text-xs font-medium";
         return (
-          <div key={state}>
+          <div key={status}>
             {collapsible ? (
               <button
                 onClick={() => setDoneOpen(!shown)}
                 aria-expanded={shown}
-                className="flex w-full cursor-default items-center gap-1 rounded-md px-2 pb-1 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
+                className={cn(headingClass, "cursor-default hover:bg-sidebar-accent/60")}
               >
                 {heading}
               </button>
             ) : (
-              <p className="flex items-center gap-1.5 px-2 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-                {heading}
-              </p>
+              <p className={headingClass}>{heading}</p>
             )}
             <div
               className={cn(
@@ -461,7 +465,7 @@ export function PlanList({
               )}
             >
               <div className={cn(collapsible && "overflow-hidden")}>
-                <ul className="flex flex-col gap-px">{inState.map(renderPlan)}</ul>
+                <ul className="flex flex-col">{inState.map(renderPlan)}</ul>
               </div>
             </div>
           </div>

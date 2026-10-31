@@ -53,3 +53,6 @@ export interface FolderLibraryItem {
 export type LibraryItem = FileLibraryItem | FolderLibraryItem;
 
 export type ViewMode = "preview" | "edit";
+
+/** Which surface the main area shows. */
+export type MainView = "board" | "list" | "for-you" | "plan";
