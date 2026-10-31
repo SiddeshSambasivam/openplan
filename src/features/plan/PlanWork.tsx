@@ -1,14 +1,22 @@
+import { ChevronLeft, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { ARTICLE_CLASSES } from "@/components/Markdown";
+import { TooltipButton } from "@/components/TooltipButton";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { showsWorkPanel, type Decision, type WorkRecord } from "@/lib/work";
+import { progress, showsWorkPanel, type Decision, type WorkRecord } from "@/lib/work";
 import { AlignmentAnswers } from "./AlignmentAnswers";
 import { ReposAndPrs } from "./ReposAndPrs";
-import { TodoChecklist } from "./TodoChecklist";
+import { TodoChecklist, TodoDetail } from "./TodoChecklist";
 import { WorkHeading } from "./WorkHeading";
 
 /** The column the panel takes, its `w-72`, so the layout can tell when it
  * fits. */
 export const WORK_PANEL_PX = 288;
+
+/** The column the minimized panel takes: its `w-9` rail and the `pr-3`
+ * beside it. */
+export const WORK_RAIL_PX = 48;
 
 /**
  * What the agents recorded about the work, beside the plan: the todos
@@ -21,24 +29,48 @@ export function WorkPanel({
   record,
   overlay,
   open,
+  minimized,
   onClose,
+  onToggleMinimized,
 }: {
   record: WorkRecord | null;
   /** True when the main area has no room for a column, so the panel floats
    * over the content until dismissed, as the outline does. */
   overlay: boolean;
   open: boolean;
+  /** The column folds into a rail with the todo count. A floating panel
+   * closes instead. */
+  minimized: boolean;
   onClose: () => void;
+  onToggleMinimized: () => void;
 }) {
   if (!record || !showsWorkPanel(record)) return null;
 
-  const blocks = (
-    <>
-      {record.todos.length > 0 && <TodoChecklist record={record} />}
-      {record.repos.length + record.prs.length > 0 && (
-        <ReposAndPrs repos={record.repos} prs={record.prs} />
-      )}
-    </>
+  if (!overlay && minimized) {
+    const { done, total } = progress(record);
+    return (
+      <aside aria-label="Work" className="flex shrink-0 py-3 pr-3">
+        <TooltipButton
+          variant="outline"
+          shortcut="workPanel"
+          tooltip="Show the work panel"
+          tooltipSide="left"
+          onClick={onToggleMinimized}
+          className="h-auto w-9 animate-in flex-col justify-start gap-2 rounded-lg bg-card px-0 py-3 text-xs font-normal text-muted-foreground fade-in-0 duration-200"
+        >
+          <PanelRightOpen />
+          {total > 0 && (
+            <span className="tabular-nums">
+              {done}/{total}
+            </span>
+          )}
+        </TooltipButton>
+      </aside>
+    );
+  }
+
+  const body = (
+    <PanelBody record={record} onMinimize={overlay ? onClose : onToggleMinimized} />
   );
 
   if (!overlay) {
@@ -46,8 +78,8 @@ export function WorkPanel({
     // than the window.
     return (
       <aside aria-label="Work" className="flex w-72 shrink-0 flex-col py-3 pr-3">
-        <div className="flex min-h-0 animate-in flex-col gap-6 overflow-y-auto rounded-lg border border-border bg-card p-4 fade-in-0 duration-200">
-          {blocks}
+        <div className="flex min-h-0 animate-in flex-col overflow-hidden rounded-lg border border-border bg-card fade-in-0 duration-200">
+          {body}
         </div>
       </aside>
     );
@@ -71,8 +103,95 @@ export function WorkPanel({
           open ? "translate-x-0" : "pointer-events-none translate-x-full",
         )}
       >
-        <div className="flex h-full w-72 flex-col gap-6 overflow-y-auto p-5">{blocks}</div>
+        <div className="flex h-full w-72 flex-col overflow-hidden rounded-l-lg">{body}</div>
       </aside>
+    </>
+  );
+}
+
+/**
+ * The header, then the list and one todo's detail side by side, so opening
+ * a todo slides the panel over to it. The detail keeps the last todo while
+ * the panel slides back, so it does not empty mid-slide.
+ */
+function PanelBody({ record, onMinimize }: { record: WorkRecord; onMinimize: () => void }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [shownId, setShownId] = useState<string | null>(null);
+  const shown = record.todos.find((todo) => todo.id === shownId);
+  const inDetail = openId != null && shown != null;
+  const backRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Focus follows the slide, so the keyboard lands on what came into view.
+  useEffect(() => {
+    if (inDetail) backRef.current?.focus({ preventScroll: true });
+    else if (shownId) {
+      listRef.current
+        ?.querySelector<HTMLElement>(`[data-todo="${CSS.escape(shownId)}"]`)
+        ?.focus({ preventScroll: true });
+    }
+  }, [inDetail, shownId]);
+
+  return (
+    <>
+      <header className="flex h-11 shrink-0 items-center gap-2 px-2">
+        {inDetail ? (
+          <Button
+            ref={backRef}
+            variant="ghost"
+            size="xs"
+            onClick={() => setOpenId(null)}
+            className="font-normal text-muted-foreground"
+          >
+            <ChevronLeft />
+            Todos
+          </Button>
+        ) : (
+          <h2 className="px-2 text-sm font-medium">Work</h2>
+        )}
+        <TooltipButton
+          variant="ghost"
+          size="icon-xs"
+          shortcut="workPanel"
+          tooltip="Minimize"
+          tooltipAlign="end"
+          onClick={onMinimize}
+          aria-label="Minimize the work panel"
+          className="ml-auto text-muted-foreground"
+        >
+          <PanelRightClose />
+        </TooltipButton>
+      </header>
+      <div className="flex min-h-0 overflow-hidden">
+        <div
+          className={cn(
+            "flex w-full transition-transform duration-200 ease-in-out",
+            inDetail && "-translate-x-full",
+          )}
+        >
+          <div
+            ref={listRef}
+            inert={inDetail}
+            className="flex w-full shrink-0 flex-col gap-6 overflow-y-auto px-4 pb-4"
+          >
+            {record.todos.length > 0 && (
+              <TodoChecklist
+                record={record}
+                onOpen={(todo) => {
+                  setShownId(todo.id);
+                  setOpenId(todo.id);
+                }}
+              />
+            )}
+            {record.repos.length + record.prs.length > 0 && (
+              <ReposAndPrs repos={record.repos} prs={record.prs} />
+            )}
+          </div>
+          <div inert={!inDetail} className="w-full shrink-0 overflow-y-auto px-4 pb-4">
+            {shown && <TodoDetail todo={shown} />}
+          </div>
+        </div>
+      </div>
     </>
   );
 }

@@ -15,6 +15,7 @@ import {
   questionsByAspect,
   showsWorkPanel,
   TODO_MARKS,
+  todoTitle,
   type Pr,
   type Question,
   type Todo,
@@ -390,5 +391,36 @@ describe("ownerAvatarUrl", () => {
     expect(avatar("https://github.com.example.com/acme/repo")).toBeNull();
     expect(avatar("github.com/acme")).toBeNull();
     expect(avatar(undefined)).toBeNull();
+  });
+});
+
+describe("todoTitle", () => {
+  const shown = (text: string, detail?: string) =>
+    todoTitle({ ...todo("t1", "open"), text, detail });
+
+  it("takes the title from text and the detail as written when the todo has one", () => {
+    expect(shown("Add the detail field. Old ones split.", "Agents pass it.")).toEqual({
+      title: "Add the detail field. Old ones split.",
+      detail: "Agents pass it.",
+    });
+  });
+
+  it("splits an older todo after its first sentence", () => {
+    expect(shown("Add the field. Then wire it up. Then test it.")).toEqual({
+      title: "Add the field.",
+      detail: "Then wire it up. Then test it.",
+    });
+  });
+
+  it("keeps a one-sentence todo whole, with no detail", () => {
+    expect(shown("Add the field.")).toEqual({ title: "Add the field.", detail: "" });
+    expect(shown("Add the field")).toEqual({ title: "Add the field", detail: "" });
+  });
+
+  it("does not split on an abbreviation or a file name", () => {
+    expect(shown("Parse remotes, e.g. git@ ones, in plan.rs and work.ts. Test both.")).toEqual({
+      title: "Parse remotes, e.g. git@ ones, in plan.rs and work.ts.",
+      detail: "Test both.",
+    });
   });
 });

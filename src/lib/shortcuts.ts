@@ -82,6 +82,13 @@ export const SHORTCUTS = [
   { id: "find", label: "Find in plan", keys: "mod+f", group: "Plan", when: "In the preview" },
   { id: "outline", label: "Outline", keys: "mod+\\", group: "Plan", when: "In the preview" },
   { id: "history", label: "History", keys: "mod+h", group: "Plan" },
+  {
+    id: "workPanel",
+    label: "Show or hide the work panel",
+    keys: "mod+shift+t",
+    group: "Plan",
+    when: "On a plan with todos, repos or PRs",
+  },
   { id: "status", label: "Change status", keys: "mod+shift+s", group: "Plan" },
   { id: "folders", label: "Folders", keys: "mod+shift+f", group: "Plan", when: "In the preview" },
   { id: "archive", label: "Archive plan", keys: "mod+shift+a", group: "Plan" },

@@ -8,6 +8,7 @@ import {
   progress,
   progressText,
   TODO_MARKS,
+  todoTitle,
   type Todo,
   type TodoState,
   type WorkRecord,
@@ -22,17 +23,22 @@ const GLYPHS: Record<TodoState, LucideIcon> = {
 };
 
 /**
- * The plan's todos as agents move them. Nothing here is clickable: the
- * person reads the list, and the agents check items off.
+ * The plan's todos as agents move them, one line each. A row opens the
+ * todo's detail. Nothing here changes a todo: the agents check items off.
  */
-export function TodoChecklist({ record }: { record: WorkRecord | null }) {
+export function TodoChecklist({
+  record,
+  onOpen,
+}: {
+  record: WorkRecord | null;
+  onOpen: (todo: Todo) => void;
+}) {
   const todos = record?.todos ?? [];
   const counted = record ? progress(record) : { done: 0, total: 0 };
   // A todo that changes state is a new row, so the move fades in while the
   // rows that did not move stay still.
   const keyOf = (todo: Todo) => `${todo.id}:${todo.state}`;
   const mounted = useMountedKeys(todos.map(keyOf));
-  const now = new Date();
 
   return (
     <section>
@@ -52,13 +58,13 @@ export function TodoChecklist({ record }: { record: WorkRecord | null }) {
           No todos yet. The agent adds them after alignment.
         </p>
       ) : (
-        <ul>
+        <ul className="-mx-2">
           {todos.map((todo) => (
             <TodoRow
               key={keyOf(todo)}
               todo={todo}
-              now={now}
               arrived={!mounted.has(keyOf(todo))}
+              onOpen={() => onOpen(todo)}
             />
           ))}
         </ul>
@@ -67,38 +73,76 @@ export function TodoChecklist({ record }: { record: WorkRecord | null }) {
   );
 }
 
-function TodoRow({ todo, now, arrived }: { todo: Todo; now: Date; arrived: boolean }) {
+/** One todo in full: its title, its detail, where it stands and who moved
+ * it last. */
+export function TodoDetail({ todo }: { todo: Todo }) {
+  const { title, detail } = todoTitle(todo);
+  const who = SOURCE_LABELS[todo.by] ?? todo.by;
+  const when = relativeTime(todo.at, new Date());
   const mark = TODO_MARKS[todo.state];
   const Glyph = GLYPHS[todo.state];
-  const who = SOURCE_LABELS[todo.by] ?? todo.by;
-  const when = relativeTime(todo.at, now);
-  const dropped = todo.state === "dropped";
   return (
-    <li
-      className={cn(
-        "flex gap-2.5 py-1.5",
-        arrived && "animate-in fade-in-0 duration-200",
+    <article className="flex flex-col gap-3">
+      <h3 className="text-sm leading-snug font-medium">{title}</h3>
+      {detail && (
+        <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
+          {detail}
+        </p>
       )}
-    >
-      <span title={mark.label} className="mt-0.5 shrink-0">
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Glyph aria-hidden className={cn("size-3.5", mark.tone)} />
-        <span className="sr-only">{mark.label}</span>
-      </span>
-      <div className="min-w-0 flex-1">
-        <p
+        <span>
+          <span className="text-foreground">{mark.label}</span> · {who}
+          {when && ` · ${when}`}
+        </span>
+      </p>
+      {todo.state === "dropped" && todo.reason && (
+        <p className="text-xs text-muted-foreground">Dropped: {todo.reason}</p>
+      )}
+    </article>
+  );
+}
+
+function TodoRow({
+  todo,
+  arrived,
+  onOpen,
+}: {
+  todo: Todo;
+  arrived: boolean;
+  onOpen: () => void;
+}) {
+  const { title } = todoTitle(todo);
+  return (
+    <li className={cn(arrived && "animate-in fade-in-0 duration-200")}>
+      <button
+        type="button"
+        title={title}
+        data-todo={todo.id}
+        onClick={onOpen}
+        className="flex w-full items-center gap-2.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+      >
+        <StateGlyph state={todo.state} />
+        <span
           className={cn(
-            "text-sm leading-snug",
-            dropped && "text-muted-foreground line-through",
+            "min-w-0 flex-1 truncate text-sm",
+            todo.state === "dropped" && "text-muted-foreground line-through",
           )}
         >
-          {todo.text}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {dropped && todo.reason && <span>Dropped: {todo.reason} · </span>}
-          {who}
-          {when && ` · ${when}`}
-        </p>
-      </div>
+          {title}
+        </span>
+      </button>
     </li>
+  );
+}
+
+function StateGlyph({ state }: { state: TodoState }) {
+  const mark = TODO_MARKS[state];
+  const Glyph = GLYPHS[state];
+  return (
+    <span title={mark.label} className="shrink-0">
+      <Glyph aria-hidden className={cn("size-3.5", mark.tone)} />
+      <span className="sr-only">{mark.label}</span>
+    </span>
   );
 }

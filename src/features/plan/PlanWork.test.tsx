@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Decision, Todo, TodoState, WorkRecord } from "@/lib/work";
 import { AlignmentTab, WorkPanel } from "./PlanWork";
 
@@ -21,9 +22,18 @@ const record = (extra: Partial<WorkRecord> = {}): WorkRecord => ({
   ...extra,
 });
 
-function panel(work: WorkRecord | null): string {
+function panel(work: WorkRecord | null, minimized = false): string {
   return renderToStaticMarkup(
-    <WorkPanel record={work} overlay={false} open onClose={() => {}} />,
+    <TooltipProvider>
+      <WorkPanel
+        record={work}
+        overlay={false}
+        open
+        minimized={minimized}
+        onClose={() => {}}
+        onToggleMinimized={() => {}}
+      />
+    </TooltipProvider>,
   );
 }
 
@@ -32,7 +42,7 @@ function alignmentTab(work: WorkRecord | null): string {
 }
 
 describe("WorkPanel", () => {
-  it("counts three todos, says who moved them, and why one was dropped", () => {
+  it("counts three todos and leaves the dropped one out", () => {
     const html = panel(
       record({
         todos: [
@@ -45,8 +55,29 @@ describe("WorkPanel", () => {
     );
 
     expect(html).toContain("1 of 3 done");
-    expect(html).toContain("Covered by the parser change");
-    expect(html).toContain("Claude Code");
+  });
+
+  it("shows each todo's title on its row and keeps the detail for its own view", () => {
+    const html = panel(
+      record({
+        todos: [
+          todo("t1", "open", { text: "Split the title. The rest is detail." }),
+          todo("t2", "open", { text: "Short title", detail: "Written apart." }),
+        ],
+      }),
+    );
+
+    expect(html).toContain('title="Split the title."');
+    expect(html).toContain('title="Short title"');
+    expect(html).not.toContain("The rest is detail.");
+    expect(html).not.toContain("Written apart.");
+  });
+
+  it("folds into a rail with the todo count when minimized", () => {
+    const html = panel(record({ todos: [todo("t1", "done"), todo("t2", "open")] }), true);
+
+    expect(html).toContain("1/2");
+    expect(html).not.toContain("1 of 2 done");
   });
 
   it("has no checkboxes, since agents move the todos", () => {

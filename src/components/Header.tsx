@@ -305,6 +305,7 @@ export function Header({
           variant="ghost"
           size="xs"
           onClick={onToggleWork}
+          shortcut="workPanel"
           tooltip="Todos, repos and PRs"
           tooltipAlign="end"
           aria-expanded={workOpen}

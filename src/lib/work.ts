@@ -66,10 +66,13 @@ export interface Decision {
 
 export type TodoState = "open" | "doing" | "done" | "dropped";
 
-/** `by` and `at` say who last moved the todo, and when. */
+/** `by` and `at` say who last moved the todo, and when. `text` is the
+ * one-line title. Older records have no `detail` and keep the whole todo in
+ * `text`. */
 export interface Todo {
   id: string;
   text: string;
+  detail?: string;
   state: TodoState;
   by: string;
   session?: string;
@@ -182,6 +185,16 @@ export function ownerAvatarUrl(repo: Repo, size: number): string | null {
     /^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?github\.com[:/]([A-Za-z0-9-]+)\/[^/]+/i,
   )?.[1];
   return owner ? `https://github.com/${owner}.png?size=${size}` : null;
+}
+
+/** What a todo row and its detail show. A todo from before `detail` splits
+ * after its first sentence: a full stop, a space, then a capital. */
+export function todoTitle(todo: Todo): { title: string; detail: string } {
+  if (todo.detail != null) return { title: todo.text, detail: todo.detail };
+  const text = todo.text.trim();
+  const end = text.search(/[.!?]\s+[A-Z]/) + 1;
+  if (end === 0) return { title: text, detail: "" };
+  return { title: text.slice(0, end), detail: text.slice(end).trim() };
 }
 
 /** How each todo state reads. The tones match the status glyphs: doing is

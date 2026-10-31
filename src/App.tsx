@@ -126,7 +126,8 @@ import {
   type PlanProgress,
 } from "./lib/work";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
-import { WORK_PANEL_PX, WorkPanel } from "./features/plan/PlanWork";
+import { WORK_PANEL_PX, WORK_RAIL_PX, WorkPanel } from "./features/plan/PlanWork";
+import { loadWorkPanelMode, saveWorkPanelMode } from "./lib/workPanel";
 import { originLabel, pushOrigin, type Origin } from "./lib/origin";
 import { PLAN_TABS, tabFor, withTab, type PlanTab, type PlanTabs } from "./lib/planTab";
 import { restoreScroll, scrollMarks, type ScrollMark } from "./lib/scroll";
@@ -321,6 +322,8 @@ export default function App() {
   // The plan whose floating work panel is open, so another plan opens with
   // it closed.
   const [workOpenFor, setWorkOpenFor] = useState<string | null>(null);
+  const [workMode, setWorkMode] = useState(loadWorkPanelMode);
+  useEffect(() => saveWorkPanelMode(workMode), [workMode]);
   // The two pickers their keys open; the header and the plan page own the
   // menus themselves.
   const [statusOpen, setStatusOpen] = useState(false);
@@ -1029,10 +1032,15 @@ export default function App() {
     [activePlan],
   );
   const closeWork = useCallback(() => setWorkOpenFor(null), []);
+  const toggleWorkMode = useCallback(
+    () => setWorkMode((mode) => (mode === "minimized" ? "expanded" : "minimized")),
+    [],
+  );
+  const workColumnPx = workMode === "minimized" ? WORK_RAIL_PX : WORK_PANEL_PX;
   // Whether there is room for the outline to have a column of its own; when
   // there isn't, it floats instead, and the two have separate open states.
   const outlineOverlays =
-    mainWidth - (workColumn ? WORK_PANEL_PX : 0) < OUTLINE_COLUMN_MIN_WIDTH;
+    mainWidth - (workColumn ? workColumnPx : 0) < OUTLINE_COLUMN_MIN_WIDTH;
   const outlineShown = outlineOverlays ? floatingOutlineOpen : outlineOpen;
   const toggleOutline = useCallback(() => {
     if (outlineOverlays) setFloatingOutlineOpen((o) => !o);
@@ -1633,6 +1641,7 @@ export default function App() {
     find: onPlan && showOutline ? openFind : undefined,
     outline: onPlan && showOutline ? toggleOutline : undefined,
     history: onPlan && activePlan ? toggleHistory : undefined,
+    workPanel: workShown ? (workOverlays ? toggleWork : toggleWorkMode) : undefined,
     status: onPlan && activePlan ? () => setStatusOpen(true) : undefined,
     folders: onPlan && activePlan && view === "preview" ? () => setFoldersOpen(true) : undefined,
     archive:
@@ -1921,10 +1930,13 @@ export default function App() {
             </div>
           )}
           <WorkPanel
+            key={activePlan?.path}
             record={workShown ? workRecord : null}
             overlay={workOverlays}
             open={workOpen}
+            minimized={workMode === "minimized"}
             onClose={closeWork}
+            onToggleMinimized={toggleWorkMode}
           />
           {canComment && (
             <CommentsPanel
