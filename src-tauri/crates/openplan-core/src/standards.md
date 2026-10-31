@@ -183,26 +183,32 @@ The plan stays in progress, and the app flags it as needing an answer.
 
 1. Give each question a `role`. `product` is the product owner, `engineering` is
    the tech lead, `design` is the designer, and `oncall` is the person paged
-   when it breaks. Ask from the roles the plan touches. Do not add a role that
-   has nothing to ask.
-2. Order the questions from easy to hard. The early ones confirm scope. The later
+   when it breaks. `research` is the researcher, `accessibility` the
+   accessibility reviewer, `data` the data analyst, `security` the security
+   reviewer and `support` the support lead. Ask from the roles the plan
+   touches. Do not add a role that has nothing to ask.
+2. When `get_standards` ends with a "Who is answering" section, follow it. Ask
+   only from the panel it names, in the voice it gives each member, and let
+   the owner of each required area ask about it. A question another persona
+   would ask goes to the closest panel member, in plain words.
+3. Order the questions from easy to hard. The early ones confirm scope. The later
    ones ask the person to explain their reasoning, and a free-text answer is
    welcome there.
-3. Ask about error handling, edge cases and behaviour at scale on every plan.
+4. Ask about error handling, edge cases and behaviour at scale on every plan.
    These are the required areas, and each one needs an answer.
-4. Write each question as one direct sentence, and give it a `context` of two to
+5. Write each question as one direct sentence, and give it a `context` of two to
    four sentences. The context says why the question matters for this plan and
    what you found in the code or the plan that raised it. Name the files,
    functions and numbers you found.
-5. Offer at least two real options. Give every option a `consequence`, what
+6. Offer at least two real options. Give every option a `consequence`, what
    happens if the person picks it, and a `tradeoff`, what it costs or gives up
    and when it is the right pick. One sentence each.
-6. Set `recommended` to one option, and end the `context` with one sentence on
+7. Set `recommended` to one option, and end the `context` with one sentence on
    why you recommend it.
-7. The person picks every answer. Never add an option that hands the choice back
+8. The person picks every answer. Never add an option that hands the choice back
    to you. The app adds "Write my own" to every question with options, so do not
    add a free-text option yourself.
-8. Add an `illustration` in markdown to a question or an option wherever it is
+9. Add an `illustration` in markdown to a question or an option wherever it is
    easier to see than to read. Use a mermaid diagram, a worked example, a before
    and after, or a small `html` fence when media is on.
 
@@ -254,6 +260,11 @@ you find in the plan and the code, so the bank has none.
 | engineering | high-level design | Does this add a service, a data store or a dependency? | no, it reuses what exists · one dependency, justified in the PR · a new service |
 | engineering | layout and naming | What are the new files and public names called? | follow the nearest existing names · the names in this plan · names the reviewer picks |
 | oncall | practices | How does this ship? | behind a flag that is off by default · straight to main · on a branch until a QA gate |
+| research | users | What do we know about the people who asked for this? | interviews or tickets name it · usage data points to it · nothing yet, so ship small and watch |
+| accessibility | accessibility | Can someone use this with only a keyboard or a screen reader? | yes, with the same steps · yes, with one extra step · not in this change, a follow-up plan covers it |
+| data | success | Which number tells us this worked? | how many people use it in the first month · how often the task gets finished · no number, ask the people who asked for it |
+| security | access | Who can reach the new data or action? | the same people as today · only the owner · anyone with the link |
+| support | support | What will customers ask about this, and where do they find the answer? | a help article at launch · a line in the release notes · nothing, it needs no explaining |
 
 ### `bug`
 
@@ -267,6 +278,11 @@ you find in the plan and the code, so the bank has none.
 | oncall | security | Could this bug have exposed data or access? | no, it only affects behaviour · unknown, check the logs first · yes, treat it as an incident |
 | engineering | low-level design | How deep does the fix go? | the root cause · a guard at the boundary now and the root cause later · both in one change |
 | oncall | practices | How does the fix reach users? | the next regular release · a hotfix today · behind a flag |
+| research | users | How did the people it affected tell us? | support tickets · an error report · we found it ourselves |
+| accessibility | accessibility | Does the bug or the fix change what a screen reader says or where focus goes? | no · yes, the fix restores it · yes, and it needs its own test |
+| data | success | Which number shows the fix worked? | the error rate drops to zero · the tickets stop · a test proves it, so no number is needed |
+| security | access | Does the fixed code need a check on who may call it? | no, the access rules stay · yes, add the check in this fix · yes, in a follow-up plan |
+| support | support | What do we tell the customers who reported it? | a reply on each ticket once it ships · a line in the release notes · nothing, the fix is silent |
 
 ### `migration`
 
@@ -282,6 +298,11 @@ you find in the plan and the code, so the bank has none.
 | engineering | high-level design | How do the old and new paths run during the move? | write to both, read the old · write to both, read the new · a hard cutover |
 | engineering | layout and naming | What happens to the old names? | aliases for one release · renamed everywhere now · kept as they are |
 | oncall | practices | How far back can each phase roll? | every phase rolls back · only until cutover · no rollback, fix forward |
+| research | users | Who depends on the old path today? | only our own code · a few known customers · unknown, find out from the logs first |
+| accessibility | accessibility | Do screens on the new path keep their keyboard and screen reader support? | yes, checked screen by screen · yes, the existing tests cover it · no screen changes |
+| data | success | Which numbers must match before cutover? | record counts on both sides · a sample compared field by field · the error rate on the new path |
+| security | access | Does the new store keep data encrypted and access logged as the old one did? | yes, with the same settings · with stronger settings the plan lists · it gets a review before cutover |
+| support | support | What will customers notice and ask about during the move? | nothing, the move is invisible · a notice ahead of any downtime · a help article for changed steps |
 
 ### `research`
 
@@ -293,6 +314,11 @@ you find in the plan and the code, so the bank has none.
 | oncall | error handling | Must the answer say how each option fails? | yes, for every option · only for the recommended one · no, a later plan covers it |
 | engineering | scale | At what size must the answer still hold? | today's size · ten times today · no target, name the limit found |
 | product | what counts as done | What does a finished answer look like? | one recommendation with its evidence · a ranked list of options · a prototype that answers it |
+| research | users | Whose experience must the answer cover? | the people who use it today · the people we want to reach · both |
+| accessibility | accessibility | Must each option say how it works with a keyboard and a screen reader? | yes, for every option · only for the recommended one · no, a later plan covers it |
+| data | sources | Which numbers count as evidence? | product usage data · survey answers · both, with the sample size named |
+| security | access | Must each option say what data it exposes and to whom? | yes, for every option · only for the recommended one · no, a later plan covers it |
+| support | how the answer will be used | Which customer questions should the answer settle? | the most common tickets on this area · none, it is an internal question · the ones raised in sales calls |
 
 ### `audit`
 
@@ -304,6 +330,11 @@ you find in the plan and the code, so the bank has none.
 | oncall | error handling | Does the audit check how each part fails and recovers? | yes, by forcing each failure · by reading the code only · no, it is out of scope |
 | oncall | scale | Does the audit measure behaviour under load? | at today's peak · at ten times today's peak · no, it is out of scope |
 | product | what counts as done | What does a finished audit hand over? | findings ranked by risk · findings with a fix for each · each finding filed as its own plan |
+| research | users | Whose experience does the audit check? | every user · one group, named in the scope · nobody, it reads the code only |
+| accessibility | accessibility | Does the audit check keyboard use, screen readers and contrast? | yes, on every screen in scope · on the main flows only · no, it is out of scope |
+| data | success | How is each finding sized? | by the number of users it reaches · by the cost to fix it · by risk alone |
+| security | access | Does the audit list who can reach each part? | yes, every role and permission · admin access only · no, it is out of scope |
+| support | support | Does the audit use support tickets as evidence? | yes, from the last 90 days · only tickets about this area · no |
 
 ## Todos
 

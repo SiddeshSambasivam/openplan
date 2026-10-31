@@ -349,11 +349,33 @@ mod tests {
         let bank = section("## Question bank");
 
         assert!(!bank.is_empty());
-        assert!(bank.len() < 90, "the question bank is {} lines", bank.len());
+        assert!(bank.len() < 105, "the question bank is {} lines", bank.len());
         let headers = bank.iter().filter(|line| line.starts_with("| role | aspect |")).count();
         assert_eq!(headers, 5, "every type's table names the role that asks");
         let error_rows = bank.iter().filter(|line| line.contains("| error handling |")).count();
         assert_eq!(error_rows, 5, "every type asks about error handling");
+    }
+
+    #[test]
+    fn every_types_bank_has_a_model_question_from_each_newer_persona() {
+        let bank = section("## Question bank").join("\n");
+
+        for table in bank.split("### ").skip(1) {
+            for role in ["research", "accessibility", "data", "security", "support"] {
+                let rows = table.lines().filter(|line| line.starts_with(&format!("| {role} |"))).count();
+                assert_eq!(rows, 1, "{role} in {}", table.lines().next().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn writing_a_question_names_every_role_and_points_at_who_is_answering() {
+        let writing = section("## Alignment").join("\n");
+
+        for role in crate::work::Role::KNOWN {
+            assert!(writing.contains(&format!("`{}`", role.as_str())), "{role:?}");
+        }
+        assert!(writing.contains("\"Who is answering\""), "{writing}");
     }
 
     #[test]
