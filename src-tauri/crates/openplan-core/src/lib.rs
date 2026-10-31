@@ -1,6 +1,7 @@
 //! The OpenPlan file contract, shared by the desktop app and the CLI so the
 //! two can never disagree about what is on disk.
 
+pub mod archive;
 pub mod base;
 pub mod comments;
 pub mod discovery;

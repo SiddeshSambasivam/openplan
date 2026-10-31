@@ -35,6 +35,10 @@ pub struct Settings {
     /// person turns it on, which reads as off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub media: Option<bool>,
+    /// Days a completed plan waits before the app archives it. Absent reads
+    /// as the default, and 0 means never.
+    #[serde(rename = "archiveAfterDays", default, skip_serializing_if = "Option::is_none")]
+    pub archive_after_days: Option<u32>,
 }
 
 /// Markdown is token-efficient; HTML gives a richer page to review. Both are
@@ -53,11 +57,7 @@ pub fn authoring_mode(stored: Option<&str>) -> &'static str {
 
 /// What this machine is set to, read the way the MCP server reads it.
 pub fn current_authoring() -> &'static str {
-    let stored = settings_path()
-        .ok()
-        .and_then(|path| read_settings(&path).ok().flatten())
-        .and_then(|s| s.authoring);
-    authoring_mode(stored.as_deref())
+    authoring_mode(saved().and_then(|s| s.authoring).as_deref())
 }
 
 /// Off unless someone turned it on: media makes the base heavier.
@@ -67,11 +67,26 @@ pub fn media_on(stored: Option<bool>) -> bool {
 
 /// What this machine is set to, read the way the MCP server reads it.
 pub fn current_media() -> bool {
-    let stored = settings_path()
+    media_on(saved().and_then(|s| s.media))
+}
+
+pub const DEFAULT_ARCHIVE_AFTER_DAYS: u32 = 7;
+
+pub fn archive_after_days(stored: Option<u32>) -> u32 {
+    stored.unwrap_or(DEFAULT_ARCHIVE_AFTER_DAYS)
+}
+
+/// What this machine is set to.
+pub fn current_archive_after_days() -> u32 {
+    archive_after_days(saved().and_then(|s| s.archive_after_days))
+}
+
+/// This machine's settings, or none when they cannot be read. Callers fall
+/// back to their defaults rather than stop.
+fn saved() -> Option<Settings> {
+    settings_path()
         .ok()
         .and_then(|path| read_settings(&path).ok().flatten())
-        .and_then(|s| s.media);
-    media_on(stored)
 }
 
 /// A blank setting is the same as an unset one; git configs in particular
@@ -273,6 +288,21 @@ mod tests {
     }
 
     #[test]
+    fn completed_plans_are_archived_after_a_week_unless_someone_chose_otherwise() {
+        let dir = temp_dir("openplan-core-settings-archive-days");
+        let file = dir.join("settings.json");
+        std::fs::write(&file, "{\"basePath\":\"/somewhere\"}\n").unwrap();
+
+        let saved = read_settings(&file).unwrap().unwrap();
+
+        assert_eq!(saved.archive_after_days, None);
+        assert_eq!(archive_after_days(saved.archive_after_days), 7);
+        assert_eq!(archive_after_days(Some(30)), 30);
+        assert_eq!(archive_after_days(Some(0)), 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn settings_written_before_the_mode_existed_still_read() {
         let dir = temp_dir("openplan-core-settings-no-authoring");
         let file = dir.join("settings.json");
@@ -355,6 +385,7 @@ mod tests {
             onboarded: true,
             authoring: Some("html".to_string()),
             media: Some(true),
+            archive_after_days: Some(0),
         };
 
         write_settings(&file, &settings).unwrap();

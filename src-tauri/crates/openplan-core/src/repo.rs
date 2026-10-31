@@ -31,6 +31,12 @@ impl Author {
         Author::agent(ANONYMOUS)
     }
 
+    /// The app itself, for what it does on nobody's word, such as archiving
+    /// plans that have been completed for a while.
+    pub fn app() -> Author {
+        Author::agent("openplan")
+    }
+
     pub fn agent(name: &str) -> Author {
         Author {
             name: name.to_string(),
@@ -284,6 +290,17 @@ mod tests {
         let path = root.join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
+    }
+
+    #[test]
+    fn what_the_app_does_on_its_own_is_signed_by_the_app() {
+        assert_eq!(
+            Author::app(),
+            Author {
+                name: "openplan".to_string(),
+                email: "openplan@openplan.local".to_string(),
+            }
+        );
     }
 
     #[test]
