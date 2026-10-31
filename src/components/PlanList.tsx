@@ -1,5 +1,5 @@
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { ARCHIVED_TAG, isArchived, type PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
@@ -200,6 +200,147 @@ function SetFolder({
   );
 }
 
+/**
+ * One plan row, memoized so a thousand siblings sit still while one of them
+ * changes. A set's document tree is not built or mounted until the first
+ * time it is opened.
+ */
+const PlanRow = memo(function PlanRow({
+  plan,
+  activePath,
+  expanded,
+  renaming,
+  onToggleExpand,
+  onSelect,
+  onSelectDocument,
+  setRenaming,
+  onRename,
+  onRenameDocument,
+}: {
+  plan: PlanSummary;
+  /** Null unless this row's plan or one of its documents is open. */
+  activePath: string | null;
+  expanded: boolean;
+  /** Null unless this row is the one being renamed. */
+  renaming: Renaming | null;
+  onToggleExpand: (plan: PlanSummary, next: boolean) => void;
+  onSelect: (plan: PlanSummary) => void;
+  onSelectDocument: (plan: PlanSummary, document: string) => void;
+  setRenaming: (renaming: Renaming | null) => void;
+  onRename: (plan: PlanSummary, newTitle: string) => void;
+  onRenameDocument: (plan: PlanSummary, document: string, newName: string) => void;
+}) {
+  const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
+  const isSet = plan.documents.length > 1;
+  // Once opened, a set stays mounted so closing it can animate; until then
+  // its tree costs nothing.
+  const [everExpanded, setEverExpanded] = useState(expanded);
+  if (expanded && !everExpanded) setEverExpanded(true);
+  const tree = useMemo(
+    () => (isSet && everExpanded ? buildSetTree(plan.documents) : null),
+    [isSet, everExpanded, plan.documents],
+  );
+  // The archived label is the group it sits in; repeating it as a chip
+  // says nothing.
+  const chipTags = plan.tags.filter((tag) => tag !== ARCHIVED_TAG);
+  return (
+    <li>
+      <button
+        onDoubleClick={() => setRenaming({ path: plan.path, value: plan.title })}
+        onClick={() => {
+          if (!isSet) {
+            onSelect(plan);
+            return;
+          }
+          // Opening a set shows the plan and its documents; folding it
+          // away leaves you where you were reading.
+          const next = !expanded;
+          onToggleExpand(plan, next);
+          if (next) onSelect(plan);
+        }}
+        aria-expanded={isSet ? expanded : undefined}
+        className={cn(
+          "flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+          (plan.path === activePath || expanded) &&
+            "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+        )}
+      >
+        {isSet ? (
+          <>
+            <ChevronRight
+              className={cn(
+                "-ml-1 size-3 shrink-0 text-muted-foreground transition-transform duration-200",
+                expanded && "rotate-90",
+              )}
+            />
+            {expanded ? (
+              <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+            ) : (
+              <Folder className="size-4 shrink-0 text-muted-foreground" />
+            )}
+          </>
+        ) : (
+          <FileText className="size-4 shrink-0 text-muted-foreground" />
+        )}
+        {renaming?.path === plan.path ? (
+          <RenameInput
+            renaming={renaming}
+            onChange={(value) => setRenaming({ path: plan.path, value })}
+            onCancel={() => setRenaming(null)}
+            onCommit={(value) => {
+              onRename(plan, value);
+              setRenaming(null);
+            }}
+          />
+        ) : (
+          <MarqueeText text={plan.title} className="flex-1" />
+        )}
+        {isSet && (
+          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+            {plan.documents.length}
+          </span>
+        )}
+        {chipTags.length > 0 && (
+          <span className="max-w-24 shrink-0 truncate rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+            {chipTags[0]}
+            {chipTags.length > 1 && ` +${chipTags.length - 1}`}
+          </span>
+        )}
+      </button>
+
+      {/* A set opens at its entry point; the rest of it is only reachable
+          if the documents are listed. */}
+      {tree && (
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows] duration-200 ease-in-out",
+            expanded ? "mb-1 grid-rows-[1fr]" : "grid-rows-[0fr]",
+          )}
+        >
+          <div className="overflow-hidden">
+            <SetBranch
+              nodes={tree}
+              depth={0}
+              activeDocument={
+                activePath?.startsWith(folder)
+                  ? activePath.slice(folder.length)
+                  : null
+              }
+              onOpen={(document) => onSelectDocument(plan, document)}
+              renamePrefix={plan.path}
+              renaming={renaming}
+              setRenaming={setRenaming}
+              onRenameDocument={(document, newName) =>
+                onRenameDocument(plan, document, newName)
+              }
+            />
+          </div>
+        </div>
+      )}
+    </li>
+  );
+});
+
 export function PlanList({
   plans,
   activePath,
@@ -234,6 +375,10 @@ export function PlanList({
   });
   const archiveShown = archiveOpen || readingArchived;
 
+  const toggleExpand = useCallback((plan: PlanSummary, next: boolean) => {
+    setToggled((t) => ({ ...t, [plan.path]: next }));
+  }, []);
+
   if (plans.length === 0) {
     return (
       <p className="px-2 py-6 text-center text-xs leading-5 text-muted-foreground">
@@ -247,106 +392,30 @@ export function PlanList({
   const renderPlan = (plan: PlanSummary) => {
     const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
     const isSet = plan.documents.length > 1;
-    const expanded =
-      isSet && (toggled[plan.path] ?? !!activePath?.startsWith(folder));
-    // The archived label is the group it sits in; repeating it as a chip
-    // says nothing.
-    const chipTags = plan.tags.filter((tag) => tag !== ARCHIVED_TAG);
+    const holdsActive = plan.path === activePath || !!activePath?.startsWith(folder);
+    const expanded = isSet && (toggled[plan.path] ?? holdsActive);
+    // Rows only receive what concerns them, so a keystroke in one rename
+    // input or a switch of documents leaves the other rows untouched.
+    const rowRenaming =
+      renaming &&
+      (renaming.path === plan.path ||
+        (isSet && renaming.path.startsWith(`${plan.path}/`)))
+        ? renaming
+        : null;
     return (
-      <li key={plan.path}>
-        <button
-          onDoubleClick={() => setRenaming({ path: plan.path, value: plan.title })}
-          onClick={() => {
-            if (!isSet) {
-              onSelect(plan);
-              return;
-            }
-            // Opening a set shows the plan and its documents; folding it
-            // away leaves you where you were reading.
-            const next = !expanded;
-            setToggled((t) => ({ ...t, [plan.path]: next }));
-            if (next) onSelect(plan);
-          }}
-          aria-expanded={isSet ? expanded : undefined}
-          className={cn(
-            "flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-            (plan.path === activePath || expanded) &&
-              "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
-          )}
-        >
-          {isSet ? (
-            <>
-              <ChevronRight
-                className={cn(
-                  "-ml-1 size-3 shrink-0 text-muted-foreground transition-transform duration-200",
-                  expanded && "rotate-90",
-                )}
-              />
-              {expanded ? (
-                <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
-              ) : (
-                <Folder className="size-4 shrink-0 text-muted-foreground" />
-              )}
-            </>
-          ) : (
-            <FileText className="size-4 shrink-0 text-muted-foreground" />
-          )}
-          {renaming?.path === plan.path ? (
-            <RenameInput
-              renaming={renaming}
-              onChange={(value) => setRenaming({ path: plan.path, value })}
-              onCancel={() => setRenaming(null)}
-              onCommit={(value) => {
-                onRename(plan, value);
-                setRenaming(null);
-              }}
-            />
-          ) : (
-            <MarqueeText text={plan.title} className="flex-1" />
-          )}
-          {isSet && (
-            <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-              {plan.documents.length}
-            </span>
-          )}
-          {chipTags.length > 0 && (
-            <span className="max-w-24 shrink-0 truncate rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
-              {chipTags[0]}
-              {chipTags.length > 1 && ` +${chipTags.length - 1}`}
-            </span>
-          )}
-        </button>
-
-        {/* A set opens at its entry point; the rest of it is only reachable
-            if the documents are listed. */}
-        {isSet && (
-          <div
-            className={cn(
-              "grid transition-[grid-template-rows] duration-200 ease-in-out",
-              expanded ? "mb-1 grid-rows-[1fr]" : "grid-rows-[0fr]",
-            )}
-          >
-            <div className="overflow-hidden">
-              <SetBranch
-                nodes={buildSetTree(plan.documents)}
-                depth={0}
-                activeDocument={
-                  activePath?.startsWith(folder)
-                    ? activePath.slice(folder.length)
-                    : null
-                }
-                onOpen={(document) => onSelectDocument(plan, document)}
-                renamePrefix={plan.path}
-                renaming={renaming}
-                setRenaming={setRenaming}
-                onRenameDocument={(document, newName) =>
-                  onRenameDocument(plan, document, newName)
-                }
-              />
-            </div>
-          </div>
-        )}
-      </li>
+      <PlanRow
+        key={plan.path}
+        plan={plan}
+        activePath={holdsActive ? activePath : null}
+        expanded={expanded}
+        renaming={rowRenaming}
+        onToggleExpand={toggleExpand}
+        onSelect={onSelect}
+        onSelectDocument={onSelectDocument}
+        setRenaming={setRenaming}
+        onRename={onRename}
+        onRenameDocument={onRenameDocument}
+      />
     );
   };
 

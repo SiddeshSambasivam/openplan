@@ -1,5 +1,5 @@
 import { FileText, Search, Settings, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { isMac } from "../lib/platform";
 import { filterLibraryItems } from "../lib/tree";
 import type { FileLibraryItem, LibraryItem } from "../lib/types";
@@ -76,7 +76,9 @@ function LooseFileRow({
   );
 }
 
-export function Sidebar({
+/** Memoized: the app re-renders on every keystroke of an edit, and this
+ * tree can hold thousands of rows that none of that concerns. */
+export const Sidebar = memo(function Sidebar({
   items,
   plans,
   activePlanPath,
@@ -274,4 +276,4 @@ export function Sidebar({
       </div>
     </aside>
   );
-}
+});

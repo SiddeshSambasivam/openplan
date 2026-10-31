@@ -1240,6 +1240,20 @@ export default function App() {
     [refreshPlans, openFilePaths, notify],
   );
 
+  // Stable identity for the memoized sidebar: recompute only when the
+  // library or the base changes, not on every render of the app.
+  const sidebarItems = useMemo(
+    () =>
+      base
+        ? items.filter(
+            (item) => !("path" in item && item.path?.startsWith(base.root)),
+          )
+        : items,
+    [items, base],
+  );
+
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+
   const wordCount = useMemo(() => {
     if (content == null) return null;
     return content.split(/\s+/).filter(Boolean).length;
@@ -1258,20 +1272,14 @@ export default function App() {
         aria-hidden={!sidebarOpen}
       >
         <Sidebar
-          items={
-            base
-              ? items.filter(
-                  (item) => !("path" in item && item.path?.startsWith(base.root)),
-                )
-              : items
-          }
+          items={sidebarItems}
           plans={plans}
           activePlanPath={activeDoc?.path ?? null}
           onSelectPlan={selectPlan}
           onSelectDocument={selectDocument}
           onRenamePlan={handleRename}
           onRenameDocument={handleRenameDocument}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={openSettings}
           activeId={activeDocId}
           expanded={expanded}
           onToggleDir={toggleDir}
