@@ -39,6 +39,10 @@ pub struct Settings {
     /// as the default, and 0 means never.
     #[serde(rename = "archiveAfterDays", default, skip_serializing_if = "Option::is_none")]
     pub archive_after_days: Option<u32>,
+    /// The file name of the person's picture, kept beside the settings file.
+    /// Absent means the generated marble.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub avatar: Option<String>,
 }
 
 /// Markdown is token-efficient; HTML gives a richer page to review. Both are
@@ -81,6 +85,63 @@ pub fn current_archive_after_days() -> u32 {
     archive_after_days(saved().and_then(|s| s.archive_after_days))
 }
 
+/// Sets the name and email the person typed. A blank field is stored as
+/// absent, so the git config answers for it again. Nothing changes when the
+/// email is refused.
+pub fn apply_profile(
+    settings: &mut Settings,
+    name: Option<String>,
+    email: Option<String>,
+) -> Result<(), String> {
+    let email = filled(email).map(|e| e.trim().to_string());
+    if let Some(email) = &email {
+        check_email(email)?;
+    }
+    settings.name = filled(name).map(|n| n.trim().to_string());
+    settings.email = email;
+    Ok(())
+}
+
+pub const AVATAR_EXTENSIONS: [&str; 5] = ["png", "jpg", "jpeg", "webp", "gif"];
+pub const AVATAR_MAX_BYTES: u64 = 5 * 1024 * 1024;
+const AVATAR_PREFIX: &str = "avatar-";
+
+/// Copies the chosen picture into `dir` as `avatar-<stamp>.<ext>` and removes
+/// the pictures saved before it. Returns the new file name. A new stamp gives
+/// a new URL, so the webview never shows a cached old picture.
+pub fn save_avatar(dir: &Path, source: &Path, stamp: &str) -> Result<String, String> {
+    let ext = avatar_extension(source)?;
+    check_avatar_size(source)?;
+    let name = format!("{AVATAR_PREFIX}{stamp}.{ext}");
+    std::fs::copy(source, dir.join(&name))
+        .map_err(|e| format!("Couldn't save the picture: {e}"))?;
+    remove_avatars_except(dir, Some(&name))?;
+    Ok(name)
+}
+
+/// Deletes every saved picture in `dir`.
+pub fn remove_avatars(dir: &Path) -> Result<(), String> {
+    remove_avatars_except(dir, None)
+}
+
+/// The picture's absolute path, only while its file exists.
+pub fn avatar_path(dir: &Path, stored: Option<&str>) -> Option<PathBuf> {
+    stored.map(|name| dir.join(name)).filter(|path| path.is_file())
+}
+
+/// The directory that holds the settings file and the picture.
+pub fn settings_dir() -> Result<PathBuf, String> {
+    let path = settings_path()?;
+    path.parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "The settings file has no directory.".to_string())
+}
+
+/// This machine's picture, if the person set one.
+pub fn current_avatar() -> Option<PathBuf> {
+    avatar_path(&settings_dir().ok()?, saved()?.avatar.as_deref())
+}
+
 /// This machine's settings, or none when they cannot be read. Callers fall
 /// back to their defaults rather than stop.
 fn saved() -> Option<Settings> {
@@ -93,6 +154,49 @@ fn saved() -> Option<Settings> {
 /// are easy to leave empty.
 fn filled(value: Option<String>) -> Option<String> {
     value.filter(|v| !v.trim().is_empty())
+}
+
+fn check_email(email: &str) -> Result<(), String> {
+    if email.chars().any(char::is_whitespace) {
+        return Err("An email can't contain spaces.".to_string());
+    }
+    match email.split_once('@') {
+        Some((local, domain)) if !local.is_empty() && !domain.is_empty() => Ok(()),
+        _ => Err("An email needs text on both sides of the @.".to_string()),
+    }
+}
+
+fn avatar_extension(source: &Path) -> Result<String, String> {
+    source
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_lowercase)
+        .filter(|e| AVATAR_EXTENSIONS.contains(&e.as_str()))
+        .ok_or_else(|| "Pick a PNG, JPEG, WebP or GIF picture.".to_string())
+}
+
+fn check_avatar_size(source: &Path) -> Result<(), String> {
+    let size = std::fs::metadata(source)
+        .map_err(|e| format!("Couldn't read the picture: {e}"))?
+        .len();
+    if size > AVATAR_MAX_BYTES {
+        return Err("That picture is over 5 MB. Pick a smaller one.".to_string());
+    }
+    Ok(())
+}
+
+fn remove_avatars_except(dir: &Path, keep: Option<&str>) -> Result<(), String> {
+    let entries = std::fs::read_dir(dir)
+        .map_err(|e| format!("Couldn't read the settings directory: {e}"))?;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if name.starts_with(AVATAR_PREFIX) && Some(name) != keep {
+            std::fs::remove_file(entry.path())
+                .map_err(|e| format!("Couldn't remove the old picture: {e}"))?;
+        }
+    }
+    Ok(())
 }
 
 /// Settings win over git's config, and an anonymous fallback covers the
@@ -347,6 +451,93 @@ mod tests {
     }
 
     #[test]
+    fn a_profile_is_trimmed_and_a_blank_field_falls_back_to_git() {
+        let mut settings = Settings::default();
+
+        apply_profile(&mut settings, Some("  Sid  ".into()), Some("   ".into())).unwrap();
+
+        assert_eq!(settings.name.as_deref(), Some("Sid"));
+        assert_eq!(settings.email, None);
+        let id = resolve_identity(settings.name, settings.email, None, Some("git@example.com".into()));
+        assert_eq!(id.email, "git@example.com");
+    }
+
+    #[test]
+    fn an_email_needs_text_on_both_sides_of_an_at_and_no_spaces() {
+        for bad in ["sid", "@hypotenuse.ai", "sid@", "sid @hypotenuse.ai", "sid@hypo tenuse.ai"] {
+            let mut settings = Settings::default();
+            assert!(
+                apply_profile(&mut settings, None, Some(bad.into())).is_err(),
+                "{bad} was accepted"
+            );
+            assert_eq!(settings.email, None, "{bad} was stored");
+        }
+        let mut settings = Settings::default();
+        apply_profile(&mut settings, None, Some(" sid@hypotenuse.ai ".into())).unwrap();
+        assert_eq!(settings.email.as_deref(), Some("sid@hypotenuse.ai"));
+    }
+
+    #[test]
+    fn a_saved_picture_replaces_the_one_before_it() {
+        let dir = temp_dir("openplan-core-settings-avatar-save");
+        let picked = dir.join("Me.PNG");
+        std::fs::write(&picked, b"new").unwrap();
+        std::fs::write(dir.join("avatar-100.jpg"), b"old").unwrap();
+        std::fs::write(dir.join("settings.json"), b"{}").unwrap();
+
+        let name = save_avatar(&dir, &picked, "200").unwrap();
+
+        assert_eq!(name, "avatar-200.png");
+        assert_eq!(std::fs::read(dir.join(&name)).unwrap(), b"new");
+        assert!(!dir.join("avatar-100.jpg").exists(), "the old picture stayed");
+        assert!(dir.join("settings.json").exists());
+        assert!(picked.exists(), "the chosen file was moved, not copied");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_picture_must_be_an_image_of_five_megabytes_or_less() {
+        let dir = temp_dir("openplan-core-settings-avatar-refuse");
+        let text = dir.join("notes.txt");
+        std::fs::write(&text, b"hello").unwrap();
+        let big = dir.join("big.webp");
+        std::fs::File::create(&big)
+            .unwrap()
+            .set_len(AVATAR_MAX_BYTES + 1)
+            .unwrap();
+        std::fs::write(dir.join("avatar-100.gif"), b"old").unwrap();
+
+        assert!(save_avatar(&dir, &text, "200").is_err());
+        assert!(save_avatar(&dir, &big, "200").unwrap_err().contains("5 MB"));
+        assert!(dir.join("avatar-100.gif").exists(), "a refused picture removed the old one");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn removing_the_picture_deletes_its_file() {
+        let dir = temp_dir("openplan-core-settings-avatar-remove");
+        std::fs::write(dir.join("avatar-100.jpeg"), b"old").unwrap();
+        std::fs::write(dir.join("settings.json"), b"{}").unwrap();
+
+        remove_avatars(&dir).unwrap();
+
+        assert!(!dir.join("avatar-100.jpeg").exists());
+        assert!(dir.join("settings.json").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_picture_is_shown_only_while_its_file_exists() {
+        let dir = temp_dir("openplan-core-settings-avatar-path");
+        std::fs::write(dir.join("avatar-100.png"), b"me").unwrap();
+
+        assert_eq!(avatar_path(&dir, Some("avatar-100.png")), Some(dir.join("avatar-100.png")));
+        assert_eq!(avatar_path(&dir, Some("avatar-999.png")), None);
+        assert_eq!(avatar_path(&dir, None), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_name_without_an_email_still_gets_an_identity() {
         let id = resolve_identity(Some("Sid".into()), None, None, None);
         assert_eq!(id.name, "Sid");
@@ -386,6 +577,7 @@ mod tests {
             authoring: Some("html".to_string()),
             media: Some(true),
             archive_after_days: Some(0),
+            avatar: Some("avatar-100.png".to_string()),
         };
 
         write_settings(&file, &settings).unwrap();
