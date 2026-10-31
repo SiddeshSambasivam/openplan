@@ -25,22 +25,23 @@ Start a folder when the work has phases, when more than one person or agent will
 work on it, or the second time you want to add a section that does not belong in
 what is already there.
 
-## The header
+## The title
 
-Every plan opens with a title that reads as a change, not a topic, then a block
-that answers who, when, and where:
+Every plan opens with a title that reads as a change, not a topic, and then its
+first section:
 
 ```markdown
-# PDB filter schema bug: number `between` payloads coerce to datetimes
+# Stop number `between` filters from coercing to datetimes
 
-**Status:** documented, not yet fixed · **Found:** 2026-07-14, during PDB Search v1 reader work
-**Affects:** the *current* Postgres search path (`schemas/filters.py`), and gates one cell
-of the v1 reader (`pdb_search/reader/dispatch.py` on `feat/sd/pdb-search-03-read-path`)
+## Summary
+
+The Postgres search path in `schemas/filters.py` parses every `between` payload
+as a date range, so a filter on price returns nothing.
 ```
 
-Status is dated and carries its provenance. "Strategy committed by Sid
-2026-07-29" beats "approved". Add `Branch:`, `Flag:`, `Owner:`, and
-`Predecessors:` when they exist.
+Do not add a status, owner, repo or branch line under the title. The app keeps
+status and dates in the plan's frontmatter, and repos, branches and PRs in its
+work record. A second copy in the body goes stale.
 
 ## Plan types
 

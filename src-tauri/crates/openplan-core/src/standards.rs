@@ -291,17 +291,31 @@ mod tests {
         }
     }
 
-    #[test]
-    fn the_question_bank_stays_short_enough_to_read_in_one_go() {
-        let bank: Vec<&str> = BUILT_IN
+    /// The lines under a top-level heading, up to the next one.
+    fn section(heading: &str) -> Vec<&'static str> {
+        BUILT_IN
             .lines()
-            .skip_while(|line| *line != "## Question bank")
+            .skip_while(|line| *line != heading)
             .skip(1)
             .take_while(|line| !line.starts_with("## "))
-            .collect();
+            .collect()
+    }
+
+    #[test]
+    fn the_question_bank_stays_short_enough_to_read_in_one_go() {
+        let bank = section("## Question bank");
 
         assert!(!bank.is_empty());
         assert!(bank.len() < 90, "the question bank is {} lines", bank.len());
+    }
+
+    #[test]
+    fn a_plan_opens_with_its_title_and_carries_no_header_line() {
+        assert!(BUILT_IN.contains("reads as a change, not a topic"));
+        assert!(!BUILT_IN.lines().any(|line| line == "## The header"));
+        for field in ["**Status:**", "**Found:**", "**Affects:**", "`Owner:`", "`Branch:`"] {
+            assert!(!BUILT_IN.contains(field), "the standards still ask for {field}");
+        }
     }
 
     #[test]
