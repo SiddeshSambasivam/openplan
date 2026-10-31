@@ -72,7 +72,7 @@ const planA = {
 };
 
 function buildButton(html: string): string {
-  return html.match(/<button(?:(?!<\/button>).)*Build<\/button>/)?.[0] ?? "";
+  return html.match(/<button(?:(?!<\/button>).)*Build<\/span><\/button>/)?.[0] ?? "";
 }
 
 function expandMark(html: string): string {
@@ -99,6 +99,24 @@ describe("Header", () => {
     expect(blocked).toContain(` disabled=""`);
     expect(open).toContain("Build");
     expect(open).not.toContain(` disabled=""`);
+  });
+
+  it("names every action whose label gives way in a narrow bar", () => {
+    const html = bar({
+      mainView: "plan",
+      title: "Plan a",
+      plan: planA,
+      offerCompletion: true,
+      onBuild: noop,
+      work: { done: 1, total: 3 },
+      doc: { id: "/base/a.md", name: "a", path: "/base/a.md" },
+      canComment: true,
+      pendingCommentCount: 2,
+    });
+
+    for (const name of ["Mark completed", "Build", "Work, 1 of 3 done", "Send review (2)"]) {
+      expect(html).toContain(`aria-label="${name}"`);
+    }
   });
 
   it("has no theme control, which lives in the profile menu", () => {

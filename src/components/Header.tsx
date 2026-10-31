@@ -19,7 +19,7 @@ import type { ContentWidth } from "../lib/width";
 import type { FolderFilter } from "../lib/folders";
 import { VIEW_LABELS, type ListView } from "../lib/origin";
 import type { PlanSummary, Status } from "../lib/planBase";
-import { COMPLETION_PROMPT, type TodoCount } from "../lib/work";
+import { COMPLETION_PROMPT, progressText, type TodoCount } from "../lib/work";
 import { navbarToggleLabel } from "../lib/navbar";
 import { cn } from "../lib/utils";
 import { BrandMark } from "./BrandMark";
@@ -35,6 +35,10 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+/* Below this width of the bar, the labelled actions keep their icon and
+   their tooltip, so the title keeps its room. */
+const LABEL = "hidden @4xl/bar:inline";
 
 /* The choice is shown by highlighting the row, as the status picker does,
    so the dot the radio item would otherwise reserve space for is dropped. */
@@ -162,10 +166,11 @@ export function Header({
   return (
     // Minimized, the bar reaches over the rail to span the window. Its reach
     // and its lead move with the navbar's column, on the same transition,
-    // so the title slides rather than jumps.
+    // so the title slides rather than jumps. What gives way in a narrow bar
+    // goes by the bar's own width, which the navbar's mode changes too.
     <header
       data-tauri-drag-region
-      className="navbar-width relative z-30 flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-background pr-4"
+      className="@container/bar navbar-width relative z-30 flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-background pr-4"
       style={{ marginLeft: -layout.pull }}
     >
       {/* The negative margin takes back the row's gap, so the title starts
@@ -178,7 +183,8 @@ export function Header({
         <ExpandMark shown={navbarMinimized} onExpand={onExpandNavbar} />
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+      {/* The title keeps a readable width, and the controls give way first. */}
+      <div className="flex min-w-40 flex-1 items-center gap-1.5 overflow-hidden">
         {onPlan && back && (
           <TooltipButton
             variant="ghost"
@@ -191,9 +197,9 @@ export function Header({
             className="min-w-0 shrink-0 gap-1.5 font-normal text-muted-foreground"
           >
             <ArrowLeft />
-            {/* The title is what someone needs to see, so a narrow window
+            {/* The title is what someone needs to see, so a narrow bar
                 keeps only the arrow. */}
-            <span className="hidden max-w-40 truncate md:inline">{back}</span>
+            <span className={cn(LABEL, "max-w-40 truncate")}>{back}</span>
           </TooltipButton>
         )}
         {onPlan && title != null ? (
@@ -270,22 +276,24 @@ export function Header({
           onChange={onStatusChange}
           open={statusOpen}
           onOpenChange={onStatusOpenChange}
+          labelClassName={LABEL}
         />
       )}
 
       {onPlan && offerCompletion && (
         <div data-tour="mark-completed" className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate pl-1 text-xs text-muted-foreground">
+          <span className="hidden truncate pl-1 text-xs text-muted-foreground @5xl/bar:inline">
             {COMPLETION_PROMPT.said}
           </span>
           <TooltipButton
             size="xs"
             variant="outline"
             onClick={() => onStatusChange("completed")}
-            tooltip="Move this plan to Completed"
+            tooltip={`${COMPLETION_PROMPT.said} Move this plan to Completed`}
+            aria-label="Mark completed"
           >
             <Check />
-            {COMPLETION_PROMPT.asked}
+            <span className={LABEL}>{COMPLETION_PROMPT.asked}</span>
           </TooltipButton>
         </div>
       )}
@@ -299,16 +307,17 @@ export function Header({
           disabled={buildBlocked}
           shortcut="build"
           tooltip={buildTooltip ?? "Tell the agent to start the work, with any unsent comments"}
+          aria-label="Build"
           className="gap-1.5"
         >
           <Hammer />
-          Build
+          <span className={LABEL}>Build</span>
         </TooltipButton>
       )}
 
       {showDocTools && wordCount != null && (
-        // A narrow window gives its room to the title.
-        <span className="pointer-events-none hidden shrink-0 pr-1.5 text-xs tabular-nums text-muted-foreground lg:inline">
+        // A narrow bar gives its room to the title.
+        <span className="pointer-events-none hidden shrink-0 pr-1.5 text-xs tabular-nums text-muted-foreground @5xl/bar:inline">
           {wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"}
         </span>
       )}
@@ -325,12 +334,12 @@ export function Header({
         </TooltipButton>
       )}
 
+      {/* Set once and kept, so the narrowest bar leaves them to Settings. */}
       {showDocTools && (
-        <WidthMenu width={contentWidth} onChange={onContentWidthChange} />
-      )}
-
-      {showDocTools && (
-        <FontSizeMenu fontSize={fontSize} onChange={onFontSizeChange} />
+        <div className="hidden @3xl/bar:contents">
+          <WidthMenu width={contentWidth} onChange={onContentWidthChange} />
+          <FontSizeMenu fontSize={fontSize} onChange={onFontSizeChange} />
+        </div>
       )}
 
       {onPlan && work && (
@@ -341,6 +350,7 @@ export function Header({
           shortcut="workPanel"
           tooltip="Todos, repos and PRs"
           tooltipAlign="end"
+          aria-label={work.total > 0 ? `Work, ${progressText(work)}` : "Work"}
           aria-expanded={workOpen}
           className={cn(
             "gap-1.5 font-normal text-muted-foreground",
@@ -348,7 +358,7 @@ export function Header({
           )}
         >
           <ListTodo />
-          Work
+          <span className={LABEL}>Work</span>
           {work.total > 0 && (
             <span className="tabular-nums">
               {work.done}/{work.total}
@@ -390,10 +400,11 @@ export function Header({
           shortcut={commentsOpen ? "sendReview" : undefined}
           tooltip="Send your comments to the agent on this plan"
           tooltipAlign="end"
+          aria-label={`Send review (${pendingCommentCount})`}
           className="gap-1.5"
         >
           <Send />
-          Send review ({pendingCommentCount})
+          <span className={LABEL}>Send review</span> ({pendingCommentCount})
         </TooltipButton>
       )}
 

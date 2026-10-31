@@ -22,10 +22,18 @@ interface StatusPickerProps {
   /** Set where the status key should open this picker. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Where the label gives way to the glyph, such as in a narrow bar. */
+  labelClassName?: string;
 }
 
 /** Where the plan stands, and the one control that moves it. */
-export function StatusPicker({ status, onChange, open, onOpenChange }: StatusPickerProps) {
+export function StatusPicker({
+  status,
+  onChange,
+  open,
+  onOpenChange,
+  labelClassName,
+}: StatusPickerProps) {
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -38,7 +46,7 @@ export function StatusPicker({ status, onChange, open, onOpenChange }: StatusPic
           className="-ml-1.5 gap-1.5 text-foreground"
         >
           <StatusGlyph status={status} tick />
-          {STATUS_LABELS[status]}
+          <span className={labelClassName}>{STATUS_LABELS[status]}</span>
           <ChevronDown className="size-3 text-muted-foreground" />
         </TooltipButton>
       </DropdownMenuTrigger>
