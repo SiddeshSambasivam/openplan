@@ -3,9 +3,21 @@ import type { PlanSummary } from "./planBase";
 /** The folder a view is filtered to, or null for every plan. */
 export type FolderFilter = string | null;
 
-/** Every folder any plan is in, once each, in alphabetical order. */
-export function allFolders(plans: PlanSummary[]): string[] {
-  return uniqueFolders(plans.flatMap((plan) => plan.folders));
+/** Every folder any plan is in or the base keeps, once each, in alphabetical
+ * order. The base keeps the folders made before any plan was put in them. */
+export function allFolders(plans: PlanSummary[], saved: string[] = []): string[] {
+  return uniqueFolders([...plans.flatMap((plan) => plan.folders), ...saved]);
+}
+
+/** The saved folders with one more, its name cleaned as a plan file stores it. */
+export function addFolder(saved: string[], typed: string): string[] {
+  const name = folderName(typed);
+  if (!name || saved.some((folder) => sameFolder(folder, name))) return saved;
+  return uniqueFolders([...saved, name]);
+}
+
+export function removeFolder(saved: string[], name: string): string[] {
+  return saved.filter((folder) => !sameFolder(folder, name));
 }
 
 export function filterByFolder(
@@ -61,7 +73,7 @@ export function folderChoices(
 
 /** Folders are one name whatever the case, so "Search" and "search" are
  * the same folder. */
-function sameFolder(a: string, b: string): boolean {
+export function sameFolder(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 

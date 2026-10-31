@@ -61,9 +61,22 @@ describe("shortcutFor", () => {
   });
 
   it("tells a chord with shift from the one without", () => {
-    expect(shortcutFor(press("B", { metaKey: true, shiftKey: true }), "mac", false)).toBe("rail");
+    expect(shortcutFor(press("B", { metaKey: true, shiftKey: true }), "mac", false)).toBeNull();
     expect(shortcutFor(press("s", { metaKey: true }), "mac", false)).toBe("save");
     expect(shortcutFor(press("S", { metaKey: true, shiftKey: true }), "mac", false)).toBe("status");
+  });
+
+  it("reads a bracket chord with shift whether the key arrives shifted or not", () => {
+    for (const key of ["[", "{"]) {
+      expect(shortcutFor(press(key, { metaKey: true, shiftKey: true }), "mac", false)).toBe(
+        "previousNavItem",
+      );
+    }
+    for (const key of ["]", "}"]) {
+      expect(shortcutFor(press(key, { ctrlKey: true, shiftKey: true }), "other", false)).toBe(
+        "nextNavItem",
+      );
+    }
   });
 
   it("reads a bare key without its modifiers", () => {
@@ -108,6 +121,12 @@ describe("the registry", () => {
       expect(action.label.trim(), action.id).not.toBe("");
       expect(action.group.trim(), action.id).not.toBe("");
     }
+  });
+
+  it("has one navbar key, which expands and collapses it", () => {
+    const navbarKeys = SHORTCUTS.filter((action) => action.keys.endsWith("+b"));
+    expect(navbarKeys.map((action) => action.id)).toEqual(["navbar"]);
+    expect(SHORTCUTS.some((action) => (action.id as string) === "rail")).toBe(false);
   });
 
   it("has unique ids and unique keys", () => {

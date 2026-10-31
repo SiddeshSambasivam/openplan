@@ -64,13 +64,15 @@ import {
 } from "./lib/library";
 import {
   loadNavbarMode,
-  movePointer,
   NAVBAR_OVERLAY_BREAKPOINT,
+  navbarItems,
   navbarLayout,
   navbarSections,
   pressNavbarKey,
+  RAIL_WIDTH,
   saveNavbarMode,
-  type NavbarKey,
+  stepNavbarItem,
+  topBarGap,
   type NavbarState,
 } from "./lib/navbar";
 import {
@@ -97,6 +99,7 @@ import { usePlanBase } from "./lib/usePlanBase";
 import {
   archiveStale,
   commitBase,
+  getBaseFolders,
   getIdentity,
   getPreferences,
   renamePlan,
@@ -104,6 +107,7 @@ import {
   reviewSummaries,
   sendAlign,
   setArchiveAfterDays,
+  setBaseFolders,
   setFolders,
   setMedia,
   setPlanStatus,
@@ -126,7 +130,7 @@ import { WORK_PANEL_PX, WorkPanel } from "./features/plan/PlanWork";
 import { originLabel, pushOrigin, type Origin } from "./lib/origin";
 import { PLAN_TABS, tabFor, withTab, type PlanTab, type PlanTabs } from "./lib/planTab";
 import { restoreScroll, scrollMarks, type ScrollMark } from "./lib/scroll";
-import { filterByFolder, type FolderFilter } from "./lib/folders";
+import { addFolder, filterByFolder, removeFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
 import { BoardView } from "./features/board/BoardView";
 import { DisplayMenu } from "./features/board/DisplayMenu";
@@ -149,8 +153,6 @@ const STORE_FOLDER = "openplan:folder";
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_DEFAULT_WIDTH = 240;
 const SIDEBAR_MAX_WIDTH = 320;
-/** The rail's width: one icon button and its padding. */
-const RAIL_WIDTH = 48;
 
 function clampSidebarWidth(width: number): number {
   return Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH);
@@ -242,6 +244,11 @@ export default function App() {
     }
   });
   const [recentPaths, setRecentPaths] = useState<string[]>(loadRecent);
+  // The folders the person made, which may hold no plan yet.
+  const [savedFolders, setSavedFolders] = useState<string[]>([]);
+  useEffect(() => {
+    void getBaseFolders().then(setSavedFolders).catch(() => {});
+  }, []);
   const [summaries, setSummaries] = useState<ReviewSummary[]>([]);
 
   const { base, plans, refresh: refreshPlans, arrivals } = usePlanBase();
@@ -316,7 +323,6 @@ export default function App() {
   // null until the answer is known, so the wizard neither flashes for people
   // who have been here before nor gets skipped for people who haven't.
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
-  const [personName, setPersonName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isTauri) {
@@ -324,11 +330,8 @@ export default function App() {
       return;
     }
     void import("@tauri-apps/api/core").then(({ invoke }) =>
-      invoke<{ name: string | null; onboarded: boolean }>("app_settings")
-        .then((s) => {
-          setPersonName(s.name);
-          setNeedsOnboarding(!s.onboarded);
-        })
+      invoke<{ onboarded: boolean }>("app_settings")
+        .then((s) => setNeedsOnboarding(!s.onboarded))
         .catch(() => setNeedsOnboarding(false)),
     );
   }, []);
@@ -337,7 +340,6 @@ export default function App() {
     (name: string | null) => {
       void import("@tauri-apps/api/core").then(({ invoke }) =>
         invoke("complete_onboarding", { name }).then(() => {
-          setPersonName(name?.trim() || null);
           setNeedsOnboarding(false);
           refreshPlans();
         }),
@@ -917,28 +919,24 @@ export default function App() {
     );
   }, [arrivals, needsOnboarding, notify]);
 
-  // A narrow window has no room for the open navbar beside the main area,
-  // so the open navbar floats over it instead.
+  // A narrow window has no room for the expanded navbar beside the main
+  // area, so it keeps the minimized column and the expanded navbar floats.
   const narrow = viewportWidth < NAVBAR_OVERLAY_BREAKPOINT;
   const layout = navbarLayout(navbar.mode, narrow);
-  const pressNavbar = useCallback(
-    (key: NavbarKey) => setNavbar((state) => pressNavbarKey(state, key, narrow)),
-    [narrow],
-  );
-  const toggleSidebar = useCallback(() => pressNavbar("toggle"), [pressNavbar]);
-  const revealNavbar = useCallback(
-    () => setNavbar((state) => movePointer(state, "edge", narrow)),
+  const navbarExpanded = layout === "expanded" || navbar.revealed;
+  const toggleSidebar = useCallback(
+    () => setNavbar((state) => pressNavbarKey(state, narrow)),
     [narrow],
   );
   const concealNavbar = useCallback(
-    () => setNavbar((state) => movePointer(state, "leave", narrow)),
-    [narrow],
+    () => setNavbar((state) => ({ ...state, revealed: false })),
+    [],
   );
   // Crossing the breakpoint changes what floats; a reveal from the other
   // side must not linger.
   useEffect(() => concealNavbar(), [narrow, concealNavbar]);
   useEffect(() => saveNavbarMode(navbar.mode), [navbar.mode]);
-  const navbarWidth = layout === "open" ? sidebarWidth : layout === "rail" ? RAIL_WIDTH : 0;
+  const navbarWidth = layout === "expanded" ? sidebarWidth : RAIL_WIDTH;
 
   useEffect(() => {
     try {
@@ -1233,6 +1231,7 @@ export default function App() {
       unlisten?.();
     };
   }, []);
+  const windowControls = isTauri && isMac && !fullscreen;
 
   useEffect(() => {
     if (isTauri) {
@@ -1417,7 +1416,28 @@ export default function App() {
 
   useEffect(() => saveRecent(recentPaths), [recentPaths]);
 
-  const sections = useMemo(() => navbarSections(plans, recentPaths), [plans, recentPaths]);
+  const sections = useMemo(
+    () => navbarSections(plans, recentPaths, savedFolders),
+    [plans, recentPaths, savedFolders],
+  );
+  const saveFolders = useCallback(
+    (next: string[]) => {
+      if (next === savedFolders) return;
+      setSavedFolders(next);
+      void setBaseFolders(next)
+        .then(setSavedFolders)
+        .catch(() => notify("Couldn't save the folders"));
+    },
+    [savedFolders, notify],
+  );
+  const createFolder = useCallback(
+    (typed: string) => saveFolders(addFolder(savedFolders, typed)),
+    [saveFolders, savedFolders],
+  );
+  const forgetFolder = useCallback(
+    (name: string) => saveFolders(removeFolder(savedFolders, name)),
+    [saveFolders, savedFolders],
+  );
   const knownFolders = sections.folders;
   // A folder the last plan left is no filter at all, so the views fall back
   // to every plan rather than showing an empty board.
@@ -1527,6 +1547,11 @@ export default function App() {
     [shownPlans, summaries, activePlanPath, mainView, openFilePaths, selectPlan],
   );
   const lastPlan = sections.recent[0];
+  const stepNavbar = (step: 1 | -1) => {
+    const item = stepNavbarItem(navbarItems(knownFolders), mainView, folder, step);
+    setChosenFolder(item.folder);
+    showView(item.view);
+  };
 
   // Topmost first. Menus and dialogs close themselves; these are the app's
   // own panels.
@@ -1553,7 +1578,6 @@ export default function App() {
     shortcuts: () => sheetRef.current?.open(),
     settings: openSettings,
     navbar: toggleSidebar,
-    rail: () => pressNavbar("rail"),
     theme: toggleTheme,
     openFile: () => void openFileDialog(),
     openFolder: () => void openFolderDialog(),
@@ -1566,6 +1590,8 @@ export default function App() {
       : lastPlan
         ? () => selectPlan(lastPlan)
         : undefined,
+    previousNavItem: () => stepNavbar(-1),
+    nextNavItem: () => stepNavbar(1),
     previousPlan: shownPlans.length > 0 ? () => stepPlan(-1) : undefined,
     nextPlan: shownPlans.length > 0 ? () => stepPlan(1) : undefined,
     edit: onPlan && (view === "edit" || canEnterEdit) ? toggleEdit : undefined,
@@ -1587,33 +1613,35 @@ export default function App() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
-      {/* The column holds the navbar's place in the layout. Hidden, it holds
-          none, and the navbar floats over the main area when revealed, so
-          nothing beside it reflows. */}
-      <div className="h-full shrink-0" style={{ width: navbarWidth }}>
+      {/* The column holds the navbar's place in the layout. In a narrow
+          window it keeps the minimized width and the navbar grows over the
+          main area, so nothing beside it reflows. The handle sits on the
+          column's edge rather than beside it, so it takes no width that
+          would come and go with the mode. */}
+      <div
+        className={cn("navbar-width relative h-full shrink-0", sidebarResizing && "transition-none")}
+        style={{ width: navbarWidth }}
+      >
         <div
-          onPointerLeave={layout === "hidden" ? concealNavbar : undefined}
+          onPointerLeave={narrow && navbar.revealed ? concealNavbar : undefined}
           className={cn(
             "h-full",
-            layout === "hidden" &&
-              "fixed inset-y-0 left-0 z-40 rounded-r-lg transition-transform duration-200 ease-out",
-            layout === "hidden" && (navbar.revealed ? "shadow-lg" : "-translate-x-full"),
+            narrow && "navbar-width fixed inset-y-0 left-0 z-40",
+            navbar.revealed && "rounded-r-lg shadow-lg",
           )}
-          style={{ width: layout === "rail" ? RAIL_WIDTH : sidebarWidth }}
+          style={narrow ? { width: navbar.revealed ? sidebarWidth : RAIL_WIDTH } : undefined}
         >
-          <div
-            inert={layout === "hidden" && !navbar.revealed}
-            className={cn("h-full overflow-hidden", layout === "hidden" && "rounded-r-lg")}
-          >
+          <div className={cn("h-full overflow-hidden", navbar.revealed && "rounded-r-lg")}>
             <Sidebar
-              rail={layout === "rail"}
+              minimized={!navbarExpanded}
+              onToggle={toggleSidebar}
               onOpenPalette={openPalette}
-              name={personName ?? identity?.name ?? null}
-              baseName={base ? basename(base.root) : null}
               planCount={plans.length}
               folders={knownFolders}
               folder={folder}
               onSelectFolder={chooseFolder}
+              onCreateFolder={createFolder}
+              onRemoveFolder={forgetFolder}
               recent={sections.recent}
               view={mainView}
               onSelectView={showView}
@@ -1621,39 +1649,29 @@ export default function App() {
               activePlanPath={activePlanPath}
               onSelectPlan={selectPlan}
               onOpenSettings={openSettings}
-              padTop={isTauri && isMac && !fullscreen}
+              padTop={windowControls}
             />
           </div>
-          {layout === "hidden" && (
-            // The window's left edge while the navbar is away. It hangs off
-            // the navbar and stays there, so the pointer that reveals it is
-            // already inside it and leaving fires however fast it goes.
-            <div aria-hidden onPointerEnter={revealNavbar} className="absolute inset-y-0 left-full w-2" />
-          )}
         </div>
-      </div>
-
-      {layout === "open" && (
-        <div
-          onPointerDown={startSidebarResize}
-          onDoubleClick={resetSidebarWidth}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize sidebar"
-          title="Drag to resize, double-click to reset"
-          className="group relative z-10 flex w-2.5 shrink-0 cursor-col-resize touch-none items-stretch justify-center"
-        >
-          {/* The handle sits between the sidebar and the header, so the
-              header's rule would stop short of the sidebar without this. */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 border-b border-border" />
+        {layout === "expanded" && (
           <div
-            className={cn(
-              "w-px bg-transparent transition-colors group-hover:bg-ring",
-              sidebarResizing && "bg-ring",
-            )}
-          />
-        </div>
-      )}
+            onPointerDown={startSidebarResize}
+            onDoubleClick={resetSidebarWidth}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize navbar"
+            title="Drag to resize, double-click to reset"
+            className="group absolute inset-y-0 -right-1 z-10 flex w-2 cursor-col-resize touch-none items-stretch justify-center"
+          >
+            <div
+              className={cn(
+                "w-px bg-transparent transition-colors group-hover:bg-ring",
+                sidebarResizing && "bg-ring",
+              )}
+            />
+          </div>
+        )}
+      </div>
 
       <main className="flex min-w-0 flex-1 flex-col">
         <Header
@@ -1685,8 +1703,6 @@ export default function App() {
           onToggleView={toggleEdit}
           dark={dark}
           onToggleTheme={toggleTheme}
-          navbar={layout}
-          onToggleSidebar={toggleSidebar}
           contentWidth={contentWidth}
           onContentWidthChange={setContentWidth}
           fontSize={fontSize}
@@ -1701,7 +1717,7 @@ export default function App() {
           onSendReview={onSendReview}
           sendNotice={sendNotice}
           onOpenFind={openFind}
-          trafficLightGap={isTauri && isMac && !fullscreen}
+          leadingGap={topBarGap(layout, windowControls)}
         />
         {mainView === "board" && (
           <div ref={viewAreaRef} className="motion-view min-h-0 flex-1">

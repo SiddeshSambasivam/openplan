@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { PlanSummary } from "./planBase";
 import {
-  movePointer,
+  navbarItems,
   navbarLayout,
   navbarSections,
+  navbarToggleLabel,
   parseNavbarMode,
   pressNavbarKey,
+  RAIL_WIDTH,
   recentPlans,
+  stepNavbarItem,
   toggleSection,
-  type NavbarMode,
+  TOP_BAR_PADDING,
+  topBarGap,
 } from "./navbar";
 
 function plan(id: string, folders: string[] = []): PlanSummary {
@@ -32,97 +36,134 @@ function plan(id: string, folders: string[] = []): PlanSummary {
 const wide = false;
 const narrow = true;
 
-function press(mode: NavbarMode, key: "toggle" | "rail") {
-  return pressNavbarKey({ mode, revealed: false }, key, wide).mode;
-}
-
 describe("pressNavbarKey", () => {
-  it("toggles open and hidden on cmd+b", () => {
-    expect(press("open", "toggle")).toBe("hidden");
-    expect(press("hidden", "toggle")).toBe("open");
+  it("toggles expanded and minimized on cmd+b", () => {
+    expect(pressNavbarKey({ mode: "expanded", revealed: false }, wide)).toEqual({
+      mode: "minimized",
+      revealed: false,
+    });
+    expect(pressNavbarKey({ mode: "minimized", revealed: false }, wide)).toEqual({
+      mode: "expanded",
+      revealed: false,
+    });
   });
 
-  it("hides the rail on cmd+b", () => {
-    expect(press("rail", "toggle")).toBe("hidden");
-  });
-
-  it("toggles the rail and open on cmd+shift+b", () => {
-    expect(press("open", "rail")).toBe("rail");
-    expect(press("rail", "rail")).toBe("open");
-  });
-
-  it("shows the rail from hidden on cmd+shift+b", () => {
-    expect(press("hidden", "rail")).toBe("rail");
-  });
-
-  it("puts away an edge reveal when the mode changes", () => {
-    const next = pressNavbarKey({ mode: "hidden", revealed: true }, "toggle", wide);
-    expect(next).toEqual({ mode: "open", revealed: false });
-  });
-
-  it("floats the open navbar in a narrow window and cmd+b shows or hides it", () => {
-    const shown = pressNavbarKey({ mode: "hidden", revealed: false }, "toggle", narrow);
-    expect(shown).toEqual({ mode: "open", revealed: true });
-    expect(pressNavbarKey(shown, "toggle", narrow)).toEqual({ mode: "open", revealed: false });
+  it("floats the expanded navbar in a narrow window and keeps the stored mode", () => {
+    for (const mode of ["expanded", "minimized"] as const) {
+      const shown = pressNavbarKey({ mode, revealed: false }, narrow);
+      expect(shown).toEqual({ mode, revealed: true });
+      expect(pressNavbarKey(shown, narrow)).toEqual({ mode, revealed: false });
+    }
   });
 });
 
 describe("navbarLayout", () => {
-  it("keeps the stored mode in a wide window", () => {
-    expect(navbarLayout("open", wide)).toBe("open");
-    expect(navbarLayout("rail", wide)).toBe("rail");
-    expect(navbarLayout("hidden", wide)).toBe("hidden");
+  it("gives the navbar the stored mode's column in a wide window", () => {
+    expect(navbarLayout("expanded", wide)).toBe("expanded");
+    expect(navbarLayout("minimized", wide)).toBe("minimized");
   });
 
-  it("gives a narrow window's main area the whole width unless the rail is on", () => {
-    expect(navbarLayout("open", narrow)).toBe("hidden");
-    expect(navbarLayout("rail", narrow)).toBe("rail");
+  it("keeps a narrow window's column to the icons", () => {
+    expect(navbarLayout("expanded", narrow)).toBe("minimized");
+    expect(navbarLayout("minimized", narrow)).toBe("minimized");
   });
 });
 
-describe("movePointer", () => {
-  it("shows the navbar when the pointer rests on the left edge in hidden mode", () => {
-    expect(movePointer({ mode: "hidden", revealed: false }, "edge", wide).revealed).toBe(true);
+describe("navbarToggleLabel", () => {
+  it("names what a click does", () => {
+    expect(navbarToggleLabel(true)).toBe("Collapse navbar");
+    expect(navbarToggleLabel(false)).toBe("Expand navbar");
+  });
+});
+
+describe("topBarGap", () => {
+  it("starts the top bar's content clear of the macOS window controls when minimized", () => {
+    const start = RAIL_WIDTH + TOP_BAR_PADDING + topBarGap("minimized", true);
+    expect(start).toBeGreaterThanOrEqual(84);
+    expect(start).toBeLessThan(96);
   });
 
-  it("hides it again when the pointer leaves", () => {
-    expect(movePointer({ mode: "hidden", revealed: true }, "leave", wide).revealed).toBe(false);
+  it("adds nothing when expanded, where the navbar already clears them", () => {
+    expect(topBarGap("expanded", true)).toBe(0);
   });
 
-  it("ignores the edge while the navbar has a column of its own", () => {
-    expect(movePointer({ mode: "open", revealed: false }, "edge", wide).revealed).toBe(false);
-    expect(movePointer({ mode: "rail", revealed: false }, "edge", wide).revealed).toBe(false);
-  });
-
-  it("reveals the floating navbar of a narrow window from the edge", () => {
-    expect(movePointer({ mode: "open", revealed: false }, "edge", narrow).revealed).toBe(true);
+  it("adds nothing without window controls over the page", () => {
+    expect(topBarGap("minimized", false)).toBe(0);
+    expect(topBarGap("expanded", false)).toBe(0);
   });
 });
 
 describe("parseNavbarMode", () => {
-  it("reads the three modes", () => {
-    expect(parseNavbarMode("open")).toBe("open");
-    expect(parseNavbarMode("rail")).toBe("rail");
-    expect(parseNavbarMode("hidden")).toBe("hidden");
+  it("reads the two modes", () => {
+    expect(parseNavbarMode("expanded")).toBe("expanded");
+    expect(parseNavbarMode("minimized")).toBe("minimized");
   });
 
-  it("reads the old closed flag as hidden and anything else as open", () => {
-    expect(parseNavbarMode("closed")).toBe("hidden");
-    expect(parseNavbarMode(null)).toBe("open");
-    expect(parseNavbarMode("wide")).toBe("open");
+  it("reads the older open as expanded, and rail, hidden and closed as minimized", () => {
+    expect(parseNavbarMode("open")).toBe("expanded");
+    expect(parseNavbarMode("rail")).toBe("minimized");
+    expect(parseNavbarMode("hidden")).toBe("minimized");
+    expect(parseNavbarMode("closed")).toBe("minimized");
+  });
+
+  it("reads nothing or anything else as expanded", () => {
+    expect(parseNavbarMode(null)).toBe("expanded");
+    expect(parseNavbarMode("wide")).toBe("expanded");
+  });
+});
+
+describe("stepNavbarItem", () => {
+  const items = navbarItems(["infra", "search"]);
+
+  it("lists the views, then each folder as a filter on the board", () => {
+    expect(items).toEqual([
+      { view: "board", folder: null },
+      { view: "list", folder: null },
+      { view: "for-you", folder: null },
+      { view: "board", folder: "infra" },
+      { view: "board", folder: "search" },
+    ]);
+  });
+
+  it("moves to the next and previous row in that order", () => {
+    expect(stepNavbarItem(items, "board", null, 1)).toEqual(items[1]);
+    expect(stepNavbarItem(items, "for-you", null, 1)).toEqual(items[3]);
+    expect(stepNavbarItem(items, "board", "infra", 1)).toEqual(items[4]);
+    expect(stepNavbarItem(items, "board", "infra", -1)).toEqual(items[2]);
+  });
+
+  it("reads a folder filter on another view as that view's row", () => {
+    expect(stepNavbarItem(items, "list", "infra", 1)).toEqual(items[2]);
+  });
+
+  it("wraps at both ends", () => {
+    expect(stepNavbarItem(items, "board", "search", 1)).toEqual(items[0]);
+    expect(stepNavbarItem(items, "board", null, -1)).toEqual(items[4]);
+  });
+
+  it("starts from the ends when no row is current", () => {
+    expect(stepNavbarItem(items, "plan", null, 1)).toEqual(items[0]);
+    expect(stepNavbarItem(items, "plan", null, -1)).toEqual(items[4]);
   });
 });
 
 describe("navbarSections", () => {
   it("lists every folder once, sorted by name", () => {
     const plans = [plan("a", ["Search", "infra"]), plan("b", ["search"]), plan("c", ["Billing"])];
-    expect(navbarSections(plans, []).folders).toEqual(["Billing", "infra", "Search"]);
+    expect(navbarSections(plans, [], []).folders).toEqual(["Billing", "infra", "Search"]);
+  });
+
+  it("adds the folders saved in the base", () => {
+    expect(navbarSections([plan("a", ["infra"])], [], ["Empty"]).folders).toEqual([
+      "Empty",
+      "infra",
+    ]);
   });
 
   it("caps recent at five, newest first", () => {
     const plans = Array.from({ length: 7 }, (_, i) => plan(String(i)));
     const paths = plans.map((p) => p.path).reverse();
-    const recent = navbarSections(plans, paths).recent;
+    const recent = navbarSections(plans, paths, []).recent;
     expect(recent.map((p) => p.id)).toEqual(["6", "5", "4", "3", "2"]);
   });
 });

@@ -3,6 +3,7 @@
 //! thin edge that turns it into something the interface can call.
 
 use openplan_core::base::Base;
+use openplan_core::plan::folder_list;
 use openplan_core::{comments, library, plan, repo, settings, standards};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -200,6 +201,25 @@ pub async fn set_folders(
     let id = rewrite_meta(Path::new(&path), |meta| meta.folders = folder_list(folders))?;
     let _ = repo::commit_all(&state.get()?.root, &settings::me(), &format!("edit: {id}"));
     Ok(())
+}
+
+/// The folders the person made, including ones no plan is in yet.
+#[tauri::command]
+pub async fn base_folders(state: tauri::State<'_, BaseState>) -> Result<Vec<String>, String> {
+    openplan_core::base::base_folders(state.get()?)
+}
+
+/// Replaces the folders the person made. Plans keep the folders in their own
+/// frontmatter, so a removed folder that a plan is in still shows.
+#[tauri::command]
+pub async fn set_base_folders(
+    folders: Vec<String>,
+    state: tauri::State<'_, BaseState>,
+) -> Result<Vec<String>, String> {
+    let base = state.get()?;
+    let saved = openplan_core::base::set_base_folders(base, folders)?;
+    let _ = repo::commit_all(&base.root, &settings::me(), "edit: folders");
+    Ok(saved)
 }
 
 /// Records whatever is currently in the base. Called after the app saves, and
@@ -466,19 +486,6 @@ fn rewrite_meta(path: &Path, change: impl FnOnce(&mut plan::PlanMeta)) -> Result
     change(&mut parsed.meta);
     openplan_core::fs::atomic_write(path, &plan::serialize(&parsed))?;
     Ok(parsed.meta.id)
-}
-
-/// Folder names as they are stored: cleaned, and each one once whatever its
-/// case, so "Search" and "search" are the same folder.
-fn folder_list(names: Vec<String>) -> Vec<String> {
-    let mut kept: Vec<String> = Vec::new();
-    for name in names.iter().map(|n| plan::folder_name(n)) {
-        let lower = name.to_lowercase();
-        if !name.is_empty() && !kept.iter().any(|k| k.to_lowercase() == lower) {
-            kept.push(name);
-        }
-    }
-    kept
 }
 
 #[cfg(test)]

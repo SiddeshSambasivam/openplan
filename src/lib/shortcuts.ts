@@ -21,8 +21,7 @@ export const SHORTCUTS = [
   { id: "palette", label: "Search and commands", keys: "mod+k", group: "General" },
   { id: "shortcuts", label: "Keyboard shortcuts", keys: "?", group: "General" },
   { id: "settings", label: "Settings", keys: "mod+,", group: "General" },
-  { id: "navbar", label: "Show or hide the sidebar", keys: "mod+b", group: "General" },
-  { id: "rail", label: "Sidebar as icons", keys: "mod+shift+b", group: "General" },
+  { id: "navbar", label: "Expand or collapse the navbar", keys: "mod+b", group: "General" },
   { id: "theme", label: "Switch theme", keys: "mod+shift+l", group: "General" },
   { id: "openFile", label: "Open a file", keys: "mod+o", group: "General" },
   { id: "openFolder", label: "Open a folder", keys: "mod+shift+o", group: "General" },
@@ -58,6 +57,13 @@ export const SHORTCUTS = [
     group: "Views",
     when: "In the order of the last view",
   },
+  {
+    id: "previousNavItem",
+    label: "Previous navbar item",
+    keys: "mod+shift+[",
+    group: "Views",
+  },
+  { id: "nextNavItem", label: "Next navbar item", keys: "mod+shift+]", group: "Views" },
   {
     id: "edit",
     label: "Edit or preview",
@@ -154,7 +160,7 @@ export function shortcutFor(
   const ours = platform === "mac" ? press.metaKey : press.ctrlKey;
   const theirs = platform === "mac" ? press.ctrlKey : press.metaKey;
   if (press.altKey || theirs) return null;
-  const key = press.key.toLowerCase();
+  const key = (press.shiftKey && SHIFTED_BRACKETS[press.key]) || press.key.toLowerCase();
   const chord = ours ? `mod+${press.shiftKey ? "shift+" : ""}${key}` : key;
   const action = BY_KEYS.get(chord);
   if (!action || (typing && !action.whileTyping)) return null;
@@ -204,6 +210,10 @@ const OTHER_NAMES: Record<string, string> = {
 };
 
 const NAMED_KEYS = ["enter", "escape"];
+
+/** Shift turns a bracket into a brace on US layouts, and the registry names
+ * the key on the keycap. */
+const SHIFTED_BRACKETS: Record<string, string> = { "{": "[", "}": "]" };
 
 const TEXT_TAGS = ["INPUT", "TEXTAREA", "SELECT"];
 

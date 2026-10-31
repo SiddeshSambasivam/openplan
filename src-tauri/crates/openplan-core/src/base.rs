@@ -81,6 +81,47 @@ pub fn read_base_config(base: &Base) -> Result<BaseConfig, String> {
     serde_json::from_str(&raw).map_err(|e| format!("The base settings are unreadable: {e}"))
 }
 
+/// The folders the person made. A folder no plan is in yet lives only here.
+pub fn base_folders(base: &Base) -> Result<Vec<String>, String> {
+    let config = read_config_object(base)?;
+    let names = config
+        .get(FOLDERS_KEY)
+        .and_then(serde_json::Value::as_array)
+        .map(|names| {
+            names
+                .iter()
+                .filter_map(|name| name.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(sorted_folders(names))
+}
+
+/// Replaces the saved folders and returns them as stored. Every other
+/// setting in the file stays as it was.
+pub fn set_base_folders(base: &Base, names: Vec<String>) -> Result<Vec<String>, String> {
+    let folders = sorted_folders(names);
+    let mut config = read_config_object(base)?;
+    config.insert(FOLDERS_KEY.into(), serde_json::json!(folders));
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Couldn't write the base settings: {e}"))?;
+    atomic_write(&base.config_path(), &format!("{json}\n"))?;
+    Ok(folders)
+}
+
+const FOLDERS_KEY: &str = "folders";
+
+fn read_config_object(base: &Base) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    let raw = crate::fs::read_to_string(&base.config_path())?;
+    serde_json::from_str(&raw).map_err(|e| format!("The base settings are unreadable: {e}"))
+}
+
+fn sorted_folders(names: Vec<String>) -> Vec<String> {
+    let mut folders = crate::plan::folder_list(names);
+    folders.sort_by_key(|name| name.to_lowercase());
+    folders
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,6 +174,44 @@ mod tests {
             std::fs::read_to_string(base.plans_dir().join("a.md")).unwrap(),
             "# A plan"
         );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn a_new_base_keeps_no_folders() {
+        let home = temp_dir("openplan-core-base-no-folders");
+        let base = ensure_base(&default_base_path(&home)).unwrap();
+
+        assert_eq!(base_folders(&base).unwrap(), Vec::<String>::new());
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn saved_folders_are_cleaned_kept_once_and_sorted() {
+        let home = temp_dir("openplan-core-base-folders");
+        let base = ensure_base(&default_base_path(&home)).unwrap();
+        let typed = [" infra ", "Q4: roadmap", "INFRA", "", "Billing"];
+
+        let saved = set_base_folders(&base, typed.map(String::from).to_vec()).unwrap();
+
+        assert_eq!(saved, ["Billing", "infra", "Q4 roadmap"]);
+        assert_eq!(base_folders(&base).unwrap(), saved);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn saving_folders_keeps_the_rest_of_the_settings() {
+        let home = temp_dir("openplan-core-base-folders-keep");
+        let base = ensure_base(&default_base_path(&home)).unwrap();
+        std::fs::write(base.config_path(), "{\"schemaVersion\": 1, \"other\": true}\n").unwrap();
+
+        set_base_folders(&base, vec!["infra".into()]).unwrap();
+
+        let raw: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(base.config_path()).unwrap()).unwrap();
+        assert_eq!(raw["other"], true);
+        assert_eq!(raw["folders"], serde_json::json!(["infra"]));
+        assert_eq!(read_base_config(&base).unwrap().schema_version, SCHEMA_VERSION);
         let _ = std::fs::remove_dir_all(&home);
     }
 
