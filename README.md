@@ -15,9 +15,13 @@ tool can adopt.
 
 ## Status
 
-In active development. The desktop app currently works as a fast Markdown
-viewer/editor; the plan base, version history, agent integration, and onboarding are
-being built in phases.
+0.2.0, in active development. The plan base, version history, onboarding, the MCP
+server and its installers, the status board, rendered plan pages, and comments as a
+review are all built. Plans hold one status: Draft, In progress, In review, or
+Completed. Agents set the first three with `set_status`; Completed is yours. While
+the app window is open it listens on `127.0.0.1` so a running agent session can
+register the plan it is working on and pick up your comments without copy and paste.
+Sync and remotes are the next phase.
 
 **[PLAN.md](PLAN.md) is the source of truth** for requirements, architecture,
 decisions, and the phased backlog. Agents working in this repo should start there
