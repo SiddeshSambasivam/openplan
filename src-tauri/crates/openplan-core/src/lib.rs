@@ -5,6 +5,7 @@ pub mod archive;
 pub mod base;
 pub mod bulk;
 pub mod comments;
+pub mod demo;
 pub mod discovery;
 pub mod fs;
 pub mod import;
