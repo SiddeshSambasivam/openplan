@@ -10,7 +10,8 @@ use crate::import::now_iso;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
@@ -327,21 +328,45 @@ fn heard(shared: &Shared, id: &str, body: &str, stream: &mut TcpStream) {
     let _ = respond(stream, status, "{}");
 }
 
-/// Holds the connection until there is something to say. The wait is on a
-/// condition variable, so a session with nothing happening costs one blocked
-/// thread and no cycles.
+/// Holds the connection until there is something to say, or until the client
+/// hangs up. A killed client never says goodbye, so its socket closing is the
+/// only sign it left. Both waits block, so a session with nothing happening
+/// costs two blocked threads and no cycles.
 fn poll(shared: &Shared, notify: &dyn Fn(Notice), id: &str, stream: &mut TcpStream) {
-    let (lock, waiting) = &**shared;
-    let Ok(mut state) = lock.lock() else {
+    let Ok(socket) = stream.try_clone() else {
         let _ = respond(stream, "500 Internal Server Error", "{}");
         return;
     };
+    let hung_up = &AtomicBool::new(false);
+    let heard = std::thread::scope(|scope| {
+        scope.spawn(move || watch_for_hang_up(shared, socket, hung_up));
+        let heard = answer_poll(shared, id, hung_up, stream);
+        // Ends the watcher's read, so the scope never waits on the client.
+        let _ = stream.shutdown(Shutdown::Both);
+        heard
+    });
+    // Nobody is listening any more, so the session went with the socket.
+    if !heard && end_session(shared, id) {
+        notify(Notice::SessionsChanged);
+    }
+}
+
+/// The poll's own wait. Says whether the client is still there to hear it.
+fn answer_poll(shared: &Shared, id: &str, hung_up: &AtomicBool, stream: &mut TcpStream) -> bool {
+    let (lock, waiting) = &**shared;
+    let Ok(mut state) = lock.lock() else {
+        return respond(stream, "500 Internal Server Error", "{}").is_ok();
+    };
     let Some(session) = state.sessions.get_mut(id) else {
-        let _ = respond(stream, "404 Not Found", "{}");
-        return;
+        return respond(stream, "404 Not Found", "{}").is_ok();
     };
     session.polling = true;
     loop {
+        // A write to a closed socket can still succeed, so the reply is no
+        // proof the client heard it.
+        if hung_up.load(Ordering::Relaxed) {
+            return false;
+        }
         let ready = state
             .sessions
             .get(id)
@@ -350,7 +375,7 @@ fn poll(shared: &Shared, notify: &dyn Fn(Notice), id: &str, stream: &mut TcpStre
             break;
         }
         let Ok(next) = waiting.wait(state) else {
-            return;
+            return true;
         };
         state = next;
     }
@@ -366,12 +391,20 @@ fn poll(shared: &Shared, notify: &dyn Fn(Notice), id: &str, stream: &mut TcpStre
     drop(state);
 
     let body = format!("{{\"events\":{}}}", json_array(&events));
-    if respond(stream, "200 OK", &body).is_err() {
-        // Nobody is listening any more, so the session went with the socket.
-        if end_session(shared, id) {
-            notify(Notice::SessionsChanged);
-        }
-    }
+    respond(stream, "200 OK", &body).is_ok()
+}
+
+/// A client sends nothing after its poll, so this read returns only when the
+/// client hangs up or the poll shuts the socket after answering. A poll that
+/// already answered no longer looks at the flag, so its next poll is safe.
+fn watch_for_hang_up(shared: &Shared, mut socket: TcpStream, hung_up: &AtomicBool) {
+    let _ = std::io::copy(&mut socket, &mut std::io::sink());
+    let (lock, waiting) = &**shared;
+    // Set under the lock, so the poll cannot check the flag and then sleep
+    // through the wake.
+    let _state = lock.lock();
+    hung_up.store(true, Ordering::Relaxed);
+    waiting.notify_all();
 }
 
 // ------------------------------------------------------------------- the app
@@ -827,6 +860,64 @@ mod tests {
 
         server.shutdown();
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A server whose notices arrive on a channel, so a test can wait for one.
+    fn a_listened_server() -> (Server, std::sync::mpsc::Receiver<Notice>) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let server = Server::start(move |notice| {
+            let _ = tx.send(notice);
+        })
+        .unwrap();
+        (server, rx)
+    }
+
+    #[test]
+    fn a_client_that_hangs_up_mid_poll_leaves_the_board() {
+        let (server, notices) = a_listened_server();
+        let client = open(&server, "claude-code");
+        client.take_plan("auth-refactor");
+        while notices.try_recv().is_ok() {}
+
+        // A killed process: the poll is sent, then the socket simply closes.
+        let mut socket = TcpStream::connect((Ipv4Addr::LOCALHOST, server.port)).unwrap();
+        write!(
+            socket,
+            "GET /sessions/{}/events HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            client.id()
+        )
+        .unwrap();
+        drop(socket);
+
+        assert_eq!(
+            notices.recv_timeout(Duration::from_secs(5)),
+            Ok(Notice::SessionsChanged)
+        );
+        assert!(server.sessions().is_empty(), "{:?}", server.sessions());
+
+        server.shutdown();
+    }
+
+    #[test]
+    fn a_poll_that_answers_keeps_the_session_for_the_next_poll() {
+        let (server, notices) = a_listened_server();
+        let client = open(&server, "claude-code");
+        client.take_plan("auth-refactor");
+        while notices.try_recv().is_ok() {}
+
+        server.send("auth-refactor", align("auth-refactor"));
+        assert_eq!(client.events().unwrap(), vec![align("auth-refactor")]);
+
+        // The client asks again at once, as its loop does.
+        let polling = client.clone();
+        let reader = std::thread::spawn(move || polling.events());
+        assert_eq!(server.send("auth-refactor", align("auth-refactor")), 1);
+        assert_eq!(reader.join().unwrap().unwrap(), vec![align("auth-refactor")]);
+
+        assert_eq!(server.sessions().len(), 1);
+        assert!(notices.try_recv().is_err(), "the session count never changed");
+
+        server.shutdown();
     }
 
     #[test]
