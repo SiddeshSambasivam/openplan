@@ -274,6 +274,10 @@ const ACTIVE = "bg-sidebar-accent font-medium text-sidebar-accent-foreground";
 /** The labels' fade between the two modes, timed with the column's width. */
 const FADE = "transition-opacity duration-180 ease-out";
 
+/** A section's vertical band, which changes between the modes on the same
+ * curve as the column's width. */
+const BAND = "transition-[padding,height] duration-180 ease-out";
+
 /**
  * One navbar row. Minimized, the label fades out and moves into a tooltip,
  * which also carries the row's key. Expanded, only a row with a key has a
@@ -359,9 +363,11 @@ function Section({
 }) {
   // One tree for both modes, so the rows survive a mode change.
   const open = minimized || !collapsed.includes(id);
+  // Minimized, the label's band shrinks to an even gap around the divider.
+  // It moves on the navbar's width curve, so the rows glide with it.
   return (
-    <div className="pt-4">
-      <div className="group/section relative">
+    <div className={cn(BAND, minimized ? "pt-0" : "pt-4")}>
+      <div className={cn("group/section relative", BAND, minimized ? "h-4" : "h-5")}>
         {action && !minimized && <div className="absolute -top-0.5 right-1">{action}</div>}
         <button
           onClick={() => onToggle(id)}
