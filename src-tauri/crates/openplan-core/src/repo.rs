@@ -50,6 +50,16 @@ pub fn init(root: &Path) -> Result<(), String> {
     open_or_init(root).map(|_| ())
 }
 
+/// Whether anything has been recorded yet — a base on its very first run has
+/// no history, which reads differently from one that simply has no changes.
+pub fn has_commits(root: &Path) -> bool {
+    let Ok(repo) = Repository::open(root) else {
+        return false;
+    };
+    let has = repo.head().ok().and_then(|head| head.target()).is_some();
+    has
+}
+
 /// Commits everything currently in the base. Returns `None` when there was
 /// nothing to commit, which is the common case and not a failure.
 pub fn commit_all(root: &Path, author: &Author, message: &str) -> Result<Option<String>, String> {

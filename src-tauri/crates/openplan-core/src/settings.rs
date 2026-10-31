@@ -3,6 +3,7 @@
 //! talking to each other.
 
 use crate::base::{default_base_path, ensure_base, Base};
+use crate::repo::{self, Author};
 use crate::fs::atomic_write;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -51,6 +52,23 @@ pub fn resolve_default_base() -> Result<Base, String> {
     resolve_base(&settings_path()?, &home)
 }
 
+/// Standards used to be written into the base. They belong to the app now, so
+/// the copy we left behind is taken back out — after the base has been
+/// committed, so it stays recoverable in the history. A standards file someone
+/// wrote themselves does not start the way ours did, and is left alone.
+fn retire_standards_file(base: &Base) -> Result<bool, String> {
+    let path = base.root.join("STANDARDS.md");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(false);
+    };
+    if !text.starts_with("# Plan standards") {
+        return Ok(false);
+    }
+    std::fs::remove_file(&path)
+        .map_err(|e| format!("Couldn't retire the old standards file: {e}"))?;
+    Ok(true)
+}
+
 /// The base this machine should use: whichever one was chosen before, or a
 /// fresh one in the home directory. Either way it exists by the time this
 /// returns, and the choice is recorded so the next caller agrees.
@@ -61,6 +79,29 @@ pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
         .map(|s| s.base_path.clone())
         .unwrap_or_else(|| default_base_path(home));
     let base = ensure_base(&chosen)?;
+
+    // Record whatever is in the base before touching it, so the first run has
+    // a history and anything changed outside the app is captured rather than
+    // rolled into someone's next edit.
+    repo::init(&base.root)?;
+    let first_run = !repo::has_commits(&base.root);
+    repo::commit_all(
+        &base.root,
+        &Author::user(),
+        if first_run {
+            "init: plan base"
+        } else {
+            "sync: changes made outside OpenPlan"
+        },
+    )?;
+    if retire_standards_file(&base)? {
+        repo::commit_all(
+            &base.root,
+            &Author::user(),
+            "remove: standards moved into OpenPlan's settings",
+        )?;
+    }
+
     write_settings(
         settings_file,
         &Settings {
@@ -145,6 +186,40 @@ mod tests {
             read_settings(&file).unwrap().unwrap().standards.as_deref(),
             Some("Name the reviewer.")
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_standards_file_earlier_builds_left_behind_is_taken_back_out() {
+        let dir = temp_dir("openplan-core-settings-retire");
+        let home = dir.join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let file = dir.join("settings.json");
+        let base = ensure_base(&default_base_path(&home)).unwrap();
+        let standards = base.root.join("STANDARDS.md");
+        std::fs::write(&standards, "# Plan standards\n\nold copy\n").unwrap();
+
+        resolve_base(&file, &home).unwrap();
+
+        assert!(!standards.exists());
+        // Recorded before removal, so it can still be read back.
+        let revisions = repo::history(&base.root, Path::new("STANDARDS.md")).unwrap();
+        assert!(!revisions.is_empty(), "the file was removed without a trace");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_standards_file_someone_wrote_themselves_is_left_alone() {
+        let dir = temp_dir("openplan-core-settings-keep-theirs");
+        let home = dir.join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let base = ensure_base(&default_base_path(&home)).unwrap();
+        let standards = base.root.join("STANDARDS.md");
+        std::fs::write(&standards, "# How we write plans on this team\n").unwrap();
+
+        resolve_base(&dir.join("settings.json"), &home).unwrap();
+
+        assert!(standards.exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
