@@ -55,7 +55,7 @@ fn tool_list(authoring: &str, media: bool) -> Value {
         )
     };
     let media = if media {
-        " Media is on: a short video or a sandboxed html fence is welcome where it shows how something works."
+        " Media is on: a short Remotion explainer or a sandboxed html fence is welcome where it shows how something works. get_standards has the recipe."
     } else {
         " Media is off: add no video and no html fence."
     };

@@ -324,7 +324,7 @@ export function SettingsDialog({
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   rows={6}
-                  placeholder="e.g. Name the reviewer. Link the ticket in the header."
+                  placeholder="e.g. Name the reviewer. Link the ticket in the summary."
                   className="mt-1.5 w-full cursor-text resize-none rounded-md border border-border bg-background p-2 text-xs leading-5 text-foreground outline-none placeholder:text-muted-foreground focus:border-ring"
                 />
                 <div className="mt-2 flex items-center gap-3">
