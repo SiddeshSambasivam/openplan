@@ -134,14 +134,23 @@ function SetFolder({
           {node.children.length}
         </span>
       </button>
-      {open && (
-        <SetBranch
-          nodes={node.children}
-          depth={depth + 1}
-          activeDocument={activeDocument}
-          onOpen={onOpen}
-        />
-      )}
+      {/* Always mounted, so the rows have somewhere to grow from; the grid
+          row animates between nothing and its natural height. */}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-200 ease-in-out",
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div className="overflow-hidden">
+          <SetBranch
+            nodes={node.children}
+            depth={depth + 1}
+            activeDocument={activeDocument}
+            onOpen={onOpen}
+          />
+        </div>
+      </div>
     </li>
   );
 }
@@ -186,7 +195,18 @@ export function PlanList({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => onSelect(plan)}
+                      onClick={() => {
+                        if (!isSet) {
+                          onSelect(plan);
+                          return;
+                        }
+                        // Opening a set shows the plan and its documents;
+                        // folding it away leaves you where you were reading.
+                        const next = !expanded;
+                        setToggled((t) => ({ ...t, [plan.path]: next }));
+                        if (next) onSelect(plan);
+                      }}
+                      aria-expanded={isSet ? expanded : undefined}
                       className={cn(
                         "flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
                         (plan.path === activePath || expanded) &&
@@ -195,26 +215,12 @@ export function PlanList({
                     >
                       {isSet ? (
                         <>
-                          {/* Toggling a set is its own target, so opening the
-                              plan and folding it away stay separate. */}
-                          <span
-                            role="button"
-                            tabIndex={-1}
-                            aria-label={expanded ? "Collapse" : "Expand"}
-                            aria-expanded={expanded}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setToggled((t) => ({ ...t, [plan.path]: !expanded }));
-                            }}
-                            className="-ml-1 flex size-4 shrink-0 items-center justify-center rounded hover:bg-sidebar-accent"
-                          >
-                            <ChevronRight
-                              className={cn(
-                                "size-3 text-muted-foreground transition-transform duration-150",
-                                expanded && "rotate-90",
-                              )}
-                            />
-                          </span>
+                          <ChevronRight
+                            className={cn(
+                              "-ml-1 size-3 shrink-0 text-muted-foreground transition-transform duration-200",
+                              expanded && "rotate-90",
+                            )}
+                          />
                           {expanded ? (
                             <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
                           ) : (
@@ -242,18 +248,25 @@ export function PlanList({
 
                 {/* A set opens at its entry point; the rest of it is only
                     reachable if the documents are listed. */}
-                {expanded && (
-                  <div className="mb-1">
-                    <SetBranch
-                      nodes={buildSetTree(plan.documents)}
-                      depth={0}
-                      activeDocument={
-                        activePath?.startsWith(folder)
-                          ? activePath.slice(folder.length)
-                          : null
-                      }
-                      onOpen={(document) => onSelectDocument(plan, document)}
-                    />
+                {isSet && (
+                  <div
+                    className={cn(
+                      "grid transition-[grid-template-rows] duration-200 ease-in-out",
+                      expanded ? "mb-1 grid-rows-[1fr]" : "grid-rows-[0fr]",
+                    )}
+                  >
+                    <div className="overflow-hidden">
+                      <SetBranch
+                        nodes={buildSetTree(plan.documents)}
+                        depth={0}
+                        activeDocument={
+                          activePath?.startsWith(folder)
+                            ? activePath.slice(folder.length)
+                            : null
+                        }
+                        onOpen={(document) => onSelectDocument(plan, document)}
+                      />
+                    </div>
                   </div>
                 )}
               </li>
