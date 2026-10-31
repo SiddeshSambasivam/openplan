@@ -4,6 +4,7 @@ import {
   FOLDED,
   forYou,
   planCrumb,
+  relativeTime,
   shortDate,
   sortPlans,
   statusGroups,
@@ -193,5 +194,37 @@ describe("shortDate", () => {
   it("has nothing to show without a date", () => {
     expect(shortDate(null, now)).toBe(null);
     expect(shortDate("whenever", now)).toBe(null);
+  });
+});
+
+describe("relativeTime", () => {
+  const now = new Date("2026-10-28T12:00:00Z");
+
+  it("says just now for the last minute", () => {
+    expect(relativeTime("2026-10-28T11:59:30Z", now)).toBe("just now");
+  });
+
+  it("counts minutes, then hours", () => {
+    expect(relativeTime("2026-10-28T11:55:00Z", now)).toBe("5 min ago");
+    expect(relativeTime("2026-10-28T09:00:00Z", now)).toBe("3 h ago");
+  });
+
+  it("counts days up to a week", () => {
+    expect(relativeTime("2026-10-27T10:00:00Z", now)).toBe("yesterday");
+    expect(relativeTime("2026-10-25T10:00:00Z", now)).toBe("3 days ago");
+  });
+
+  it("gives the date for anything older", () => {
+    expect(relativeTime("2026-10-01T10:00:00Z", now)).toBe(
+      shortDate("2026-10-01T10:00:00Z", now),
+    );
+  });
+
+  it("treats a time ahead of the clock as just now", () => {
+    expect(relativeTime("2026-10-28T12:05:00Z", now)).toBe("just now");
+  });
+
+  it("has nothing to show without a readable time", () => {
+    expect(relativeTime("whenever", now)).toBe(null);
   });
 });

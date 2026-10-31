@@ -81,6 +81,22 @@ export function planCrumb(plan: PlanSummary, path: string): Crumb {
   return { lead: plan.title, title: documentLabel(name) };
 }
 
+/** How long ago something moved, for the first week. After that the date
+ * says more than the count. */
+export function relativeTime(iso: string, now: Date = new Date()): string | null {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  const minutes = Math.floor((now.getTime() - then) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  return shortDate(iso, now);
+}
+
 /** A date short enough for a card: the year only when it is not this one. */
 export function shortDate(iso: string | null, now: Date = new Date()): string | null {
   if (!iso) return null;
