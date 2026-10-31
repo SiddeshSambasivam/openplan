@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "repos": [
+    {
+      "path": "~/code/notes",
+      "remote": "github.com/example/notes",
+      "branch": "paragraph-merge"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "context": "Where the merge runs. Notes are encrypted at rest on the server.",
+      "options": [
+        "On each device. Content stays encrypted end to end, but two devices may merge the same pair twice.",
+        "On the server. One merge per change, but the server has to read note content."
+      ],
+      "decision": "On each device",
+      "why": "Reading note content on the server would break end to end encryption.",
+      "revisitWhen": "Merges on slow phones take longer than a second.",
+      "at": "{now}",
+      "by": "codex"
+    },
+    {
+      "id": "D2",
+      "context": "What a merge compares. A note is a list of paragraphs, and a paragraph can be several screens long.",
+      "options": [
+        "Paragraphs. Simple to show as a conflict, but two edits to one long paragraph conflict.",
+        "Sentences. Fewer conflicts, but a conflict view per sentence is hard to read."
+      ],
+      "decision": "Paragraphs",
+      "why": "A paragraph is what a person reads as one piece, so a conflict at that size is easy to settle.",
+      "revisitWhen": "More than 1% of syncs end in a conflict.",
+      "at": "{now}",
+      "by": "codex"
+    }
+  ],
+  "todos": [
+    {
+      "id": "t1",
+      "text": "Store the last synced version of each note in `sync/base-store.ts`",
+      "detail": "Write it after every successful sync, and delete it when the note is deleted.",
+      "state": "done",
+      "by": "codex",
+      "at": "{now}"
+    },
+    {
+      "id": "t2",
+      "text": "Merge paragraph by paragraph in `sync/merge.ts`",
+      "detail": "Compare each side against the stored version and keep a change made on one side.",
+      "state": "doing",
+      "by": "codex",
+      "at": "{now}"
+    },
+    {
+      "id": "t3",
+      "text": "Show a conflict in the editor with `editor/ConflictBlock.tsx`",
+      "detail": "Both versions of the paragraph, with Keep this one on each.",
+      "state": "open",
+      "by": "codex",
+      "at": "{now}"
+    },
+    {
+      "id": "t4",
+      "text": "Merge on the server for notes shared with a team",
+      "detail": "A second merge path for notes several people edit.",
+      "state": "dropped",
+      "by": "codex",
+      "at": "{now}",
+      "reason": "D1 keeps every merge on the device, so shared notes merge there too."
+    }
+  ],
+  "prs": [
+    {
+      "url": "https://github.com/example/notes/pull/42",
+      "repo": "github.com/example/notes",
+      "branch": "paragraph-merge",
+      "todos": ["t1", "t2"],
+      "state": "open",
+      "checks": "passing",
+      "review": "waiting",
+      "reportedAt": "{now}",
+      "by": "codex"
+    }
+  ]
+}

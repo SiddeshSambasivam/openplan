@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "repos": [
+    {
+      "path": "~/code/notes",
+      "remote": "github.com/example/notes",
+      "branch": "shortcuts"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "context": "Where the list of shortcuts lives. The key handler and the sheet both need it.",
+      "options": [
+        "One table both read. A new shortcut shows in the sheet the moment it works.",
+        "The handler and the sheet each keep their own list. Simpler to start, but the two drift."
+      ],
+      "decision": "One table both read",
+      "why": "A sheet that lists a key that does nothing is worse than no sheet.",
+      "at": "{now}",
+      "by": "claude-code"
+    }
+  ],
+  "todos": [
+    {
+      "id": "t1",
+      "text": "Add the shortcut table and its key handler in `keys/shortcuts.ts`",
+      "state": "done",
+      "by": "claude-code",
+      "at": "{now}"
+    },
+    {
+      "id": "t2",
+      "text": "Add the shortcut sheet in `keys/ShortcutSheet.tsx`",
+      "state": "done",
+      "by": "claude-code",
+      "at": "{now}"
+    },
+    {
+      "id": "t3",
+      "text": "Show each action's key beside it in the menus",
+      "state": "done",
+      "by": "claude-code",
+      "at": "{now}"
+    }
+  ],
+  "prs": [
+    {
+      "url": "https://github.com/example/notes/pull/31",
+      "repo": "github.com/example/notes",
+      "branch": "shortcuts",
+      "todos": ["t1", "t2", "t3"],
+      "state": "merged",
+      "checks": "passing",
+      "review": "approved",
+      "reportedAt": "{now}",
+      "by": "claude-code"
+    }
+  ]
+}

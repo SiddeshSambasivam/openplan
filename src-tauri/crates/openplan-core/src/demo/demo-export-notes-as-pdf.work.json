@@ -1,0 +1,288 @@
+{
+  "version": 1,
+  "repos": [
+    {
+      "path": "~/code/notes",
+      "remote": "github.com/example/notes",
+      "branch": "main"
+    }
+  ],
+  "alignment": {
+    "askedAt": "{now}",
+    "questions": [
+      {
+        "id": "product",
+        "aspect": "scope",
+        "role": "product",
+        "question": "What can a person export in the first version?",
+        "context": "Every one of the 212 tickets asks about sending a single note. A whole notebook as one PDF needs page breaks between notes and a table of contents. I recommend one note at a time, because that is what people ask for.",
+        "options": [
+          {
+            "id": "a",
+            "label": "One note at a time",
+            "consequence": "Export as PDF sits in each note's menu.",
+            "tradeoff": "Someone who wants a whole notebook exports it note by note."
+          },
+          {
+            "id": "b",
+            "label": "A note or a whole notebook",
+            "consequence": "A notebook becomes one PDF, with each note starting on a new page.",
+            "tradeoff": "About a week more, and a large notebook makes a large file."
+          }
+        ],
+        "recommended": "a",
+        "mustAnswer": false,
+        "answer": {
+          "kind": "option",
+          "options": ["a"],
+          "note": "The tickets ask about one note, so notebooks can wait for a second version."
+        },
+        "answeredBy": "user",
+        "round": 1
+      },
+      {
+        "id": "engineering",
+        "aspect": "edge cases",
+        "role": "engineering",
+        "question": "What happens to content a PDF cannot hold, such as a video or a link to another note?",
+        "context": "A note can embed videos, audio clips and links to other notes. None of these work on paper, and a link to another note opens nothing outside the app. I recommend a short line of text in place of each, so the reader knows something was there.",
+        "options": [
+          {
+            "id": "a",
+            "label": "A short line of text in its place",
+            "consequence": "A video shows as \"Video: Kitchen tour, 2 minutes\".",
+            "tradeoff": "One renderer case per kind of embed, about a day of work."
+          },
+          {
+            "id": "b",
+            "label": "Leave it out",
+            "consequence": "The PDF holds only text and images.",
+            "tradeoff": "No extra work, but the reader cannot tell that anything is missing."
+          }
+        ],
+        "recommended": "a",
+        "mustAnswer": false,
+        "answer": {
+          "kind": "option",
+          "options": ["a"],
+          "note": "A reader should see that something was there, even when it cannot play."
+        },
+        "answeredBy": "user",
+        "round": 1
+      },
+      {
+        "id": "design",
+        "aspect": "UX",
+        "role": "design",
+        "question": "Where does Export as PDF sit?",
+        "context": "The note menu holds Copy link and Duplicate today. The share sheet is where people send things on a phone. I recommend the note menu, because it is where Copy as markdown already lives.",
+        "options": [
+          {
+            "id": "a",
+            "label": "In the note menu",
+            "consequence": "Export as PDF sits beside Copy as markdown.",
+            "tradeoff": "People who look in the share sheet first will not find it there."
+          },
+          {
+            "id": "b",
+            "label": "In the note menu and the share sheet",
+            "consequence": "Both places show Export as PDF.",
+            "tradeoff": "Two entry points to keep the same, and the share sheet differs on each phone."
+          }
+        ],
+        "recommended": "a",
+        "mustAnswer": false,
+        "answer": {
+          "kind": "option",
+          "options": ["a"],
+          "note": "One place is easier to explain in the help pages."
+        },
+        "answeredBy": "user",
+        "round": 1
+      },
+      {
+        "id": "oncall",
+        "aspect": "error handling",
+        "role": "oncall",
+        "question": "What happens when an export fails halfway, for example when the disk is full?",
+        "context": "`export/pdf.ts` writes the file page by page, so a failure leaves part of a PDF behind. A partial PDF opens without an error and looks finished. I recommend deleting it and saying what went wrong.",
+        "options": [
+          {
+            "id": "a",
+            "label": "Delete the partial file and show a plain error",
+            "consequence": "The person sees \"Your disk is full. Free some space and export again.\"",
+            "tradeoff": "The work done so far is lost, which costs seconds for a normal note."
+          },
+          {
+            "id": "b",
+            "label": "Keep the partial file and mark it incomplete",
+            "consequence": "The file name ends in \"incomplete\" and the person sees a warning.",
+            "tradeoff": "A partial file can still be sent by mistake."
+          }
+        ],
+        "recommended": "a",
+        "mustAnswer": false,
+        "answer": {
+          "kind": "option",
+          "options": ["a"],
+          "note": "Half a PDF looks finished to whoever receives it."
+        },
+        "answeredBy": "user",
+        "round": 1
+      },
+      {
+        "id": "research",
+        "aspect": "user needs",
+        "role": "research",
+        "question": "Who do people send these PDFs to?",
+        "context": "In the last round of eight interviews, five people mentioned sending notes to a teacher, a client or a landlord. Two wanted to print notes for themselves. I recommend designing for people outside the app, because that is the larger group.",
+        "options": [
+          {
+            "id": "a",
+            "label": "People outside the app",
+            "consequence": "The PDF carries the note's title and date at the top, so it makes sense on its own.",
+            "tradeoff": "A header the person may not want when they print for themselves."
+          },
+          {
+            "id": "b",
+            "label": "The person, to print",
+            "consequence": "The PDF holds only the note's content, sized for paper.",
+            "tradeoff": "Someone who receives it has no title or date to go by."
+          }
+        ],
+        "recommended": "a",
+        "mustAnswer": false,
+        "answer": {
+          "kind": "option",
+          "options": ["a"],
+          "note": "Five of the eight people we spoke to send notes to someone else."
+        },
+        "answeredBy": "user",
+        "round": 1
+      },
+      {
+        "id": "accessibility",
+        "aspect": "accessibility",
+        "role": "accessibility",
+        "question": "Does the PDF need tags so a screen reader can follow it?",
+        "context": "A PDF without tags reads as one block of text, with no headings and no list items. The renderer already knows the structure, so tagging costs little. I recommend a tagged PDF.",
+        "options": [
+          {
+            "id": "a",
+            "label": "A tagged PDF with headings, lists and reading order",
+            "consequence": "A screen reader announces each heading and list item.",
+            "tradeoff": "About two days more, and a file a few percent larger."
+          },
+          {
+            "id": "b",
+            "label": "A plain PDF",
+            "consequence": "The PDF looks the same but reads as one block.",
+            "tradeoff": "Ships sooner, and leaves out people who use a screen reader."
+          }
+        ],
+        "recommended": "a",
+        "mustAnswer": false,
+        "answer": {
+          "kind": "option",
+          "options": ["a"],
+          "note": "Teachers we spoke to have to accept files a screen reader can read."
+        },
+        "answeredBy": "user",
+        "round": 1
+      },
+      {
+        "id": "data",
+        "aspect": "success measure",
+        "role": "data",
+        "question": "Which number tells us the export works for people?",
+        "context": "Support gets about 70 tickets a month that ask for PDF or print. Exports per week shows use but not success. I recommend the ticket count, because it is the problem this plan sets out to fix.",
+        "options": [
+          {
+            "id": "a",
+            "label": "Fewer PDF tickets to support",
+            "consequence": "The goal is under 10 a month, two months after release.",
+            "tradeoff": "Slow to read, since tickets lag behind a release by weeks."
+          },
+          {
+            "id": "b",
+            "label": "Exports per week for each active person",
+            "consequence": "A chart on the release dashboard from the first day.",
+            "tradeoff": "It shows people use it, not that the PDF was right."
+          }
+        ],
+        "recommended": "a",
+        "mustAnswer": false,
+        "answer": {
+          "kind": "option",
+          "options": ["a"],
+          "note": "The tickets are why we are building this, so they are the number to move."
+        },
+        "answeredBy": "user",
+        "round": 1
+      },
+      {
+        "id": "security",
+        "aspect": "security",
+        "role": "security",
+        "question": "Can a person export a note someone else shared with them?",
+        "context": "A shared note can be read but not changed by the people it is shared with. Copy as markdown already works on shared notes, so a person can copy the text today. I recommend allowing export, because it gives away nothing a copy does not.",
+        "options": [
+          {
+            "id": "a",
+            "label": "Yes, the same as Copy as markdown",
+            "consequence": "Export as PDF shows on every note the person can read.",
+            "tradeoff": "An owner cannot stop a reader from making a file."
+          },
+          {
+            "id": "b",
+            "label": "Only notes the person owns",
+            "consequence": "Export as PDF is greyed out on shared notes, with a line that says why.",
+            "tradeoff": "Readers copy the text instead, so it protects little."
+          }
+        ],
+        "recommended": "a",
+        "mustAnswer": false,
+        "answer": {
+          "kind": "option",
+          "options": ["a"],
+          "note": "Blocking it protects nothing while Copy as markdown works."
+        },
+        "answeredBy": "user",
+        "round": 1
+      },
+      {
+        "id": "support",
+        "aspect": "support",
+        "role": "support",
+        "question": "What do we tell someone whose PDF looks different from the note?",
+        "context": "A PDF drops videos, uses the light theme and splits tall images. People will write in when the file does not match the screen. I recommend a help page linked from the export dialog, because one page answers every case.",
+        "options": [
+          {
+            "id": "a",
+            "label": "A help page linked from the export dialog",
+            "consequence": "The dialog shows \"What changes in a PDF\" with a link.",
+            "tradeoff": "People who skip the dialog still write in."
+          },
+          {
+            "id": "b",
+            "label": "A saved reply for the support team",
+            "consequence": "Support answers each ticket with the same text.",
+            "tradeoff": "Every person who is confused still has to write in first."
+          }
+        ],
+        "recommended": "a",
+        "mustAnswer": false,
+        "answer": {
+          "kind": "option",
+          "options": ["a"],
+          "note": "A page people find on their own saves them a ticket and a wait."
+        },
+        "answeredBy": "user",
+        "round": 1
+      }
+    ]
+  },
+  "decisions": [],
+  "todos": [],
+  "prs": []
+}
