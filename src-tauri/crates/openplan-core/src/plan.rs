@@ -111,6 +111,9 @@ pub struct PlanMeta {
     pub updated: Option<String>,
     /// When the plan was marked completed. Cleared when it moves on.
     pub completed: Option<String>,
+    /// One of the plans onboarding writes to show the app. Agents never see
+    /// it.
+    pub demo: bool,
 }
 
 impl PlanMeta {
@@ -315,6 +318,7 @@ pub fn parse(text: &str, path: &Path) -> Plan {
                     created: None,
                     updated: None,
                     completed: None,
+                    demo: false,
                 },
                 frontmatter: Vec::new(),
                 body: text.to_string(),
@@ -338,6 +342,7 @@ pub fn parse(text: &str, path: &Path) -> Plan {
         created: lookup(&pairs, "created").map(str::to_string),
         updated: lookup(&pairs, "updated").map(str::to_string),
         completed: lookup(&pairs, "completed").map(str::to_string),
+        demo: lookup(&pairs, "demo") == Some("true"),
     };
     Plan {
         meta,
@@ -381,6 +386,7 @@ pub fn serialize(plan: &Plan) -> String {
         set("updated", Some(updated));
     }
     set("completed", meta.completed.as_deref());
+    set("demo", meta.demo.then_some("true"));
 
     let mut out = String::new();
     if plan.html {
@@ -703,6 +709,24 @@ mod tests {
         assert!(out.starts_with("---\n"));
         assert!(out.contains("status: in-progress\n"));
         assert!(out.ends_with("# Hand written\n\nbody\n"));
+    }
+
+    #[test]
+    fn a_demo_plan_says_so_in_its_frontmatter() {
+        let demo = parse_str("---\ntitle: Demo: add dark mode\ndemo: true\n---\n# X\n");
+        let ordinary = parse_str("---\ntitle: X\n---\n# X\n");
+
+        assert!(demo.meta.demo);
+        assert!(!ordinary.meta.demo);
+        assert!(!parse_str("# Hand written\n").meta.demo);
+        assert!(serialize(&demo).contains("demo: true\n"));
+        assert!(!serialize(&ordinary).contains("demo"));
+
+        let mut flagged = ordinary.clone();
+        flagged.meta.demo = true;
+        assert!(parse_str(&serialize(&flagged)).meta.demo);
+        flagged.meta.demo = false;
+        assert!(!serialize(&flagged).contains("demo"));
     }
 
     #[test]

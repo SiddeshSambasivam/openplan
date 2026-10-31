@@ -246,6 +246,7 @@ fn create_plan(base: &Base, author: &str, authoring: &str, args: &Value) -> Valu
             created: Some(now.clone()),
             updated: Some(now),
             completed: None,
+            demo: false,
         },
         frontmatter: Vec::new(),
         body: format!("{}\n", body.trim_end()),
@@ -319,7 +320,7 @@ fn update_plan(base: &Base, author: &str, args: &Value) -> Value {
 }
 
 fn list_plans(base: &Base, args: &Value) -> Value {
-    let mut entries = library::scan(base);
+    let mut entries = agent_plans(base);
     if let Some(wanted) = args.get("status").and_then(Value::as_str) {
         let Some(wanted) = Status::parse(wanted) else {
             return text_result(
@@ -416,7 +417,7 @@ fn read_plan(base: &Base, args: &Value) -> Value {
     let Some(id) = args.get("id").and_then(Value::as_str) else {
         return text_result("read_plan needs an id. list_plans shows them.", true);
     };
-    match library::scan(base).into_iter().find(|e| e.meta.id == id) {
+    match agent_plans(base).into_iter().find(|e| e.meta.id == id) {
         Some(entry) => match fs::read_to_string(&entry.path) {
             Ok(text) => {
                 let record = work::read(&entry.path).ok().flatten().unwrap_or_default();
@@ -432,10 +433,16 @@ pub(crate) fn find_entry(base: &Base, args: &Value) -> Result<PlanEntry, Value> 
     let Some(id) = args.get("id").and_then(Value::as_str) else {
         return Err(text_result("Which plan? Pass its id.", true));
     };
-    library::scan(base)
+    agent_plans(base)
         .into_iter()
         .find(|e| e.meta.id == id)
         .ok_or_else(|| text_result(format!("No plan called {id}. list_plans shows what there is."), true))
+}
+
+/// Every plan but the demo ones, which are the person's to try the app on
+/// and no agent's to act on.
+fn agent_plans(base: &Base) -> Vec<PlanEntry> {
+    library::scan(base).into_iter().filter(|e| !e.meta.demo).collect()
 }
 
 fn get_comments(base: &Base, args: &Value) -> Value {
@@ -846,6 +853,29 @@ mod tests {
 
         assert!(describe(true).contains("Media is on"), "{}", describe(true));
         assert!(describe(false).contains("Media is off"), "{}", describe(false));
+    }
+
+    #[test]
+    fn agents_never_see_a_demo_plan() {
+        let dir = std::env::temp_dir().join("openplan-cli-demo-plans");
+        let _ = std::fs::remove_dir_all(&dir);
+        let base = openplan_core::base::ensure_base(&dir).unwrap();
+        repo::init(&base.root).unwrap();
+        let plans = base.plans_dir();
+        std::fs::write(plans.join("demo-dark-mode.md"), "---\nid: demo-dark-mode\ntitle: Demo: add dark mode\nstatus: draft\ndemo: true\n---\n# Demo\n").unwrap();
+        std::fs::write(plans.join("auth.md"), "---\nid: auth\ntitle: Auth\nstatus: draft\n---\n# Auth\n").unwrap();
+        let text = |reply: &Value| reply["content"][0]["text"].as_str().unwrap().to_string();
+        let demo = json!({ "id": "demo-dark-mode" });
+
+        let listed = list_plans(&base, &json!({}));
+        let read = read_plan(&base, &demo);
+        let moved = set_status(&base, "claude-code", &json!({ "id": "demo-dark-mode", "status": "alignment" }));
+
+        assert_eq!(text(&listed), "[draft] auth Auth");
+        assert_eq!(text(&read), "No plan called demo-dark-mode. list_plans shows what there is.");
+        assert_eq!(text(&moved), "No plan called demo-dark-mode. list_plans shows what there is.");
+        assert!(std::fs::read_to_string(plans.join("demo-dark-mode.md")).unwrap().contains("status: draft"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
