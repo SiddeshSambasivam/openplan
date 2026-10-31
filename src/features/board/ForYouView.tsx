@@ -112,7 +112,7 @@ export function ForYouView({
     groups.review.length === 0 && groups.answered.length === 0;
 
   return (
-    <div className="h-full overflow-y-auto pb-8">
+    <div className="h-full overflow-y-auto pb-20">
       <p className="border-b border-border px-4 py-2.5 text-xs text-muted-foreground">
         Plans waiting on you: in review, or an agent answered your comment and
         the thread is still open.

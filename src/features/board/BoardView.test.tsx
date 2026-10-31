@@ -64,7 +64,7 @@ describe("BoardView hidden columns", () => {
   });
 
   it("keeps a lifted card inside the column's clip", () => {
-    expect(board([plan("a", "draft")])).toContain("overflow-y-auto px-1 pt-1");
+    expect(board([plan("a", "draft")])).toContain("overflow-y-auto px-1 pt-1 pb-16");
   });
 });
 

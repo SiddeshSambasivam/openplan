@@ -192,7 +192,7 @@ function Column({
           focused card inside the clip. */}
       <div
         data-scroll-clip
-        className="-mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pt-1 pb-2"
+        className="-mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pt-1 pb-16"
       >
         {group.plans.map((plan, index) => (
           <Card

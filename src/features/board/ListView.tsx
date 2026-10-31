@@ -105,7 +105,7 @@ export function ListView({
   };
 
   return (
-    <div className="h-full overflow-y-auto pb-8">
+    <div className="h-full overflow-y-auto pb-20">
       <PlanList
         plans={plans}
         activePath={activePlanPath}

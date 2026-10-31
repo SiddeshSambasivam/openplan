@@ -63,9 +63,9 @@ interface PlanActionsOptions {
 
 /** Selected cards and rows carry a ring and a background. */
 export const SELECTED_CARD =
-  "data-selected:bg-accent data-selected:ring-2 data-selected:ring-primary/60";
+  "data-selected:bg-primary/5 data-selected:ring-2 data-selected:ring-primary/60";
 export const SELECTED_ROW =
-  "data-selected:rounded-md data-selected:bg-accent data-selected:ring-2 data-selected:ring-inset data-selected:ring-primary/50";
+  "data-selected:rounded-md data-selected:bg-primary/5 data-selected:ring-2 data-selected:ring-inset data-selected:ring-primary/50";
 
 const PlanActionsContext = createContext<PlanActionsValue | null>(null);
 
