@@ -317,13 +317,16 @@ function NavRow({
       )}
     </button>
   );
-  if (!rail) return row;
+  // The tooltip stays mounted in both modes so switching to the rail only
+  // re-renders the rows rather than mounting a tooltip for each one.
   return (
     <Tooltip>
       <TooltipTrigger asChild>{row}</TooltipTrigger>
-      <TooltipContent side="right" sideOffset={6}>
-        {label}
-      </TooltipContent>
+      {rail && (
+        <TooltipContent side="right" sideOffset={6}>
+          {label}
+        </TooltipContent>
+      )}
     </Tooltip>
   );
 }
@@ -345,28 +348,37 @@ function Section({
   onToggle: (id: SectionId) => void;
   children: ReactNode;
 }) {
-  if (rail) {
-    return (
-      <div className="flex flex-col items-center gap-px border-t border-sidebar-border pt-2 mt-2 first:mt-1 first:border-t-0 first:pt-0">
-        {children}
-      </div>
-    );
-  }
-  const open = !collapsed.includes(id);
+  // One tree for both modes, so the rows survive a switch to the rail.
+  const open = rail || !collapsed.includes(id);
   return (
-    <div className="pt-4 first:pt-2">
-      <button
-        onClick={() => onToggle(id)}
-        aria-expanded={open}
-        className="flex cursor-default items-center gap-1 rounded-md px-2 pb-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        {label}
-        <ChevronDown
-          className={cn("size-3 transition-transform duration-150", !open && "-rotate-90")}
-        />
-      </button>
+    <div
+      className={cn(
+        rail
+          ? "mt-2 border-t border-sidebar-border pt-2 first:mt-1 first:border-t-0 first:pt-0"
+          : "pt-4 first:pt-2",
+      )}
+    >
+      {!rail && (
+        <button
+          onClick={() => onToggle(id)}
+          aria-expanded={open}
+          className="flex cursor-default items-center gap-1 rounded-md px-2 pb-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {label}
+          <ChevronDown
+            className={cn("size-3 transition-transform duration-150", !open && "-rotate-90")}
+          />
+        </button>
+      )}
       {open && (
-        <div className="flex flex-col gap-px animate-in fade-in-0 duration-150">{children}</div>
+        <div
+          className={cn(
+            "flex flex-col gap-px animate-in fade-in-0 duration-150",
+            rail && "items-center",
+          )}
+        >
+          {children}
+        </div>
       )}
     </div>
   );
