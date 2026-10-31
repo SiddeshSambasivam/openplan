@@ -1,0 +1,80 @@
+[
+  {
+    "id": "engineer",
+    "label": "Engineer",
+    "hint": "I build and ship the code",
+    "who": "an engineer",
+    "panel": [
+      { "role": "product", "voice": "plain" },
+      { "role": "engineering", "voice": "deep" },
+      { "role": "design", "voice": "plain" },
+      { "role": "oncall", "voice": "deep" }
+    ],
+    "owners": { "edge cases": "engineering", "error handling": "oncall", "scale": "oncall" }
+  },
+  {
+    "id": "designer",
+    "label": "Designer",
+    "hint": "I shape what people see",
+    "who": "a designer",
+    "panel": [
+      { "role": "design", "voice": "deep" },
+      { "role": "research", "voice": "deep" },
+      { "role": "accessibility", "voice": "deep" },
+      { "role": "engineering", "voice": "plain" }
+    ],
+    "owners": { "edge cases": "accessibility", "error handling": "engineering", "scale": "engineering" }
+  },
+  {
+    "id": "product",
+    "label": "Product manager",
+    "hint": "I decide what we build",
+    "who": "a product manager",
+    "panel": [
+      { "role": "data", "voice": "deep" },
+      { "role": "support", "voice": "deep" },
+      { "role": "design", "voice": "plain" },
+      { "role": "engineering", "voice": "plain" }
+    ],
+    "owners": { "edge cases": "support", "error handling": "engineering", "scale": "engineering" }
+  },
+  {
+    "id": "lead",
+    "label": "Engineering lead",
+    "hint": "I guide a team that builds",
+    "who": "an engineering lead",
+    "panel": [
+      { "role": "engineering", "voice": "deep" },
+      { "role": "oncall", "voice": "deep" },
+      { "role": "security", "voice": "deep" },
+      { "role": "product", "voice": "plain" }
+    ],
+    "owners": { "edge cases": "engineering", "error handling": "oncall", "scale": "oncall" }
+  },
+  {
+    "id": "founder",
+    "label": "Founder",
+    "hint": "I do a bit of everything",
+    "who": "a founder",
+    "panel": [
+      { "role": "product", "voice": "deep" },
+      { "role": "engineering", "voice": "deep" },
+      { "role": "design", "voice": "deep" },
+      { "role": "data", "voice": "deep" }
+    ],
+    "owners": { "edge cases": "engineering", "error handling": "engineering", "scale": "engineering" }
+  },
+  {
+    "id": "other",
+    "label": "Something else",
+    "hint": "Everyone asks, in plain words",
+    "who": "in another field",
+    "panel": [
+      { "role": "product", "voice": "plain" },
+      { "role": "engineering", "voice": "plain" },
+      { "role": "design", "voice": "plain" },
+      { "role": "oncall", "voice": "plain" }
+    ],
+    "owners": { "edge cases": "engineering", "error handling": "oncall", "scale": "oncall" }
+  }
+]
