@@ -1,18 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-/** The plan page with no plan open: plans drift into a tray, each on its
- * own clock, so the scene never visibly repeats. */
-export function EmptyState() {
+/** A place with nothing in it: plans drift into a tray, each on its own
+ * clock, so the scene never visibly repeats. The words default to the plan
+ * page with no plan open. */
+export function EmptyState({
+  title = "No plan open",
+  hint = "Pick a plan from the board, or wait for an agent to file one.",
+  children,
+}: {
+  title?: string;
+  hint?: string;
+  /** An action under the words. */
+  children?: ReactNode;
+}) {
   const active = useWindowActive();
   return (
     <div className="flex h-full animate-in flex-col items-center justify-center gap-4 p-8 text-center fade-in duration-200">
       <Scene paused={!active} />
       <div className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">No plan open</p>
-        <p className="text-xs text-muted-foreground/80">
-          Pick a plan from the board, or wait for an agent to file one.
-        </p>
+        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <p className="text-xs text-muted-foreground/80">{hint}</p>
       </div>
+      {children}
     </div>
   );
 }

@@ -9,6 +9,18 @@ describe("EmptyState", () => {
     expect(html).toContain("Pick a plan from the board, or wait for an agent to file one.");
   });
 
+  it("takes its own words and an action", () => {
+    const html = renderToStaticMarkup(
+      <EmptyState title="Nothing in progress" hint="Agents file plans here.">
+        <button>Show</button>
+      </EmptyState>,
+    );
+    expect(html).toContain("Nothing in progress");
+    expect(html).toContain("Agents file plans here.");
+    expect(html).toContain("<button>Show</button>");
+    expect(html).not.toContain("No plan open");
+  });
+
   it("draws three sheets on clocks that share no factor", () => {
     const html = renderToStaticMarkup(<EmptyState />);
     expect(html.match(/class="empty-sheet"/g)).toHaveLength(3);

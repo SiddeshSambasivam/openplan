@@ -63,6 +63,21 @@ describe("BoardView hidden columns", () => {
     expect(html).toContain('tabular-nums">0<');
   });
 
+  it("shows the animated empty state when the base has no plans", () => {
+    const html = board([]);
+    expect(html).toContain("empty-scene");
+    expect(html).toContain("No plans yet");
+    expect(html).not.toContain("Hidden");
+  });
+
+  it("shows the empty state, with a way to the finished plans, when every plan is finished", () => {
+    const html = board([plan("b", "completed"), plan("c", "archived")]);
+    expect(html).toContain("empty-scene");
+    expect(html).toContain("Nothing in progress");
+    expect(html).toContain("Show 2 finished plans");
+    expect(html).not.toContain("Plan b");
+  });
+
   it("keeps a lifted card inside the column's clip", () => {
     expect(board([plan("a", "draft")])).toContain("overflow-y-auto px-1 pt-1 pb-16");
   });

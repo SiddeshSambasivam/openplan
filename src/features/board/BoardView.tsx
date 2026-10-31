@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Folder } from "lucide-react";
 import { memo, useMemo, useState, type ReactNode } from "react";
+import { EmptyState } from "@/components/EmptyState";
 import { FolderPicker } from "@/components/FolderPicker";
 import { StatusGlyph } from "@/components/StatusGlyph";
 import {
@@ -290,13 +291,7 @@ export const BoardView = memo(function BoardView({
   const actions = { folders, onFoldersChange, onOpen };
 
   if (plans.length === 0) {
-    return (
-      <p className="animate-in fade-in-0 p-10 text-center text-sm leading-6 text-muted-foreground duration-200">
-        No plans yet.
-        <br />
-        Your agents will file them here.
-      </p>
-    );
+    return <EmptyState title="No plans yet" hint="Your agents will file them here." />;
   }
 
   // Finished work sits behind one Hidden control at the end of the board,
@@ -304,6 +299,19 @@ export const BoardView = memo(function BoardView({
   const hidden = columns.filter(
     (group) => FOLDED.includes(group.status) && !unfolded.includes(group.status),
   );
+  const shownCount = columns
+    .filter((group) => !hidden.includes(group))
+    .reduce((sum, group) => sum + group.plans.length, 0);
+  if (shownCount === 0) {
+    const finished = plans.length;
+    return (
+      <EmptyState title="Nothing in progress" hint="Your agents will file new plans here.">
+        <Button variant="outline" size="sm" onClick={() => setUnfolded(FOLDED)}>
+          Show {finished} finished {finished === 1 ? "plan" : "plans"}
+        </Button>
+      </EmptyState>
+    );
+  }
   const pieces: ReactNode[] = columns
     .filter((group) => !hidden.includes(group))
     .map((group) => (
