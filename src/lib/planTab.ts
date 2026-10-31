@@ -15,3 +15,9 @@ export function tabFor(tabs: PlanTabs, path: string | null): PlanTab {
 export function withTab(tabs: PlanTabs, path: string, tab: PlanTab): PlanTabs {
   return { ...tabs, [path]: tab };
 }
+
+/** The tab `by` steps away, wrapping at the ends like browser tabs. */
+export function stepTab(tab: PlanTab, by: 1 | -1): PlanTab {
+  const at = PLAN_TABS.findIndex((each) => each.value === tab);
+  return PLAN_TABS[(at + by + PLAN_TABS.length) % PLAN_TABS.length].value;
+}

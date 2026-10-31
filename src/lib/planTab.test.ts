@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tabFor, withTab } from "./planTab";
+import { stepTab, tabFor, withTab } from "./planTab";
 
 describe("plan tabs", () => {
   it("opens a plan on its Plan tab", () => {
@@ -16,5 +16,12 @@ describe("plan tabs", () => {
   it("leaves the other plans' tabs as they were", () => {
     const tabs = withTab(withTab({}, "/base/a.md", "alignment"), "/base/b.md", "alignment");
     expect(tabFor(withTab(tabs, "/base/b.md", "plan"), "/base/a.md")).toBe("alignment");
+  });
+
+  it("steps to the next or previous tab and wraps at the ends, like browser tabs", () => {
+    expect(stepTab("plan", 1)).toBe("alignment");
+    expect(stepTab("alignment", -1)).toBe("plan");
+    expect(stepTab("alignment", 1)).toBe("plan");
+    expect(stepTab("plan", -1)).toBe("alignment");
   });
 });

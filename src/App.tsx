@@ -132,7 +132,7 @@ import { PlanTabStrip } from "./features/plan/PlanTabStrip";
 import { loadWorkPanelMode, saveWorkPanelMode } from "./lib/workPanel";
 import { buildTooltip } from "./lib/alignmentScore";
 import { originLabel, pushOrigin, type Origin } from "./lib/origin";
-import { tabFor, withTab, type PlanTab, type PlanTabs } from "./lib/planTab";
+import { stepTab, tabFor, withTab, type PlanTab, type PlanTabs } from "./lib/planTab";
 import { restoreScroll, scrollMarks, type ScrollMark } from "./lib/scroll";
 import { addFolder, filterByFolder, removeFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
@@ -1696,6 +1696,8 @@ export default function App() {
     outline: onPlan && showOutline ? toggleOutline : undefined,
     history: onPlan && activePlan ? toggleHistory : undefined,
     workPanel: workShown ? (workOverlays ? toggleWork : toggleWorkMode) : undefined,
+    previousTab: planHome && activePlan ? () => choosePlanTab(stepTab(planTab, -1)) : undefined,
+    nextTab: planHome && activePlan ? () => choosePlanTab(stepTab(planTab, 1)) : undefined,
     status: onPlan && activePlan ? () => setStatusOpen(true) : undefined,
     build: onPlan && canBuild ? build : undefined,
     folders: onPlan && activePlan && view === "preview" ? () => setFoldersOpen(true) : undefined,

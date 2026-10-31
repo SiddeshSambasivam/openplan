@@ -6,7 +6,8 @@ export type Platform = "mac" | "other";
 export interface Shortcut {
   id: string;
   label: string;
-  /** Platform-neutral: `mod` is ⌘ on macOS and Ctrl elsewhere. */
+  /** Platform-neutral: `mod` is ⌘ on macOS and Ctrl elsewhere, `alt` is ⌥
+   * and Alt. Modifiers come in the order mod, alt, shift. */
   keys: string;
   group: string;
   /** When the key does something, for the shortcut sheet. */
@@ -96,6 +97,20 @@ export const SHORTCUTS = [
     group: "Plan",
     when: "On the Alignment tab",
   },
+  {
+    id: "previousTab",
+    label: "Previous tab",
+    keys: "mod+alt+arrowleft",
+    group: "Plan",
+    when: "On a plan, between Plan and Alignment",
+  },
+  {
+    id: "nextTab",
+    label: "Next tab",
+    keys: "mod+alt+arrowright",
+    group: "Plan",
+    when: "On a plan, between Plan and Alignment",
+  },
   { id: "status", label: "Change status", keys: "mod+shift+s", group: "Plan" },
   {
     id: "build",
@@ -145,13 +160,13 @@ export function shortcut(id: ActionId): Shortcut {
 
 /** The key's parts, one per `kbd`: ⇧ ⌘ A on macOS, Ctrl Shift A elsewhere. */
 export function formatKeys(keys: string, platform: Platform): string[] {
-  const { mod, shift, key } = parseKeys(keys);
+  const { mod, alt, shift, key } = parseKeys(keys);
   const names = platform === "mac" ? MAC_NAMES : OTHER_NAMES;
   const shown = names[key] ?? key.toUpperCase();
   const modifiers =
     platform === "mac"
-      ? [shift && names.shift, mod && names.mod]
-      : [mod && names.mod, shift && names.shift];
+      ? [alt && names.alt, shift && names.shift, mod && names.mod]
+      : [mod && names.mod, alt && names.alt, shift && names.shift];
   return [...modifiers.filter((part): part is string => Boolean(part)), shown];
 }
 
@@ -171,21 +186,32 @@ export function groupShortcuts(actions: readonly Shortcut[]): [string, Shortcut[
   return [...groups.entries()];
 }
 
-export function parseKeys(keys: string): { mod: boolean; shift: boolean; key: string } {
+export function parseKeys(keys: string): {
+  mod: boolean;
+  alt: boolean;
+  shift: boolean;
+  key: string;
+} {
   const parts = keys.split("+");
   const key = parts.pop() ?? "";
   const known = key.length === 1 || NAMED_KEYS.includes(key);
-  if (!known || parts.some((part) => part !== "mod" && part !== "shift")) {
+  if (!known || parts.some((part) => !MODIFIERS.includes(part))) {
     throw new Error(`Unknown key: ${keys}`);
   }
-  return { mod: parts.includes("mod"), shift: parts.includes("shift"), key };
+  return {
+    mod: parts.includes("mod"),
+    alt: parts.includes("alt"),
+    shift: parts.includes("shift"),
+    key,
+  };
 }
 
 /**
  * The action a key press asks for. Chords need exactly the platform's own
  * modifier: holding the other one too means the chord belongs to the system
  * (⌃⌘F full-screens on macOS). A bare key ignores shift, which is part of
- * the character on most layouts.
+ * the character on most layouts. Option only counts inside a chord, since on
+ * its own it types another character on macOS.
  */
 export function shortcutFor(
   press: KeyPress,
@@ -194,9 +220,11 @@ export function shortcutFor(
 ): ActionId | null {
   const ours = platform === "mac" ? press.metaKey : press.ctrlKey;
   const theirs = platform === "mac" ? press.ctrlKey : press.metaKey;
-  if (press.altKey || theirs) return null;
+  if (theirs || (press.altKey && !ours)) return null;
   const key = (press.shiftKey && SHIFTED_BRACKETS[press.key]) || press.key.toLowerCase();
-  const chord = ours ? `mod+${press.shiftKey ? "shift+" : ""}${key}` : key;
+  const chord = ours
+    ? `mod+${press.altKey ? "alt+" : ""}${press.shiftKey ? "shift+" : ""}${key}`
+    : key;
   const action = BY_KEYS.get(chord);
   if (!action || (typing && !action.whileTyping)) return null;
   return action.id as ActionId;
@@ -232,7 +260,10 @@ export function useShortcuts(handlers: ShortcutHandlers): void {
 
 const MAC_NAMES: Record<string, string> = {
   mod: "⌘",
+  alt: "⌥",
   shift: "⇧",
+  arrowleft: "←",
+  arrowright: "→",
   enter: "↩",
   escape: "Esc",
   backspace: "⌫",
@@ -240,13 +271,18 @@ const MAC_NAMES: Record<string, string> = {
 
 const OTHER_NAMES: Record<string, string> = {
   mod: "Ctrl",
+  alt: "Alt",
   shift: "Shift",
+  arrowleft: "←",
+  arrowright: "→",
   enter: "Enter",
   escape: "Esc",
   backspace: "Backspace",
 };
 
-const NAMED_KEYS = ["enter", "escape", "backspace"];
+const NAMED_KEYS = ["enter", "escape", "backspace", "arrowleft", "arrowright"];
+
+const MODIFIERS = ["mod", "alt", "shift"];
 
 /** Shift turns a bracket into a brace on US layouts, and the registry names
  * the key on the keycap. */

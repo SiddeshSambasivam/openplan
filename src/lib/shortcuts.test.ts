@@ -17,16 +17,19 @@ function press(key: string, mods: Partial<KeyPress> = {}): KeyPress {
 
 /** The key event a person makes for a registry key string on a platform. */
 function pressFor(keys: string, platform: Platform): KeyPress {
-  const { mod, shift, key } = parseKeys(keys);
+  const { mod, alt, shift, key } = parseKeys(keys);
   const names: Record<string, string> = {
     enter: "Enter",
     escape: "Escape",
     backspace: "Backspace",
+    arrowleft: "ArrowLeft",
+    arrowright: "ArrowRight",
   };
   const name = names[key] ?? key;
   return press(shift ? name.toUpperCase() : name, {
     metaKey: mod && platform === "mac",
     ctrlKey: mod && platform === "other",
+    altKey: alt,
     shiftKey: shift || key === "?",
   });
 }
@@ -47,6 +50,11 @@ describe("formatKeys", () => {
     expect(formatKeys("mod+enter", "other")).toEqual(["Ctrl", "Enter"]);
     expect(formatKeys("mod+backspace", "other")).toEqual(["Ctrl", "Backspace"]);
     expect(keysLabel("mod+shift+a", "other")).toBe("Ctrl+Shift+A");
+  });
+
+  it("orders option like the system does and names the arrows", () => {
+    expect(formatKeys("mod+alt+arrowleft", "mac")).toEqual(["⌥", "⌘", "←"]);
+    expect(formatKeys("mod+alt+arrowright", "other")).toEqual(["Ctrl", "Alt", "→"]);
   });
 
   it("shows a bare key as itself", () => {
@@ -109,6 +117,14 @@ describe("shortcutFor", () => {
     expect(shortcutFor(press("a", { metaKey: true }), "mac", false)).toBe("selectAll");
     expect(shortcutFor(press("Backspace", { metaKey: true }), "mac", false)).toBe("deletePlans");
     expect(shortcutFor(press("Backspace", { ctrlKey: true }), "other", false)).toBe("deletePlans");
+  });
+
+  it("steps between a plan's tabs with option and the platform's modifier", () => {
+    expect(shortcutFor(press("ArrowLeft", { metaKey: true, altKey: true }), "mac", false)).toBe("previousTab");
+    expect(shortcutFor(press("ArrowRight", { ctrlKey: true, altKey: true }), "other", false)).toBe("nextTab");
+    expect(shortcutFor(press("ArrowRight", { metaKey: true }), "mac", false)).toBeNull();
+    expect(shortcutFor(press("ArrowRight", { altKey: true }), "mac", false)).toBeNull();
+    expect(shortcutFor(press("ArrowLeft", { metaKey: true, altKey: true }), "mac", true)).toBeNull();
   });
 
   it("builds with shift added to the send review chord", () => {
