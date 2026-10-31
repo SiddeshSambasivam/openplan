@@ -156,6 +156,20 @@ describe("forYou", () => {
     expect(groups.review.map((p) => p.id)).toEqual(["review"]);
     expect(groups.answered).toEqual([]);
   });
+
+  it("lists the plans with questions waiting first, above a review", () => {
+    const waiting = (path: string, pendingQuestions: number) =>
+      [path, { path, pendingQuestions }] as const;
+    const groups = forYou(
+      [review, quiet, replied],
+      [{ path: replied.path, open: 1, answered: true }],
+      new Map([waiting(review.path, 2), waiting(quiet.path, 0)]),
+    );
+
+    expect(groups.questions.map((p) => p.id)).toEqual(["review"]);
+    expect(groups.review).toEqual([]);
+    expect(groups.answered.map((p) => p.id)).toEqual(["replied"]);
+  });
 });
 
 describe("pageTitle", () => {
@@ -246,8 +260,13 @@ describe("viewOrder", () => {
     );
   });
 
-  it("reads For you as reviews, then answered threads", () => {
-    expect(viewOrder("for-you", plans, summaries).map((p) => p.id)).toEqual(["review", "doing"]);
+  it("reads For you as questions, then reviews, then answered threads", () => {
+    const progress = new Map([["/base/draft-old.md", { pendingQuestions: 1 }]]);
+    expect(viewOrder("for-you", plans, summaries, progress).map((p) => p.id)).toEqual([
+      "draft-old",
+      "review",
+      "doing",
+    ]);
   });
 });
 

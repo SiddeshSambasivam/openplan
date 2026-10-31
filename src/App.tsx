@@ -1493,9 +1493,9 @@ export default function App() {
   const shownPlans = useMemo(() => filterByFolder(plans, folder), [plans, folder]);
 
   const forYouCount = useMemo(() => {
-    const waiting = forYou(shownPlans, summaries);
-    return waiting.review.length + waiting.answered.length;
-  }, [shownPlans, summaries]);
+    const waiting = forYou(shownPlans, summaries, workProgress);
+    return waiting.questions.length + waiting.review.length + waiting.answered.length;
+  }, [shownPlans, summaries, workProgress]);
 
   const title = useMemo(() => {
     if (!activeDoc) return null;
@@ -1590,14 +1590,14 @@ export default function App() {
   const openPalette = useCallback(() => paletteRef.current?.open(), []);
   const stepPlan = useCallback(
     (step: 1 | -1) => {
-      const order = viewOrder(listViewRef.current, shownPlans, summaries);
+      const order = viewOrder(listViewRef.current, shownPlans, summaries, workProgress);
       const next = steppedPlan(order, activePlanPath, step);
       if (!next) return;
       // Stepping walks the view's order, so back still returns to the view.
       if (mainView === "plan") openFilePaths([next.path]);
       else selectPlan(next);
     },
-    [shownPlans, summaries, activePlanPath, mainView, openFilePaths, selectPlan],
+    [shownPlans, summaries, workProgress, activePlanPath, mainView, openFilePaths, selectPlan],
   );
   const lastPlan = sections.recent[0];
   const stepNavbar = (step: 1 | -1) => {

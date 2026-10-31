@@ -7,6 +7,7 @@ import {
   GitPullRequestClosed,
   GitPullRequestCreate,
   GitPullRequestDraft,
+  MessageCircleQuestionMark,
   MessageSquareText,
   User,
   type LucideIcon,
@@ -17,11 +18,12 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { shortDate } from "@/lib/board";
 import type { CardDisplay } from "@/lib/cardDisplay";
-import { SOURCE_LABELS, type PlanSummary } from "@/lib/planBase";
+import { SOURCE_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import {
   mostAdvancedPr,
   ownerAvatarUrl,
+  pendingQuestionsLabel,
   PR_MARKS,
   progressText,
   prSummaryText,
@@ -126,6 +128,7 @@ export function PlanRowFacts({
       )}
       {display.sessions && <LiveMark sessions={sessions} />}
       {display.source && <HandledBy source={plan.source} className="hidden md:grid" />}
+      <QuestionCount count={work?.pendingQuestions ?? 0} status={plan.status} />
       <ThreadCount open={open} />
       {display.progress && <TodoProgress progress={work} />}
       {display.prs && <PrCount prs={work?.prs} />}
@@ -291,6 +294,26 @@ export function ThreadCount({ open }: { open: number }) {
     >
       <MessageSquareText className="size-3" />
       {open}
+    </span>
+  );
+}
+
+/** Questions an agent posted that wait for the person. Nothing is shown when
+ * none do. Once the work has started, a question holds it up, and the mark
+ * says so in the foreground colour. */
+export function QuestionCount({ count, status }: { count: number; status: Status }) {
+  const label = pendingQuestionsLabel(count, status);
+  if (!label) return null;
+  return (
+    <span
+      title={`${count} ${count === 1 ? "question waits" : "questions wait"} for your answer`}
+      className={cn(
+        "flex shrink-0 items-center gap-1 whitespace-nowrap tabular-nums",
+        status === "in-progress" && "font-medium text-foreground",
+      )}
+    >
+      <MessageCircleQuestionMark className="size-3" />
+      {label}
     </span>
   );
 }

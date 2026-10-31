@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { PrSummary } from "@/lib/work";
-import { PrCount, PrGlyph, RepoMark } from "./PlanFacts";
+import { PrCount, PrGlyph, QuestionCount, RepoMark } from "./PlanFacts";
 
 const summary = (states: PrSummary["reported"][number]["state"][], expected = true) => ({
   reported: states.map((state, index) => ({
@@ -71,5 +71,17 @@ describe("RepoMark", () => {
   it("keeps the repo icon for other hosts and the folder icon for plain folders", () => {
     expect(drawn("gitlab.com/owner/repo")).toContain("lucide-folder-git2");
     expect(drawn(undefined)).toContain("lucide-folder ");
+  });
+});
+
+describe("QuestionCount", () => {
+  it("counts the questions waiting, and says the work waits once it has started", () => {
+    expect(renderToStaticMarkup(<QuestionCount count={2} status="alignment" />)).toContain(
+      "2 questions",
+    );
+    expect(renderToStaticMarkup(<QuestionCount count={2} status="in-progress" />)).toContain(
+      "Needs your answer",
+    );
+    expect(renderToStaticMarkup(<QuestionCount count={0} status="alignment" />)).toBe("");
   });
 });

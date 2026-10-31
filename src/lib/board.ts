@@ -1,5 +1,6 @@
 import { documentLabel } from "./planTree";
 import { STATUS_FLOW, STATUS_ORDER, type PlanSummary, type Status } from "./planBase";
+import type { PlanProgress } from "./work";
 
 /** Finished work: kept, folded away until someone opens it. */
 export const FOLDED: Status[] = ["completed", "archived"];
@@ -48,23 +49,28 @@ export function statusGroups(plans: PlanSummary[]): StatusGroup[] {
 }
 
 /**
- * What waits on the person: a plan whose pull request is open, or one where
- * an agent answered a thread and nobody has closed it. A plan appears once,
- * under the reason that asks the most of them.
+ * What waits on the person: a plan with questions an agent posted, one whose
+ * pull request is open, or one where an agent answered a thread and nobody
+ * has closed it. A plan appears once, under the reason that asks the most of
+ * them: unanswered questions hold an agent up.
  */
 export function forYou(
   plans: PlanSummary[],
   summaries: ReviewSummary[],
-): { review: PlanSummary[]; answered: PlanSummary[] } {
+  progress: Map<string, Pick<PlanProgress, "pendingQuestions">> = new Map(),
+): { questions: PlanSummary[]; review: PlanSummary[]; answered: PlanSummary[] } {
   const answeredPaths = new Set(
     summaries.filter((s) => s.answered).map((s) => s.path),
   );
+  const asks = (plan: PlanSummary) => (progress.get(plan.path)?.pendingQuestions ?? 0) > 0;
   const sorted = sortPlans(plans);
-  const review = sorted.filter((plan) => plan.status === "in-review");
-  const answered = sorted.filter(
+  const questions = sorted.filter(asks);
+  const rest = sorted.filter((plan) => !asks(plan));
+  const review = rest.filter((plan) => plan.status === "in-review");
+  const answered = rest.filter(
     (plan) => plan.status !== "in-review" && answeredPaths.has(plan.path),
   );
-  return { review, answered };
+  return { questions, review, answered };
 }
 
 /** The plans in the order a view shows them, top to bottom and column by
@@ -73,10 +79,11 @@ export function viewOrder(
   view: "board" | "list" | "for-you",
   plans: PlanSummary[],
   summaries: ReviewSummary[],
+  progress?: Map<string, Pick<PlanProgress, "pendingQuestions">>,
 ): PlanSummary[] {
   if (view === "for-you") {
-    const { review, answered } = forYou(plans, summaries);
-    return [...review, ...answered];
+    const { questions, review, answered } = forYou(plans, summaries, progress);
+    return [...questions, ...review, ...answered];
   }
   const groups = view === "board" ? boardColumns(plans) : statusGroups(plans);
   return groups.flatMap((group) => group.plans);

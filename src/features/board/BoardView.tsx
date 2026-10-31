@@ -10,6 +10,7 @@ import {
   NewBadge,
   PrCount,
   RepoLine,
+  QuestionCount,
   ThreadCount,
   TodoProgress,
 } from "@/components/PlanFacts";
@@ -107,6 +108,7 @@ function Card({
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             {display.sessions && <LiveMark sessions={sessions} />}
             {display.source && <HandledBy source={plan.source} />}
+            <QuestionCount count={work?.pendingQuestions ?? 0} status={plan.status} />
             <ThreadCount open={open} />
             {display.progress && <TodoProgress progress={work} />}
             {display.prs && <PrCount prs={work?.prs} />}

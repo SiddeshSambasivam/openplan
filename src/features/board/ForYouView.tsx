@@ -1,4 +1,4 @@
-import { MessageSquareText } from "lucide-react";
+import { MessageCircleQuestionMark, MessageSquareText } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { NewBadge, PlanRowFacts } from "@/components/PlanFacts";
 import type { CardDisplay } from "@/lib/cardDisplay";
@@ -103,28 +103,41 @@ export function ForYouView({
   progress,
   display,
 }: ForYouViewProps) {
-  const groups = useMemo(() => forYou(plans, summaries), [plans, summaries]);
+  const groups = useMemo(
+    () => forYou(plans, summaries, progress),
+    [plans, summaries, progress],
+  );
   const openThreads = useMemo(
     () => new Map(summaries.map((summary) => [summary.path, summary.open])),
     [summaries],
   );
   const nothingWaiting =
-    groups.review.length === 0 && groups.answered.length === 0;
+    groups.questions.length + groups.review.length + groups.answered.length === 0;
 
   return (
     <div className="h-full overflow-y-auto pb-20">
       <p className="border-b border-border px-4 py-2.5 text-xs text-muted-foreground">
-        Plans waiting on you: in review, or an agent answered your comment and
-        the thread is still open.
+        Plans waiting on you: an agent asked you something, the plan is in
+        review, or an agent answered your comment and the thread is still open.
       </p>
       {nothingWaiting ? (
         <p className="animate-in fade-in-0 p-10 text-center text-sm leading-6 text-muted-foreground duration-200">
           Nothing is waiting on you.
           <br />
-          Plans land here when a review opens or an agent replies.
+          Plans land here when an agent asks or replies, or a review opens.
         </p>
       ) : (
         <>
+          <Group
+            icon={<MessageCircleQuestionMark className="size-3.5 text-muted-foreground" />}
+            label="Waiting for your answer"
+            plans={groups.questions}
+            openThreads={openThreads}
+            sessions={sessions}
+            progress={progress}
+            display={display}
+            onOpen={onOpen}
+          />
           <Group
             icon={<StatusGlyph status="in-review" />}
             label="Waiting for your review"
