@@ -150,6 +150,12 @@ async fn delete_comments(path: String) -> Result<(), String> {
     openplan_core::sidecar::delete_comments(Path::new(&path))
 }
 
+/// `None` means no work has been recorded for the plan yet.
+#[tauri::command]
+async fn read_work_record(path: String) -> Result<Option<openplan_core::work::WorkRecord>, String> {
+    openplan_core::work::read(Path::new(&path))
+}
+
 /// Build the markdown tree of a folder for the sidebar's nested list view.
 #[tauri::command]
 async fn scan_folder(path: String) -> Result<ScanResult, String> {
@@ -250,6 +256,7 @@ pub fn run() {
             scan_folder,
             classify_paths,
             read_comments,
+            read_work_record,
             write_comments,
             delete_comments
         ])
