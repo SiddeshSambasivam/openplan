@@ -1,5 +1,6 @@
 mod onboarding;
 mod plans;
+mod pull_requests;
 mod review;
 mod sessions;
 
@@ -315,6 +316,7 @@ pub fn run() {
             plans::answer_questions,
             plans::plan_at_revision,
             plans::restore_plan_revision,
+            pull_requests::refresh_pr_state,
             review::review_summaries,
             sessions::live_sessions,
             sessions::send_comments,

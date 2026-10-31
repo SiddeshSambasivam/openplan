@@ -208,7 +208,7 @@ pub enum TodoState {
     Dropped,
 }
 
-/// What the agent last reported. The app never fetches PR state.
+/// What the agent last reported, or what the app last read from the host.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Pr {
@@ -451,6 +451,33 @@ pub fn record_pr(record: &mut WorkRecord, pr: Pr) {
         Some(existing) => *existing = pr,
         None => record.prs.push(pr),
     }
+}
+
+/// The PRs whose state can still move. A merged one never does.
+pub fn unmerged_prs(record: &WorkRecord) -> Vec<String> {
+    record
+        .prs
+        .iter()
+        .filter(|p| p.state != PrState::Merged)
+        .map(|p| p.url.clone())
+        .collect()
+}
+
+/// Writes PR states read from the host, as `by`. Only the state moves: the
+/// checks and the review stay as the agent last reported them. A url the
+/// record does not hold is ignored. Returns how many PRs changed.
+pub fn set_pr_states(record: &mut WorkRecord, states: &[(String, PrState)], by: &str) -> usize {
+    let mut changed = 0;
+    for (url, state) in states {
+        let Some(pr) = record.prs.iter_mut().find(|p| &p.url == url && p.state != *state) else {
+            continue;
+        };
+        pr.state = *state;
+        pr.by = by.to_string();
+        pr.reported_at = now_iso();
+        changed += 1;
+    }
+    changed
 }
 
 /// Numbers the decisions after the highest existing id and stamps them.
@@ -1184,6 +1211,37 @@ mod tests {
         assert_eq!(record.prs.len(), 2);
         assert_eq!(record.prs[0].url, "https://x/pull/1");
         assert_eq!(record.prs[0].state, PrState::Merged);
+    }
+
+    #[test]
+    fn a_state_read_from_the_host_changes_only_the_prs_that_moved() {
+        let mut record = WorkRecord::default();
+        record_pr(&mut record, pr("https://x/pull/1", PrState::Open));
+        record_pr(&mut record, pr("https://x/pull/2", PrState::Open));
+        let checks = record.prs[0].checks;
+
+        let read = [
+            ("https://x/pull/1".to_string(), PrState::Merged),
+            ("https://x/pull/2".to_string(), PrState::Open),
+            ("https://x/pull/9".to_string(), PrState::Merged),
+        ];
+        let changed = set_pr_states(&mut record, &read, "openplan");
+
+        assert_eq!(changed, 1);
+        assert_eq!(record.prs.len(), 2);
+        assert_eq!((record.prs[0].state, record.prs[0].by.as_str()), (PrState::Merged, "openplan"));
+        assert_eq!(record.prs[0].checks, checks);
+        assert_eq!((record.prs[1].state, record.prs[1].by.as_str()), (PrState::Open, "claude-code"));
+    }
+
+    #[test]
+    fn the_unmerged_prs_are_the_ones_worth_reading_again() {
+        let mut record = WorkRecord::default();
+        for (n, state) in [PrState::Open, PrState::Merged, PrState::Draft, PrState::Closed].into_iter().enumerate() {
+            record_pr(&mut record, pr(&format!("https://x/pull/{n}"), state));
+        }
+
+        assert_eq!(unmerged_prs(&record), ["https://x/pull/0", "https://x/pull/2", "https://x/pull/3"]);
     }
 
     #[test]
