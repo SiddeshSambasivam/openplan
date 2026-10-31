@@ -18,6 +18,7 @@ import { Sidebar } from "./components/Sidebar";
 import { PlanMetaBar } from "./components/PlanMetaBar";
 import { HistoryPanel } from "./features/history/HistoryPanel";
 import { SettingsDialog } from "./features/settings/SettingsDialog";
+import { Onboarding } from "./features/onboarding/Onboarding";
 import { Outline } from "./components/Outline";
 import { Viewer } from "./components/Viewer";
 import { directoryEntryToTree, fileListToTree } from "./lib/browserFs";
@@ -224,6 +225,33 @@ export default function App() {
   const { base, plans, refresh: refreshPlans, arrivals } = usePlanBase();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // null until the answer is known, so the wizard neither flashes for people
+  // who have been here before nor gets skipped for people who haven't.
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!isTauri) {
+      setNeedsOnboarding(false);
+      return;
+    }
+    void import("@tauri-apps/api/core").then(({ invoke }) =>
+      invoke<{ name: string | null; onboarded: boolean }>("app_settings")
+        .then((s) => setNeedsOnboarding(!s.onboarded))
+        .catch(() => setNeedsOnboarding(false)),
+    );
+  }, []);
+
+  const finishOnboarding = useCallback(
+    (name: string | null) => {
+      void import("@tauri-apps/api/core").then(({ invoke }) =>
+        invoke("complete_onboarding", { name }).then(() => {
+          setNeedsOnboarding(false);
+          refreshPlans();
+        }),
+      );
+    },
+    [refreshPlans],
+  );
 
   const [dirty, setDirty] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -1307,6 +1335,8 @@ export default function App() {
       />
 
       {dragging && <DropOverlay />}
+
+      {needsOnboarding && <Onboarding onDone={finishOnboarding} />}
 
       {notice && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-border bg-popover px-4 py-2 text-sm text-popover-foreground shadow-md">

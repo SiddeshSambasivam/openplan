@@ -1,3 +1,4 @@
+mod onboarding;
 mod plans;
 
 use std::path::Path;
@@ -201,6 +202,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            onboarding::app_settings,
+            onboarding::complete_onboarding,
+            onboarding::reset_onboarding,
+            onboarding::discover_sources,
+            onboarding::import_source,
+            onboarding::install_tool,
             plans::get_base,
             plans::scan_plans,
             plans::get_standards,

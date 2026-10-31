@@ -4,6 +4,8 @@
 pub mod base;
 pub mod discovery;
 pub mod fs;
+pub mod import;
+pub mod integrations;
 pub mod library;
 pub mod plan;
 pub mod repo;

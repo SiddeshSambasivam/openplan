@@ -189,25 +189,23 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 
 ## 4. User flows
 
-### 4.1 First-run onboarding
+### 4.1 First-run onboarding (designed with Sid, 2026-08-16 — P3.0; built)
 
-Design goal: **low effort, high quality**. Zero questions before value — the user
-never configures anything to get started; the first screen already shows their plans.
+Three stages, every one skippable. Detection runs during the hello, so each
+screen is answered before it is reached. A dev-only "Replay onboarding" button in
+Settings resets the flag for testing; imported plans stay, and re-importing skips
+what is already filed.
 
-1. On first launch the app silently creates `~/.openplan` (0700, `git init`,
-   `openplan.json`, default `STANDARDS.md`, initial commit) **and immediately runs
-   the discovery scan** (fast, local, read-only) while the welcome screen renders.
-2. **One screen: "Bring your plans in."** Three source cards — Claude Code, Codex,
-   Cursor — each already showing live results ("Claude Code — 12 plans found") with
-   a beautifului-style shimmer + expandable trace while scanning finishes. Cards
-   with results expand to approval-card previews, all pre-checked. One primary
-   button: **[Sync N plans]** → import (frontmatter synth + attributed commit) →
-   library. [Start empty] is the quiet secondary path.
-3. **Connect agents** → same three cards flip to their connect state (✓ MCP
-   registered after the bundled installer runs). [Do this later] link.
-4. Land in library with imported plans; welcome doc explains the loop. Base
-   location, relocation, and GitHub/GitLab remote live in settings — power-user
-   territory, out of the golden path.
+1. **Hello** — the wordmark rises in (staggered entrances), asks what to call
+   them, and shows the agent tools found on this machine (Claude Code / Codex /
+   Cursor) as Detected / Not found, pre-selected when installed.
+2. **Import** — what discovery found: each agent's loose plans, and folders that
+   look like plans (by name and markdown content, 400ms scan budget). Importing
+   **copies** — the originals stay put — and the copy states it plainly. Result
+   line: "9 plans filed (94 documents) · 1 already there".
+3. **Connect** — for each selected tool: register the `openplan` MCP server and
+   add the conventions block to its instruction file (managed block, its own
+   text untouched). Per-step results shown; then into the app.
 
 ### 4.2 Reading & tracking
 
@@ -690,20 +688,22 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 
 ### Phase 2 — Agent integration
 - [x] P2.1 `cli/` crate scaffold: `openplan init|list|add|doctor` **(T: temp base)**
-- [ ] P2.2 MCP server (`rmcp`, stdio): `create_plan`, `read_plan`, `list_plans`,
-      `update_plan`, `set_status` **(T: in-process stdio harness)**
+- [x] P2.2 MCP server (stdio): `create_plan`, `read_plan`, `list_plans`,
+      `get_standards` **(T: real-binary stdio session)**. `update_plan` and
+      `set_status` still to come. Hand-rolled sync JSON-RPC, not rmcp — see log
 - [ ] P2.3 MCP comment tools: `get_comments` (golden-file format), `reply_comment`,
       `resolve_comment` **(T)**
-- [ ] P2.4 `get_standards` + STANDARDS digest in `create_plan` description; standards
-      editor entry point in app **(T)**
+- [x] P2.4 `get_standards` (built-in + overrides) + standards guidance in
+      `create_plan`'s description; standards editor already in Settings **(T)**
 - [ ] P2.4b Curation tools `archive_plan`, `rename_plan` (git-mv) + tidy-up
       instructions in the integration skill (FR-13) **(T)**
-- [ ] P2.5 `openplan install claude-code` (MCP add + plugin in
-      `integrations/claude-code/`) **(T: dry-run mode)**
-- [ ] P2.6 `openplan install codex` (config.toml append + AGENTS.md snippet)
-      **(T: dry-run mode)**
-- [ ] P2.7 `openplan install cursor` (`~/.cursor/mcp.json` + rules snippet; verify
-      current Cursor config paths first) **(T: dry-run mode)**
+- [x] P2.5 `openplan install claude-code` — `claude mcp add-json` + managed
+      block in `~/.claude/CLAUDE.md` **(T: dry-run writes nothing)**. Verified
+      live: `claude mcp get openplan` → ✓ Connected
+- [x] P2.6 `openplan install codex` — `config.toml` entry + managed block in
+      `~/.codex/AGENTS.md` **(T: idempotent)**. Run live
+- [x] P2.7 `openplan install cursor` — merged into `~/.cursor/mcp.json`,
+      existing servers preserved **(T)**. Run live. Rules snippet still open
 - [ ] P2.8 Bundle CLI as Tauri sidecar binary; app "Connect agent" cards run
       installers + `doctor` verification
 - [ ] P2.9 CI: build + attach CLI binaries alongside app installers
@@ -711,26 +711,17 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       Codex, and Cursor; live appearance in app; standards served)
 
 ### Phase 3 — Onboarding & auto-discovery
-- [ ] **P3.0 Onboarding design session — Sid + agent, collaborative (do this FIRST,
-      before any P3 UI work).** §4.1 is a sketch, not the design. Together work out
-      the end-to-end experience covering, at minimum:
-      1. auto-sync of existing plans (discovery → import),
-      2. reorganizing/cleaning imported plans so the base starts tidy (curation
-         pass as part of import, not just later — naming, dedupe, archive stale),
-      3. installing MCP into the apps the user actually uses (Claude Code / Codex /
-         Cursor — detect what's installed, only offer those),
-      4. verifying each integration actually works (a real round-trip check, not
-         just "config written"),
-      5. updating each app's root startup file so agents default to OpenPlan —
-         e.g. for Claude Code, add a `~/.claude/CLAUDE.md` override directing plans
-         to OpenPlan instead of the default plans location; equivalents for
-         AGENTS.md / Cursor rules.
-      Output: an agreed flow (screens + copy + edge cases) recorded in this file
-      under §4.1 before P3.4–P3.6 build it.
-- [ ] P3.1 `openplan-core::discovery` — Claude Code scanner **(T: fixture home dir)**
+- [x] **P3.0 Onboarding design session** — Sid dictated the flow 2026-08-16;
+      recorded in §4.1 and built the same day. Round-trip verification (4) is
+      the piece not yet in the wizard: installs report their steps, but nothing
+      yet drives the connected tool end-to-end. GATE 2's manual check covers it.
+- [x] P3.1 `openplan-core::discovery` — agent detection + loose-plan listing
+      **(T: fixture home dir)**
 - [ ] P3.2 Codex rollout scanner, feature-flagged **(T: fixture JSONL)**
-- [ ] P3.3 Import executor: copy + frontmatter synth + hash ledger + single commit **(T)**
-- [ ] P3.4 Onboarding wizard shell (full-screen overlay, steps of §4.1, resumable)
+- [x] P3.3 Import executor (`core::import`) — copy, frontmatter synth, the
+      document's own dates, dedupe by id **(T)**
+- [x] P3.4 Onboarding wizard (full-screen overlay, three stages, every one
+      skippable, dev-only replay from Settings)
 - [ ] P3.5 Discovery UI: shimmer scan progress + expandable trace + approval cards
       (beautifului patterns), 60fps
 - [ ] P3.6 Wire Connect-agents step (reuses P2.8); final onboarding polish pass
@@ -795,6 +786,9 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
 | 2026-08-15 | GATE 1 waived so Phase 2 could start; Phase 1 QA still owed | Sid, explicitly. Recorded per §2 Process, which requires a waiver be logged rather than assumed |
 | 2026-08-15 | Onboarding leads with importing an existing folder, not with mining agent transcripts | Measured (§6.7): agent internals yield 4 plans on a machine whose real corpus is a 10-set folder. Codex has no prose plan to find |
+| 2026-08-16 | MCP server is a hand-rolled synchronous JSON-RPC loop over stdio, not rmcp | At this surface (handshake, tool list, dispatch) the SDK buys an async runtime and little else; verified against the real client — `claude mcp get openplan` reports Connected. Revisit if the protocol surface grows |
+| 2026-08-16 | Installers write only inside a marked block in files other tools own; dry-run writes nothing | An install that rewrites someone's CLAUDE.md, or a dry-run that writes at all (caught in testing), is how trust is lost |
+| 2026-08-16 | Onboarding: hello → import → connect, each skippable, detection during the hello | Sid's design, P3.0 |
 | 2026-08-15 | Standards belong to the app, not the plan base; settings expose additions that layer on top | Sid: standards are a settings concept. A copy per base drifts, and nobody edits the one that shipped. Interoperability is preserved through `get_standards` rather than a file |
 | 2026-08-15 | Settings is a modal with its own section nav, opened from the sidebar's footer | Sid; matches where people look for it |
 | 2026-08-15 | Find (and later comment) highlights are drawn as positioned elements, not via the CSS Custom Highlight API | The desktop WebView keeps painting registered highlights after the registry is emptied and the colour removed; scrolling does not repaint them away. Verified in the app: registry `[]`, colour unset, still lit. Elements React unmounts are repainted by definition |

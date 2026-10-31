@@ -1,48 +1,14 @@
-//! `openplan` — the command line onto the plan base, and (from P2.2) the MCP
-//! server agents talk to. It links the same crate the app does, so what an
-//! agent writes and what the app reads cannot drift.
+//! `openplan` — the command line onto the plan base, and the MCP server
+//! agents talk to. It links the same crate the app does, so what an agent
+//! writes and what the app reads cannot drift.
+
+pub mod mcp;
 
 use openplan_core::base::Base;
-use openplan_core::plan::{self, Plan, PlanMeta, Status};
+use openplan_core::plan::Status;
 use openplan_core::repo::{self, Author};
-use openplan_core::{fs, library};
+use openplan_core::library;
 use std::path::Path;
-use std::time::UNIX_EPOCH;
-
-/// When a document was last written, as an ISO timestamp. Importing should
-/// carry a plan's own dates across, not stamp everything with the moment the
-/// import ran.
-fn modified_iso(path: &Path) -> Option<String> {
-    let secs = std::fs::metadata(path)
-        .ok()?
-        .modified()
-        .ok()?
-        .duration_since(UNIX_EPOCH)
-        .ok()?
-        .as_secs() as i64;
-    Some(iso_from_unix(secs))
-}
-
-/// Days-from-civil, inverted — exact for every date a file can carry.
-pub fn iso_from_unix(secs: i64) -> String {
-    let (days, time) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-    format!(
-        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
-        time / 3600,
-        (time % 3600) / 60,
-        time % 60
-    )
-}
 
 pub const USAGE: &str = "\
 openplan — manage the plans you and your coding agents share
@@ -52,6 +18,8 @@ usage:
   openplan list [status]     list plans, optionally only one status
   openplan add <file>        file an existing markdown document as a plan
   openplan doctor            check the base is healthy and report what is in it
+  openplan install <tool>    connect claude-code, codex, or cursor to the base
+  openplan mcp               serve MCP over stdio (agents run this, not people)
   openplan help              this text
 ";
 
@@ -75,6 +43,7 @@ pub fn run(args: &[String], ctx: &Context) -> Result<String, String> {
             None => Err("Which file? Try: openplan add ./plan.md".to_string()),
         },
         Some("doctor") => Ok(doctor(ctx)),
+        Some("install") => install(ctx, args.get(1).map(String::as_str), args.contains(&"--dry-run".to_string())),
         Some(other) => Err(format!("No such command: {other}\n\n{USAGE}")),
     }
 }
@@ -117,109 +86,42 @@ fn list(ctx: &Context, status_filter: Option<&str>) -> Result<String, String> {
         .join("\n"))
 }
 
-/// Copies a whole set in, keeping the documents and their order. The source
-/// is never touched — importing takes a copy, so what someone already has
-/// stays where they keep it.
-fn copy_tree(from: &Path, to: &Path) -> Result<usize, String> {
-    std::fs::create_dir_all(to).map_err(|e| format!("Couldn't create {}: {e}", to.display()))?;
-    let entries = std::fs::read_dir(from)
-        .map_err(|e| format!("Couldn't read {}: {e}", from.display()))?;
-    let mut copied = 0;
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        if name.to_string_lossy().starts_with('.') {
-            continue;
-        }
-        let (src, dst) = (entry.path(), to.join(&name));
-        match entry.file_type() {
-            Ok(t) if t.is_dir() => copied += copy_tree(&src, &dst)?,
-            Ok(t) if t.is_file() => {
-                std::fs::copy(&src, &dst)
-                    .map_err(|e| format!("Couldn't copy {}: {e}", src.display()))?;
-                copied += 1;
-            }
-            _ => {}
-        }
-    }
-    Ok(copied)
-}
-
-/// Files an existing plan set — a folder with a `README.md` — as one plan.
-fn add_set(ctx: &Context, source_dir: &Path, entry_name: &Path) -> Result<String, String> {
-    let text = fs::read_to_string(entry_name)?;
-    let title = plan::parse(&text, entry_name).meta.title;
-    let id = plan::slugify(&title);
-    let destination = ctx.base.plans_dir().join(&id);
-    if destination.exists() {
-        return Err(format!(
-            "There is already a plan called {id}. Rename it, or edit that one."
-        ));
-    }
-    let copied = copy_tree(source_dir, &destination)?;
-
-    // The set is named by its entry point, so that is what carries the metadata.
-    let filed_readme = destination.join(entry_name.file_name().unwrap());
-    let parsed = plan::parse(&fs::read_to_string(&filed_readme)?, &filed_readme);
-    let filed = Plan {
-        meta: PlanMeta {
-            id: id.clone(),
-            source: if parsed.derived { "import".to_string() } else { parsed.meta.source.clone() },
-            created: parsed.meta.created.clone().or_else(|| modified_iso(entry_name)),
-            updated: modified_iso(entry_name).or_else(|| Some(ctx.now.clone())),
-            ..parsed.meta.clone()
-        },
-        ..parsed
-    };
-    fs::atomic_write(&filed_readme, &plan::serialize(&filed))?;
-    repo::commit_all(&ctx.base.root, &ctx.author, &format!("add: {id}"))?;
-    Ok(format!("Filed {copied} documents as {}", destination.display()))
-}
-
-/// Files an existing document as a plan: copied in, given the frontmatter the
-/// app reads, and recorded. The body is left exactly as written, and the
-/// original stays where it is.
+/// Files an existing document or plan set. Importing copies; the original
+/// stays where it is.
 fn add(ctx: &Context, source_path: &Path) -> Result<String, String> {
-    if source_path.is_dir() {
-        return match library::set_entry(source_path) {
-            Some(entry) => add_set(ctx, source_path, &entry),
-            None => Err(format!(
-                "{} has no README.md and nothing numbered 00-, so there is no way \
-                 to tell what the plan is called.",
-                source_path.display()
-            )),
-        };
-    }
-    let text = fs::read_to_string(source_path)?;
-    let parsed = plan::parse(&text, source_path);
-    let id = plan::slugify(&parsed.meta.title);
-    let destination = ctx.base.plans_dir().join(format!("{id}.md"));
-    if destination.exists() {
-        return Err(format!(
-            "There is already a plan called {id}. Rename it, or edit that one."
-        ));
-    }
-
-    let filed = Plan {
-        meta: PlanMeta {
-            id: id.clone(),
-            source: if parsed.derived {
-                "import".to_string()
-            } else {
-                parsed.meta.source.clone()
-            },
-            created: parsed.meta.created.clone().or_else(|| modified_iso(source_path)),
-            updated: modified_iso(source_path).or_else(|| Some(ctx.now.clone())),
-            ..parsed.meta.clone()
-        },
-        ..parsed
-    };
-    fs::atomic_write(&destination, &plan::serialize(&filed))?;
-    repo::commit_all(
-        &ctx.base.root,
+    match openplan_core::import::import_path(
+        ctx.base,
         &ctx.author,
-        &format!("add: {id}"),
-    )?;
-    Ok(format!("Filed as {}", destination.display()))
+        "import",
+        source_path,
+        &ctx.now,
+    )? {
+        openplan_core::import::Outcome::Filed { id, documents } if documents > 1 => {
+            Ok(format!("Filed {documents} documents as {id}"))
+        }
+        openplan_core::import::Outcome::Filed { id, .. } => Ok(format!("Filed as {id}")),
+        openplan_core::import::Outcome::AlreadyThere { id } => Err(format!(
+            "There is already a plan called {id}. Rename it, or edit that one."
+        )),
+    }
+}
+
+fn install(ctx: &Context, tool: Option<&str>, dry_run: bool) -> Result<String, String> {
+    let home = dirs::home_dir().ok_or("Couldn't find your home directory.")?;
+    let cli = std::env::current_exe().map_err(|e| e.to_string())?;
+    let steps = match tool {
+        Some("claude-code") => openplan_core::integrations::install_claude_code(&home, &cli, dry_run)?,
+        Some("codex") => openplan_core::integrations::install_codex(&home, &cli)?,
+        Some("cursor") => openplan_core::integrations::install_cursor(&home, &cli)?,
+        Some(other) => return Err(format!("No such tool: {other}. Try claude-code, codex, or cursor.")),
+        None => return Err("Which tool? Try: openplan install claude-code".to_string()),
+    };
+    let _ = ctx; // installs touch the tool's files, not the base
+    Ok(steps
+        .iter()
+        .map(|s| format!("{}  {} ({})", if s.done { "ok" } else { "!!" }, s.label, s.detail))
+        .collect::<Vec<_>>()
+        .join("\n"))
 }
 
 fn doctor(ctx: &Context) -> String {
@@ -314,7 +216,7 @@ mod tests {
 
         let out = run_str(&["add", loose.to_str().unwrap()], &ctx(&base)).unwrap();
 
-        assert!(out.contains("auth-refactor.md"), "{out}");
+        assert!(out.contains("auth-refactor"), "{out}");
         let filed = std::fs::read_to_string(base.plans_dir().join("auth-refactor.md")).unwrap();
         assert!(filed.contains("title: Auth refactor"));
         assert!(filed.contains("source: import"));

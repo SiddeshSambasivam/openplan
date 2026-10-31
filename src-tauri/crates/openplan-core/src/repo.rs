@@ -64,6 +64,13 @@ pub fn has_commits(root: &Path) -> bool {
 /// nothing to commit, which is the common case and not a failure.
 pub fn commit_all(root: &Path, author: &Author, message: &str) -> Result<Option<String>, String> {
     let repo = open_or_init(root)?;
+    // A process killed mid-commit leaves the index locked forever — nothing
+    // else can be holding it between our short, single-writer operations, so
+    // a leftover lock is debris, not a writer.
+    let lock = root.join(".git").join("index.lock");
+    if lock.exists() {
+        let _ = std::fs::remove_file(&lock);
+    }
     let mut index = repo
         .index()
         .map_err(|e| format!("Couldn't read the history index: {e}"))?;

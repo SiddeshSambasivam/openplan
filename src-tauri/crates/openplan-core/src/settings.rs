@@ -16,6 +16,12 @@ pub struct Settings {
     /// has not written any.
     #[serde(rename = "standards", default, skip_serializing_if = "Option::is_none")]
     pub standards: Option<String>,
+    /// What the person asked to be called, from onboarding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Whether onboarding has been walked through on this machine.
+    #[serde(default)]
+    pub onboarded: bool,
 }
 
 /// `~/.config/openplan/settings.json`, or the platform's equivalent.
@@ -102,11 +108,16 @@ pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
         )?;
     }
 
+    let (standards, name, onboarded) = existing
+        .map(|s| (s.standards, s.name, s.onboarded))
+        .unwrap_or((None, None, false));
     write_settings(
         settings_file,
         &Settings {
             base_path: base.root.clone(),
-            standards: existing.and_then(|s| s.standards),
+            standards,
+            name,
+            onboarded,
         },
     )?;
     Ok(base)
@@ -139,6 +150,8 @@ mod tests {
         let settings = Settings {
             base_path: PathBuf::from("/somewhere/plans"),
             standards: Some("Name the reviewer.".to_string()),
+            name: Some("Sid".to_string()),
+            onboarded: true,
         };
 
         write_settings(&file, &settings).unwrap();
@@ -176,6 +189,8 @@ mod tests {
             &Settings {
                 base_path: default_base_path(&home),
                 standards: Some("Name the reviewer.".to_string()),
+                name: None,
+                onboarded: false,
             },
         )
         .unwrap();
@@ -235,6 +250,8 @@ mod tests {
             &Settings {
                 base_path: elsewhere.clone(),
                 standards: None,
+                name: None,
+                onboarded: false,
             },
         )
         .unwrap();

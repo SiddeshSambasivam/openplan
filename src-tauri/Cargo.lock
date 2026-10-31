@@ -2412,6 +2412,7 @@ dependencies = [
 name = "openplan"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "notify",
  "openplan-core",
  "serde",
@@ -2426,7 +2427,9 @@ dependencies = [
 name = "openplan-cli"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "openplan-core",
+ "serde_json",
 ]
 
 [[package]]
