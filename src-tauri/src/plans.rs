@@ -430,8 +430,9 @@ pub fn watch_base(app: tauri::AppHandle, base: Option<Base>) {
 /// it is a plan, which is what may need recording. Git's own bookkeeping
 /// churns constantly and is neither. Judged from inside the base, since the
 /// base itself is a dotted directory and every path under it would otherwise
-/// look hidden. A comment sidecar is content but is never recorded here: a
-/// pending thread is committed when its review is sent.
+/// look hidden. A sidecar is content but is never recorded here: a pending
+/// comment thread is committed when its review is sent, and agents commit
+/// their own work record writes.
 fn touched(root: &Path, event: &notify::Result<notify::Event>) -> (bool, bool) {
     let Ok(event) = event else { return (false, false) };
     let mut content = false;
@@ -440,7 +441,8 @@ fn touched(root: &Path, event: &notify::Result<notify::Event>) -> (bool, bool) {
         let Ok(inside) = path.strip_prefix(root) else {
             continue;
         };
-        let sidecar = |name: &str| name.ends_with("oplan-comments.json");
+        let sidecar =
+            |name: &str| name.ends_with("oplan-comments.json") || name.ends_with("oplan-work.json");
         if inside.components().any(|c| {
             let name = c.as_os_str().to_str().unwrap_or("");
             name.starts_with('.') && !sidecar(name)
@@ -507,6 +509,22 @@ mod tests {
         let sidecar = root.join("plans").join(".a.md.oplan-comments.json");
 
         assert_eq!(touched(&root, &event(sidecar)), (true, false));
+    }
+
+    #[test]
+    fn a_work_record_is_read_again_but_not_recorded() {
+        let root = PathBuf::from("/base");
+        let record = root.join("plans").join(".a.md.oplan-work.json");
+
+        assert_eq!(touched(&root, &event(record)), (true, false));
+    }
+
+    #[test]
+    fn a_work_record_lock_is_neither() {
+        let root = PathBuf::from("/base");
+        let lock = root.join("plans").join(".a.md.oplan-work.json.lock");
+
+        assert_eq!(touched(&root, &event(lock)), (false, false));
     }
 
     #[test]
