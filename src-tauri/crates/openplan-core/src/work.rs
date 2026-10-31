@@ -89,6 +89,10 @@ pub struct Question {
     pub answer: Option<Answer>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub answered_by: Option<String>,
+    /// Questions recorded in one call are one round. Questions from before
+    /// rounds have none and count as the first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub round: Option<u32>,
 }
 
 /// One option offered for a question.
@@ -309,8 +313,9 @@ pub fn update_todo(
     Ok(todo.clone())
 }
 
-/// Records the questions as answered. Refused, with the ids of the questions
-/// that have no answer, unless every one has an answer.
+/// Records answered questions as one round, keeping the earlier rounds.
+/// Refused, with the ids of the questions that have no answer, unless every
+/// one sent has an answer.
 pub fn record_alignment(
     record: &mut WorkRecord,
     questions: Vec<Question>,
@@ -323,13 +328,7 @@ pub fn record_alignment(
     if !unanswered.is_empty() {
         return Err(unanswered);
     }
-    let now = now_iso();
-    let asked_at = record.alignment.take().map_or(now.clone(), |a| a.asked_at);
-    record.alignment = Some(Alignment {
-        asked_at,
-        recorded_at: Some(now),
-        questions,
-    });
+    merge_round(record, questions);
     Ok(())
 }
 
@@ -479,6 +478,34 @@ pub fn absorb_pr(record: &mut WorkRecord, url: &str) {
     );
 }
 
+/// Questions sent together are one round, after the highest one recorded. A
+/// question sent again under its id replaces its entry and keeps the round it
+/// was asked in. `recorded_at` says when every question last had an answer.
+fn merge_round(record: &mut WorkRecord, questions: Vec<Question>) {
+    let alignment = record.alignment.get_or_insert_with(|| Alignment {
+        asked_at: now_iso(),
+        recorded_at: None,
+        questions: Vec::new(),
+    });
+    let round = alignment.questions.iter().map(|q| q.round.unwrap_or(1)).max().unwrap_or(0) + 1;
+    for question in questions {
+        match alignment.questions.iter_mut().find(|q| q.id == question.id) {
+            Some(existing) => {
+                *existing = Question {
+                    round: existing.round,
+                    ..question
+                }
+            }
+            None => alignment.questions.push(Question {
+                round: Some(round),
+                ..question
+            }),
+        }
+    }
+    let answered = alignment.questions.iter().all(|q| q.answer.is_some());
+    alignment.recorded_at = answered.then(now_iso);
+}
+
 /// One more than the highest `<prefix><number>` id, so an id is never reused
 /// after its item is removed.
 fn next_number<'a>(ids: impl Iterator<Item = &'a str>, prefix: &str) -> usize {
@@ -569,6 +596,7 @@ mod tests {
             must_answer: false,
             answer,
             answered_by: Some("user".to_string()),
+            round: None,
         }
     }
 
@@ -829,6 +857,52 @@ mod tests {
 
         assert!(is_aligned(&record));
         assert!(record.alignment.as_ref().unwrap().recorded_at.is_some());
+    }
+
+    fn rounds(record: &WorkRecord) -> Vec<(String, Option<u32>)> {
+        let questions = &record.alignment.as_ref().unwrap().questions;
+        questions.iter().map(|q| (q.id.clone(), q.round)).collect()
+    }
+
+    #[test]
+    fn each_call_records_a_round_and_keeps_the_earlier_ones() {
+        let mut record = WorkRecord::default();
+        let agent = || Some(Answer::Agent {});
+        record_alignment(&mut record, vec![question("q1", agent()), question("q2", agent())]).unwrap();
+
+        record_alignment(&mut record, vec![question("q3", agent())]).unwrap();
+
+        let expected = [("q1", 1), ("q2", 1), ("q3", 2)].map(|(id, round)| (id.to_string(), Some(round)));
+        assert_eq!(rounds(&record), expected);
+        assert!(is_aligned(&record));
+    }
+
+    #[test]
+    fn a_question_sent_again_replaces_its_entry_and_keeps_its_round() {
+        let mut record = WorkRecord::default();
+        record_alignment(&mut record, vec![question("q1", Some(Answer::Agent {}))]).unwrap();
+        record_alignment(&mut record, vec![question("q2", Some(Answer::Agent {}))]).unwrap();
+        let text = Answer::Text {
+            text: "Only unit".to_string(),
+        };
+
+        record_alignment(&mut record, vec![question("q1", Some(text.clone()))]).unwrap();
+
+        let expected = [("q1", 1), ("q2", 2)].map(|(id, round)| (id.to_string(), Some(round)));
+        assert_eq!(rounds(&record), expected);
+        assert_eq!(record.alignment.unwrap().questions[0].answer, Some(text));
+    }
+
+    #[test]
+    fn questions_from_before_rounds_count_as_the_first() {
+        let mut record: WorkRecord = serde_json::from_str(
+            r#"{"alignment":{"askedAt":"x","recordedAt":"x","questions":[{"id":"q1","aspect":"tests","question":"Which tests?","options":[],"answer":{"kind":"agent"}}]}}"#,
+        )
+        .unwrap();
+
+        record_alignment(&mut record, vec![question("q2", Some(Answer::Agent {}))]).unwrap();
+
+        assert_eq!(rounds(&record), [("q1".to_string(), None), ("q2".to_string(), Some(2))]);
     }
 
     #[test]

@@ -115,6 +115,11 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         {"id":"q2","aspect":"scale","question":"How large a case?","options":[{"id":"a","label":"Today's largest"}],"recommended":"a","answer":{"kind":"agent"}}
     ]}}}"##.replace('\n', ""));
     assert_eq!(aligned["result"]["isError"], false, "{aligned}");
+    // A later round is recorded on its own, and the first one stays.
+    let second = ask(&r##"{"jsonrpc":"2.0","id":45,"method":"tools/call","params":{"name":"record_alignment","arguments":{"id":"auth-refactor","questions":[
+        {"id":"q3","aspect":"edge cases","question":"What if the refresh fails?","options":[{"id":"a","label":"Sign out"}],"recommended":"a","answer":{"kind":"option","options":["a"]}}
+    ]}}}"##.replace('\n', ""));
+    assert_eq!(second["result"]["isError"], false, "{second}");
 
     let decided = ask(r##"{"jsonrpc":"2.0","id":33,"method":"tools/call","params":{"name":"add_decisions","arguments":{"id":"auth-refactor","decisions":[{"context":"Where tokens live","options":["cookie","header"],"decision":"Tokens travel in a header.","why":"The API has no cookies.","fromQuestion":"q1"}]}}}"##);
     assert_eq!(decided["result"]["content"][0]["text"], "Recorded D1.", "{decided}");
@@ -195,6 +200,8 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let base_root = home.join(openplan_core::profile::base_dir_name());
     let plan_path = base_root.join("plans/auth-refactor.md");
     let record = openplan_core::work::read(&plan_path).unwrap().unwrap();
+    let asked: Vec<_> = record.alignment.as_ref().unwrap().questions.iter().map(|q| (q.id.as_str(), q.round)).collect();
+    assert_eq!(asked, [("q1", Some(1)), ("q2", Some(1)), ("q3", Some(2))]);
     assert_eq!(record.todos[0].detail, None, "a plain line is still a todo");
     assert_eq!(record.todos[1].text, "Test the refresh path");
     assert_eq!(record.todos[1].detail.as_deref(), Some("Cover an expired token and a revoked one."));

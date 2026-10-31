@@ -17,7 +17,7 @@ pub fn tools() -> Vec<Value> {
     vec![
         json!({
             "name": "record_alignment",
-            "description": "Record the alignment questions you asked in the harness and the person's answers, once the last answer arrives. Every question needs an answer. Fill each question's context and each option's consequence and tradeoff, so the plan page shows why it was asked and what each choice costs. A draft moves to alignment.",
+            "description": "Record alignment questions with the person's answers. Record each round's questions as they are answered. Earlier rounds stay recorded, so there is no need to resend them. A question sent again under its id replaces the recorded one. Every question you send needs an answer. Fill each question's context and each option's consequence and tradeoff, so the plan page shows why it was asked and what each choice costs. A draft moves to alignment.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -206,7 +206,7 @@ pub fn record_alignment(base: &Base, author: &str, args: &Value) -> Value {
     let recorded = change_record(&entry, |record| {
         work::record_alignment(record, questions).map_err(|ids| {
             format!(
-                "{} {} no answer. Ask in the harness, then call record_alignment again with every answer.",
+                "{} {} no answer. Record a question once the person answers it.",
                 listed(&ids),
                 if ids.len() == 1 { "has" } else { "have" }
             )
@@ -574,6 +574,7 @@ mod tests {
             must_answer: false,
             answer: Some(answer),
             answered_by: Some("user".to_string()),
+            round: None,
         }
     }
 
@@ -702,6 +703,15 @@ mod tests {
         assert!(question["properties"]["options"]["items"]["properties"]["tradeoff"]["description"].is_string());
         let description = tool["description"].as_str().unwrap();
         assert!(description.contains("context") && description.contains("tradeoff"), "{description}");
+    }
+
+    #[test]
+    fn record_alignment_takes_one_round_at_a_time() {
+        let tool = tools().into_iter().find(|t| t["name"] == "record_alignment").unwrap();
+        let description = tool["description"].as_str().unwrap();
+
+        assert!(description.contains("each round's questions as they are answered"), "{description}");
+        assert!(description.contains("no need to resend them"), "{description}");
     }
 
     #[test]

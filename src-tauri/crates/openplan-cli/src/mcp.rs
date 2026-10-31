@@ -714,6 +714,7 @@ mod tests {
                 must_answer: false,
                 answer: Some(Answer::Agent {}),
                 answered_by: Some("user".to_string()),
+                round: None,
             }],
         )
         .unwrap();
