@@ -1,5 +1,7 @@
 import {
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Columns3,
   Folder,
   FolderOpen,
@@ -7,8 +9,6 @@ import {
   Inbox,
   List,
   MoreHorizontal,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   Search,
   Settings,
@@ -165,16 +165,20 @@ export const Sidebar = memo(function Sidebar({
             row keeps its shape through the transition. */}
         <TooltipButton
           variant="ghost"
-          size="icon-sm"
+          size="icon-xs"
           onClick={onToggle}
           shortcut="navbar"
           tooltip={navbarToggleLabel(true)}
           aria-label={navbarToggleLabel(true)}
           aria-hidden={minimized || undefined}
           tabIndex={minimized ? -1 : undefined}
-          className={cn("text-muted-foreground", FADE, minimized && "pointer-events-none opacity-0")}
+          className={cn(
+            "text-muted-foreground hover:text-foreground",
+            FADE,
+            minimized && "pointer-events-none opacity-0",
+          )}
         >
-          <PanelLeftClose />
+          <ChevronLeft strokeWidth={1.5} className="size-4" />
         </TooltipButton>
       </div>
 
@@ -338,31 +342,35 @@ function NavRow({
  * control. */
 function ExpandMark({ onExpand }: { onExpand: () => void }) {
   const label = navbarToggleLabel(false);
+  // The slot keeps the mark where the rows' icons are; the button is smaller.
   return (
-    <TooltipButton
-      variant="ghost"
-      size="icon-sm"
-      onClick={onExpand}
-      shortcut="navbar"
-      tooltip={label}
-      tooltipSide="right"
-      aria-label={label}
-      aria-expanded={false}
-      className="group/mark relative text-sidebar-foreground"
-    >
-      <BrandMark
-        className={cn(
-          "size-4 group-hover/mark:scale-90 group-hover/mark:opacity-0 group-focus-visible/mark:scale-90 group-focus-visible/mark:opacity-0",
-          MORPH,
-        )}
-      />
-      <PanelLeftOpen
-        className={cn(
-          "absolute size-4 scale-90 opacity-0 group-hover/mark:scale-100 group-hover/mark:opacity-100 group-focus-visible/mark:scale-100 group-focus-visible/mark:opacity-100",
-          MORPH,
-        )}
-      />
-    </TooltipButton>
+    <span className="flex size-8 shrink-0 items-center justify-center">
+      <TooltipButton
+        variant="ghost"
+        size="icon-xs"
+        onClick={onExpand}
+        shortcut="navbar"
+        tooltip={label}
+        tooltipSide="right"
+        aria-label={label}
+        aria-expanded={false}
+        className="group/mark relative text-sidebar-foreground"
+      >
+        <BrandMark
+          className={cn(
+            "size-4 group-hover/mark:scale-90 group-hover/mark:opacity-0 group-focus-visible/mark:scale-90 group-focus-visible/mark:opacity-0",
+            MORPH,
+          )}
+        />
+        <ChevronRight
+          strokeWidth={1.5}
+          className={cn(
+            "absolute size-4 scale-90 text-muted-foreground opacity-0 group-hover/mark:scale-100 group-hover/mark:text-foreground group-hover/mark:opacity-100 group-focus-visible/mark:scale-100 group-focus-visible/mark:opacity-100",
+            MORPH,
+          )}
+        />
+      </TooltipButton>
+    </span>
   );
 }
 
