@@ -35,7 +35,7 @@ export function DisplayMenu({
           <Fragment key={key}>
             {/* The clamp shapes the card rather than adding a fact to it. */}
             {key === "clampTitle" && <div className="mx-2 my-1 h-px bg-border" />}
-            <label className="flex cursor-default items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
               {label}
               <Switch
                 checked={display[key]}

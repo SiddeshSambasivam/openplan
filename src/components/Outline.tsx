@@ -50,7 +50,7 @@ export function Outline({
             onClick={() => goTo(item.id)}
             style={{ paddingLeft: outlineIndentPx(item.level) + 8 }}
             className={cn(
-              "block w-full cursor-default truncate rounded-md py-1 pr-2 text-left text-xs leading-5 transition-colors",
+              "block w-full cursor-pointer truncate rounded-md py-1 pr-2 text-left text-xs leading-5 transition-colors",
               item.id === activeId
                 ? "bg-accent/60 font-medium text-foreground"
                 : "text-muted-foreground hover:text-foreground",

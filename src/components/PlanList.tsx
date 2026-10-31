@@ -104,7 +104,7 @@ function SetBranch({
               }
               style={{ paddingLeft: 44 + depth * 12 }}
               className={cn(
-                "flex w-full cursor-default items-center gap-1.5 border-b border-border py-1.5 pr-4 text-left text-xs transition-colors hover:bg-sidebar",
+                "flex w-full cursor-pointer items-center gap-1.5 border-b border-border py-1.5 pr-4 text-left text-xs transition-colors hover:bg-sidebar",
                 node.path === activeDocument
                   ? "bg-sidebar-accent/70 text-sidebar-foreground"
                   : "text-muted-foreground",
@@ -175,7 +175,7 @@ function SetFolder({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         style={{ paddingLeft: 32 + depth * 12 }}
-        className="flex w-full cursor-default items-center gap-1.5 border-b border-border py-1.5 pr-4 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar"
+        className="flex w-full cursor-pointer items-center gap-1.5 border-b border-border py-1.5 pr-4 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar"
       >
         <ChevronRight
           className={cn(
@@ -289,7 +289,7 @@ const PlanRow = memo(function PlanRow({
         }}
         aria-expanded={isSet ? expanded : undefined}
         className={cn(
-          "flex w-full cursor-default items-center gap-3 border-b border-border px-4 py-2 text-left text-sm text-foreground transition-colors hover:bg-sidebar",
+          "flex w-full cursor-pointer items-center gap-3 border-b border-border px-4 py-2 text-left text-sm text-foreground transition-colors hover:bg-sidebar",
           (plan.path === activePath || expanded) && "bg-sidebar-accent/60",
         )}
       >
@@ -492,7 +492,7 @@ export function PlanList({
               <button
                 onClick={() => setFoldOpen((open) => ({ ...open, [status]: !shown }))}
                 aria-expanded={shown}
-                className={cn(headingClass, "cursor-default hover:bg-sidebar-accent/60")}
+                className={cn(headingClass, "cursor-pointer hover:bg-sidebar-accent/60")}
               >
                 {heading}
               </button>

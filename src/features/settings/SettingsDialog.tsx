@@ -192,7 +192,7 @@ export function SettingsDialog({
                 key={id}
                 onClick={() => setSection(id)}
                 className={cn(
-                  "flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                  "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
                   section === id
                     ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60",
@@ -326,7 +326,7 @@ export function SettingsDialog({
                 </div>
 
                 <details className="mt-5">
-                  <summary className="cursor-default text-xs text-muted-foreground">
+                  <summary className="cursor-pointer text-xs text-muted-foreground">
                     What ships with OpenPlan
                   </summary>
                   <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-border bg-muted/40 p-3 text-xs leading-4 whitespace-pre-wrap text-muted-foreground">

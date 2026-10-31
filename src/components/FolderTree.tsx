@@ -21,7 +21,7 @@ interface TreeContext {
 const indent = (depth: number) => ({ paddingLeft: `${8 + depth * 14}px` });
 
 const rowClass =
-  "group/tip relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1.5 pr-2 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
+  "group/tip relative flex w-full cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-2 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
 
 function FileRow({
   leaf,

@@ -146,7 +146,7 @@ export function CommentsPanel({
     >
       <button
         onClick={() => onJumpTo(thread)}
-        className="block w-full cursor-default rounded-sm border-l-2 border-border pl-2 text-left"
+        className="block w-full cursor-pointer rounded-sm border-l-2 border-border pl-2 text-left"
       >
         <span className="line-clamp-2 text-xs text-muted-foreground italic">
           {thread.quote}
@@ -283,7 +283,7 @@ export function CommentsPanel({
               <button
                 onClick={() => setShowResolved((shown) => !shown)}
                 aria-expanded={showResolved}
-                className="flex w-full cursor-default items-center gap-1 pt-2 text-xs font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
+                className="flex w-full cursor-pointer items-center gap-1 pt-2 text-xs font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
               >
                 <ChevronRight
                   className={cn(

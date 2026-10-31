@@ -263,7 +263,7 @@ export const Sidebar = memo(function Sidebar({
 const ICON = "size-4 shrink-0 text-muted-foreground";
 
 const ROW =
-  "flex cursor-default items-center gap-2 rounded-md text-sm text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
+  "flex cursor-pointer items-center gap-2 rounded-md text-sm text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
 
 /** The one accent: where the main area is now. */
 const ACTIVE = "bg-sidebar-accent font-medium text-sidebar-accent-foreground";
@@ -406,7 +406,7 @@ function Section({
           aria-hidden={minimized || undefined}
           tabIndex={minimized ? -1 : undefined}
           className={cn(
-            "flex cursor-default items-center gap-1 rounded-md px-2 pb-1 text-xs font-medium whitespace-nowrap text-muted-foreground transition-[color,opacity] duration-180 ease-out hover:text-foreground",
+            "flex cursor-pointer items-center gap-1 rounded-md px-2 pb-1 text-xs font-medium whitespace-nowrap text-muted-foreground transition-[color,opacity] duration-180 ease-out hover:text-foreground",
             minimized && "pointer-events-none opacity-0",
           )}
         >

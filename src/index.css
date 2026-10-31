@@ -192,6 +192,22 @@
   * {
     border-color: var(--color-border);
   }
+  /* Anything that acts on a click says so. Disabled controls keep the
+     arrow, since nothing happens. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([data-disabled]),
+  [role="menuitemcheckbox"]:not([data-disabled]),
+  [role="menuitemradio"]:not([data-disabled]),
+  [role="option"]:not([data-disabled]),
+  [role="tab"],
+  [role="switch"],
+  select,
+  summary,
+  label[for],
+  a[href] {
+    cursor: pointer;
+  }
   html,
   body,
   #root {

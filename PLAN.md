@@ -933,6 +933,18 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       the top bar's first control- [x] R1.11 Folders: a "+" on the navbar's Folders section creates one; empty folders
       live in the base's `openplan.json` and the navbar lists the union with frontmatter
 - [x] R1.12 Navbar: `cmd+shift+[` and `cmd+shift+]` step through the navbar rows
+#### GATE 7 findings, round 2 (Sid, 2026-10-29)
+- [ ] R2.1 Plans can be selected by dragging a box over them, and archived in bulk
+- [ ] R2.2 The webview's own context menu (with Reload) never shows; plans get an
+      app context menu instead
+- [ ] R2.3 A plan can be deleted, alone or in bulk, behind a two-step confirmation
+- [ ] R2.4 Minimized navbar: the top bar spans the full width above the rail, so the
+      traffic lights sit in the top bar and nothing crowds them
+- [x] R2.5 Every clickable control shows the pointer cursor
+- [ ] R2.6 Pull request state has its own icon: open, draft, merged, closed, and none
+- [ ] R2.7 Alignment questions carry more detail: why the question matters, what the
+      agent found, and each option's trade-off
+
 #### GATE 7 QA script
 
 Run a release build of 0.3.0 against the real base, with Claude Code connected

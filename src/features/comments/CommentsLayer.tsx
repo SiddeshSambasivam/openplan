@@ -131,7 +131,7 @@ export function CommentsLayer({
             onClick={() => onOpenThread(box.threadId)}
             tabIndex={-1}
             className={cn(
-              "pointer-events-auto absolute cursor-default rounded-[2px]",
+              "pointer-events-auto absolute cursor-pointer rounded-[2px]",
               // Not sent yet: outlined rather than filled in.
               box.pending && "outline-1 outline-dashed",
             )}
@@ -155,7 +155,7 @@ export function CommentsLayer({
             tabIndex={-1}
             aria-hidden
             className={cn(
-              "pointer-events-auto absolute w-[3px] cursor-default rounded-full",
+              "pointer-events-auto absolute w-[3px] cursor-pointer rounded-full",
               box.pending && "opacity-50 outline-1 outline-dashed",
             )}
             style={{

@@ -59,7 +59,7 @@ function Group({
             <li key={plan.path} style={enter.style} className={enter.className}>
               <button
                 onClick={() => onOpen(plan)}
-                className="flex w-full cursor-default items-center gap-3 border-b border-border px-4 py-2 text-left text-sm transition-colors hover:bg-sidebar"
+                className="flex w-full cursor-pointer items-center gap-3 border-b border-border px-4 py-2 text-left text-sm transition-colors hover:bg-sidebar"
               >
                 <StatusGlyph status={plan.status} />
                 <span className="flex min-w-0 flex-1 items-center gap-2">

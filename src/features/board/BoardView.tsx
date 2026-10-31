@@ -81,7 +81,7 @@ function Card({
       <button
         onClick={() => actions.onOpen(plan)}
         title={display.clampTitle ? plan.title : undefined}
-        className="motion-card flex w-full cursor-default flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left hover:border-ring"
+        className="motion-card flex w-full cursor-pointer flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left hover:border-ring"
       >
         <span
           className={cn(

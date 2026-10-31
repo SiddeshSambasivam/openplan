@@ -147,7 +147,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
                     }
                     aria-pressed={selectedTools.has(agent.id)}
                     className={cn(
-                      "animate-in flex cursor-default items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors fade-in duration-300",
+                      "animate-in flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors fade-in duration-300",
                       agent.installed ? "hover:bg-accent/50" : "opacity-40",
                       selectedTools.has(agent.id)
                         ? "border-foreground/40 bg-accent/50"

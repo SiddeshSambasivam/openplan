@@ -104,7 +104,7 @@ export function HistoryPanel({
                   )
                 }
                 className={cn(
-                  "block w-full cursor-default rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/60",
+                  "block w-full cursor-pointer rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/60",
                   selected?.id === revision.id && "bg-accent",
                 )}
               >

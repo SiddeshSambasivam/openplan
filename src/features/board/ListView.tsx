@@ -49,7 +49,7 @@ function LooseFileRow({
       <button
         onClick={() => onSelect(file.id)}
         className={cn(
-          "flex w-full cursor-default items-center gap-3 border-b border-border px-4 py-2 text-left text-sm transition-colors hover:bg-sidebar",
+          "flex w-full cursor-pointer items-center gap-3 border-b border-border px-4 py-2 text-left text-sm transition-colors hover:bg-sidebar",
           active && "bg-sidebar-accent/60",
         )}
       >
