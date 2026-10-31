@@ -1,15 +1,13 @@
 import { ArrowDown, ArrowUp, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { TooltipButton } from "@/components/TooltipButton";
-import { Badge } from "@/components/ui/badge";
 import {
   answeredCount,
+  draftedAnswers,
   loadRailShown,
   loadReplyDrafts,
   newestWaiting,
   nextWaiting,
-  queueReply,
-  repliedAnswers,
   saveRailShown,
   saveReplyDrafts,
   type ReplyDraft,
@@ -36,6 +34,7 @@ import { AlignmentComposer, type ComposerLine } from "./AlignmentComposer";
 import { AlignmentMessage, type MediaContext } from "./AlignmentMessage";
 import { AlignmentScoreCard } from "./AlignmentScoreCard";
 import { PersonaAvatar } from "./PersonaAvatar";
+import { WaitingBadge } from "./WaitingBadge";
 import { celebrate } from "./personaMotion";
 
 /** What the plan page needs to write answers and render illustrations. */
@@ -55,9 +54,10 @@ type Tab = Role | "everyone";
 
 /**
  * The questions agents posted on the plan, as a group chat with the personas
- * who asked them, oldest round first. Only the thread scrolls. Replies queue
- * from the composer as drafts, which survive a reload, until the person
- * sends them together. `children` follow the thread, inside its scroll.
+ * who asked them, oldest round first. Only the thread scrolls. A pick or
+ * words from the composer is an answer, kept as a draft that survives a
+ * reload until the person sends them together. `children` follow the
+ * thread, inside its scroll.
  */
 export function AlignmentQuestions({
   record,
@@ -71,8 +71,10 @@ export function AlignmentQuestions({
   const [drafts, setDrafts] = useState<ReplyDrafts>(() => loadReplyDrafts(plan.id));
   const [tab, setTab] = useState<Tab>("everyone");
   const [railShown, setRailShown] = useState(loadRailShown);
+  // The rail stays while it slides out, and the thread widens after.
+  const [railLeaving, setRailLeaving] = useState(false);
   // The question the composer replies to. Unset follows the first waiting
-  // one. Null means the person cleared it.
+  // one. Null means none after the last reply.
   const [chosen, setChosen] = useState<string | null | undefined>(undefined);
   const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -83,9 +85,14 @@ export function AlignmentQuestions({
     null,
   );
   const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const sendRef = useRef<HTMLButtonElement>(null);
   useEffect(() => saveReplyDrafts(plan.id, drafts), [plan.id, drafts]);
   useEffect(() => saveRailShown(railShown), [railShown]);
-  useShortcuts({ peopleRail: () => setRailShown((shown) => !shown) });
+  const toggleRail = () => {
+    setRailLeaving(railShown);
+    setRailShown(!railShown);
+  };
+  useShortcuts({ peopleRail: toggleRail });
 
   const shown = written && written.from === record ? written.record : record;
   const questions = shown?.alignment?.questions ?? [];
@@ -98,21 +105,22 @@ export function AlignmentQuestions({
     );
   }
 
-  const answers = repliedAnswers(questions, drafts);
+  const answers = draftedAnswers(questions, drafts);
   const waiting = questions.filter((question) => !question.answer && !answers[question.id]);
   const ready = Object.keys(answers).length;
   const inTab = questions.filter((question) => tab === "everyone" || question.role === tab);
+  // A question with a pick stays active, so words typed next become its note.
   const active =
     chosen === null
       ? undefined
-      : (waiting.find((question) => question.id === chosen && inTab.includes(question)) ??
+      : (inTab.find((question) => question.id === chosen && !question.answer) ??
         nextWaiting(inTab, drafts));
 
-  /** Writes the queued replies and tells the agent. */
+  /** Writes the drafted answers and tells the agent. */
   const submit = async () => {
     if (busy) return;
     if (ready === 0) {
-      setLine({ text: "Reply to at least one question first." });
+      setLine({ text: "Answer at least one question first." });
       return;
     }
     setBusy(true);
@@ -133,10 +141,9 @@ export function AlignmentQuestions({
 
   const edit = (id: string, change: Partial<ReplyDraft>) => {
     setMissing(false);
-    setDrafts((old) => {
-      const draft = old[id];
-      return { ...old, [id]: { text: draft?.text ?? "", option: draft?.option, ...change, replied: false } };
-    });
+    setSent(null);
+    setLine(null);
+    setDrafts((old) => ({ ...old, [id]: { text: old[id]?.text ?? "", option: old[id]?.option, ...change } }));
   };
 
   const choose = (id: string) => {
@@ -145,23 +152,29 @@ export function AlignmentQuestions({
     setMissing(false);
   };
 
-  /** Queues the active question's reply and moves on to the next waiting
-   * one, so replies flow from the keyboard. */
+  /** A pick is the answer, kept as a draft until the person sends it. */
+  const pick = (question: Question, option: string) => {
+    edit(question.id, { option });
+    choose(question.id);
+    if (!answers[question.id]) {
+      cheerFor(question, questions, { ...answers, [question.id]: { kind: "option", options: [option] } });
+    }
+  };
+
+  /** Moves on from an answered question to the next waiting one, so
+   * replies flow from the keyboard. */
   const reply = () => {
     if (!active) return;
-    const next = queueReply(active.id, drafts);
-    if (!next) return setMissing(true);
-    setDrafts(next);
-    setSent(null);
-    setLine(null);
-    cheerFor(active, questions, repliedAnswers(questions, next));
-    const after = nextWaiting(inTab, next, active.id);
+    if (!answers[active.id]) return setMissing(true);
+    cheerFor(active, questions, answers);
+    const after = nextWaiting(inTab, drafts, active.id);
     setChosen(after?.id ?? null);
+    // With nothing left to reply to, the field goes, and Send is next.
     if (after) revealQuestion(after.id);
+    else requestAnimationFrame(() => sendRef.current?.focus());
   };
 
   const change = (question: Question) => {
-    setDrafts((old) => ({ ...old, [question.id]: { ...old[question.id], replied: false } }));
     setChosen(question.id);
     revealQuestion(question.id);
     requestAnimationFrame(() => fieldRef.current?.focus());
@@ -176,18 +189,18 @@ export function AlignmentQuestions({
   const latestRound = Math.max(...questions.map((question) => question.round ?? 1));
   const newest = newestWaiting(inTab, drafts);
   return (
-    <section onKeyDown={onKeyDown} className="@container flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border pb-2">
-        <AlignmentScoreCard score={alignmentScore(questions, answers)} />
+    <section onKeyDown={onKeyDown} className="@container flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <ThreadHead
           tab={tab}
           railShown={railShown}
           waiting={waiting.length}
-          onToggleRail={() => setRailShown((old) => !old)}
+          onToggleRail={toggleRail}
         />
+        <AlignmentScoreCard score={alignmentScore(questions, answers)} />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 @2xl:flex-row @2xl:gap-5">
-        {railShown && (
+      <div className="flex min-h-0 flex-1 gap-3 @2xl:gap-5">
+        {(railShown || railLeaving) && (
           <PeopleRail
             tab={tab}
             onTab={(next) => {
@@ -195,6 +208,8 @@ export function AlignmentQuestions({
               setChosen(undefined);
             }}
             waiting={waiting}
+            leaving={!railShown}
+            onLeft={() => setRailLeaving(false)}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
@@ -215,10 +230,7 @@ export function AlignmentQuestions({
                     active={question.id === active?.id}
                     sent={sent?.ids.includes(question.id) ?? false}
                     onActivate={() => choose(question.id)}
-                    onPick={(option) => {
-                      edit(question.id, { option });
-                      choose(question.id);
-                    }}
+                    onPick={(option) => pick(question, option)}
                     onChange={() => change(question)}
                     view={plan}
                   />
@@ -230,17 +242,15 @@ export function AlignmentQuestions({
           </Thread>
           <AlignmentComposer
             ref={fieldRef}
+            sendRef={sendRef}
             question={active}
             text={active ? (drafts[active.id]?.text ?? "") : ""}
             missing={missing}
             line={line ?? { text: answeredCount(questions, drafts) }}
             ready={ready}
             busy={busy}
+            hint={waiting.length > 0 ? "Pick a question in the thread to reply." : null}
             onText={(text) => active && edit(active.id, { text })}
-            onClear={() => {
-              setChosen(null);
-              setMissing(false);
-            }}
             onReply={reply}
             onSend={() => void submit()}
           />
@@ -352,27 +362,37 @@ function ScrollArrow({
 }
 
 /** Everyone, then one tab per persona with the questions still waiting on
- * the person. Narrow, the rail becomes a row of chips. */
+ * the person, in a column on the left. Narrow, each tab drops its title.
+ * It slides in from the left, and out again before it unmounts. */
 function PeopleRail({
   tab,
   onTab,
   waiting,
+  leaving,
+  onLeft,
 }: {
   tab: Tab;
   onTab: (tab: Tab) => void;
   waiting: Question[];
+  leaving: boolean;
+  onLeft: () => void;
 }) {
   const tabs: { id: Tab; name: string; title: string }[] = [
     { id: "everyone", name: "Everyone", title: "Group thread" },
     ...ROLES.map((role) => ({ id: role, ...PERSONAS[role] })),
   ];
   return (
-    <nav className="flex shrink-0 animate-in flex-col fade-in-0 duration-150 @2xl:w-52 @2xl:overflow-y-auto">
-      <div
-        role="tablist"
-        aria-label="People asking"
-        className="flex gap-1 overflow-x-auto pb-1 @2xl:flex-col @2xl:pb-0"
-      >
+    <nav
+      inert={leaving}
+      onAnimationEnd={(event) => leaving && event.target === event.currentTarget && onLeft()}
+      className={cn(
+        "flex w-36 shrink-0 flex-col overflow-y-auto duration-200 ease-out @2xl:w-52",
+        leaving
+          ? "animate-out fill-mode-forwards fade-out-0 slide-out-to-left-8"
+          : "animate-in fade-in-0 slide-in-from-left-8",
+      )}
+    >
+      <div role="tablist" aria-label="People asking" aria-orientation="vertical" className="flex flex-col gap-1">
         {tabs.map((item) => {
           const count = waiting.filter((q) => item.id === "everyone" || q.role === item.id).length;
           return (
@@ -382,7 +402,7 @@ function PeopleRail({
               role="tab"
               aria-selected={tab === item.id}
               onClick={() => onTab(item.id)}
-              className="flex shrink-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted aria-selected:bg-muted @2xl:w-full"
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted aria-selected:bg-muted"
             >
               {item.id === "everyone" ? (
                 <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
@@ -404,8 +424,9 @@ function PeopleRail({
   );
 }
 
-/** Names the view, beside the rail's toggle. A hidden rail still says how
- * many questions wait, so none is missed. */
+/** The rail's toggle, above where the rail opens, then the name of the
+ * view. A hidden rail still says how many questions wait, so none is
+ * missed. */
 function ThreadHead({
   tab,
   railShown,
@@ -420,41 +441,30 @@ function ThreadHead({
   const persona = tab === "everyone" ? null : PERSONAS[tab];
   return (
     <div className="flex min-w-0 items-center gap-1.5">
-      <h2 className="truncate text-sm font-medium text-foreground">
-        {persona ? `${persona.name}, ${persona.title.toLowerCase()}` : "Everyone"}
-      </h2>
       <TooltipButton
         variant="ghost"
         size="sm"
         shortcut="peopleRail"
         tooltip={railShown ? "Hide the people" : "Show the people"}
-        tooltipAlign="end"
+        tooltipAlign="start"
         aria-label={railShown ? "Hide the people" : "Show the people"}
         aria-pressed={railShown}
         onClick={onToggleRail}
-        className="-mr-2 gap-1.5 px-2 text-muted-foreground"
+        className="-ml-2 gap-1.5 px-2 text-muted-foreground"
       >
         {railShown ? <PanelLeftClose /> : <PanelLeftOpen />}
         {!railShown && waiting > 0 && <WaitingBadge count={waiting} />}
       </TooltipButton>
+      <h2 className="truncate text-sm font-medium text-foreground">
+        {persona ? `${persona.name}, ${persona.title.toLowerCase()}` : "Everyone"}
+      </h2>
     </div>
-  );
-}
-
-function WaitingBadge({ count }: { count: number }) {
-  return (
-    <Badge
-      className="h-4.5 min-w-4.5 rounded-full px-1.25 py-0 text-xs font-semibold tabular-nums"
-      aria-label={`${count} waiting`}
-    >
-      {count}
-    </Badge>
   );
 }
 
 function RoundDivider({ children }: { children: string }) {
   return (
-    <div className="flex items-center gap-2.5 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
+    <div className="flex items-center justify-center gap-2.5 text-xs text-muted-foreground before:h-px before:w-8 before:bg-border after:h-px after:w-8 after:bg-border">
       {children}
     </div>
   );

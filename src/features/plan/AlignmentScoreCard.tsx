@@ -36,7 +36,7 @@ export function AlignmentScoreCard({ score }: { score: AlignmentScore }) {
             <ChevronDown />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-80 p-3">
+        <PopoverContent align="end" className="w-80 p-3">
           <ScoreDetails score={score} />
         </PopoverContent>
       </Popover>

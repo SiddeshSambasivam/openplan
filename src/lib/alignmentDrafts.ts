@@ -1,11 +1,9 @@
 import { STORAGE_PREFIX } from "./storage";
 import { answerFromDraft, questionsByRound, type Answer, type AnswerDraft, type Question } from "./work";
 
-/** A question's pick and note so far. `replied` turns it into a reply that
- * waits to be sent. */
-export interface ReplyDraft extends AnswerDraft {
-  replied: boolean;
-}
+/** A question's pick and note so far. Either one is an answer, which waits
+ * here until the person sends it. */
+export type ReplyDraft = AnswerDraft;
 
 export type ReplyDrafts = Record<string, ReplyDraft>;
 
@@ -18,7 +16,8 @@ export function loadReplyDrafts(planId: string, storage?: Storage): ReplyDrafts 
     const stored: unknown = JSON.parse((storage ?? localStorage).getItem(storeKey(planId)) ?? "{}");
     if (typeof stored !== "object" || stored === null) return drafts;
     for (const [id, draft] of Object.entries(stored)) {
-      if (isReplyDraft(draft)) drafts[id] = draft;
+      if (!isReplyDraft(draft)) continue;
+      drafts[id] = draft.option === undefined ? { text: draft.text } : { option: draft.option, text: draft.text };
     }
   } catch {
     // best-effort: unreadable or blocked storage starts with no drafts
@@ -36,13 +35,13 @@ export function saveReplyDrafts(planId: string, drafts: ReplyDrafts, storage?: S
   }
 }
 
-/** The replies ready to send: replied to, and not answered already. */
-export function repliedAnswers(questions: Question[], drafts: ReplyDrafts): Record<string, Answer> {
+/** The answers ready to send: a pick or words, on a question not answered
+ * already. */
+export function draftedAnswers(questions: Question[], drafts: ReplyDrafts): Record<string, Answer> {
   const answers: Record<string, Answer> = {};
   for (const question of questions) {
-    const draft = drafts[question.id];
-    if (question.answer || !draft?.replied) continue;
-    const answer = answerFromDraft(question, draft);
+    if (question.answer) continue;
+    const answer = answerFromDraft(question, drafts[question.id]);
     if (answer) answers[question.id] = answer;
   }
   return answers;
@@ -69,20 +68,13 @@ export function newestWaiting(questions: Question[], drafts: ReplyDrafts): Quest
     .find((question) => isWaiting(question, drafts));
 }
 
-/** The drafts with this question's reply queued, or null when its draft
- * has neither a pick nor words. */
-export function queueReply(id: string, drafts: ReplyDrafts): ReplyDrafts | null {
-  const draft = drafts[id];
-  if (!draft?.option && !draft?.text.trim()) return null;
-  return { ...drafts, [id]: { ...draft, replied: true } };
-}
-
-/** What a send carries, against what is still open. */
+/** What a send carries, against what is still open. Once every open
+ * question has an answer, it says the send is next. */
 export function answeredCount(questions: Question[], drafts: ReplyDrafts): string {
   const open = questions.filter((question) => !question.answer).length;
   if (open === 0) return "Nothing waits on you.";
-  const ready = Object.keys(repliedAnswers(questions, drafts)).length;
-  return `${ready} of ${open} waiting ${open === 1 ? "question" : "questions"} answered`;
+  const ready = Object.keys(draftedAnswers(questions, drafts)).length;
+  return ready < open ? `Answered ${ready}/${open}` : `Answered ${ready}/${open}. Send when ready.`;
 }
 
 /** Whether this viewer last showed the people rail. Hidden by default. */
@@ -111,7 +103,7 @@ function threadOrder(questions: Question[]): Question[] {
 }
 
 function isWaiting(question: Question, drafts: ReplyDrafts): boolean {
-  return !question.answer && !drafts[question.id]?.replied;
+  return !question.answer && !answerFromDraft(question, drafts[question.id]);
 }
 
 function storeKey(planId: string): string {
@@ -120,10 +112,6 @@ function storeKey(planId: string): string {
 
 function isReplyDraft(value: unknown): value is ReplyDraft {
   if (typeof value !== "object" || value === null) return false;
-  const { option, text, replied } = value as Record<string, unknown>;
-  return (
-    typeof text === "string" &&
-    typeof replied === "boolean" &&
-    (option === undefined || typeof option === "string")
-  );
+  const { option, text } = value as Record<string, unknown>;
+  return typeof text === "string" && (option === undefined || typeof option === "string");
 }

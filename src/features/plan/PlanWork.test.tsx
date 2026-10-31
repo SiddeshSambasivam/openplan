@@ -222,9 +222,9 @@ describe("AlignmentTab", () => {
     expect(html).toContain("The board opens at once after launch.");
     expect(html).toContain("Trade-off: A second copy that can go stale.");
     expect(html).toContain("Recommended");
-    expect(html).toContain("Replying to <span");
+    expect(html).not.toContain("Replying to");
     expect(html).toContain('placeholder="Reply to Theo"');
-    expect(html).toContain("0 of 1 waiting question answered");
+    expect(html).toContain("Answered 0/1");
     expect(html).not.toContain(">Reply</button>");
   });
 

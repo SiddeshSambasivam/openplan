@@ -12,9 +12,10 @@ export interface MediaContext {
 }
 
 /**
- * One question as a message from the persona who asks it. Until it has an
- * answer the message holds the options, and clicking it makes it the one
- * the composer replies to. Once answered, sent or not, it shrinks to the
+ * One question as a message from the persona who asks it. Until its answer
+ * is sent the message holds the options, with the pick marked, and
+ * clicking it makes it the one the composer replies to. Words written for
+ * it sit under it as the person's draft. Once sent, it shrinks to the
  * question and the person's reply sits under it.
  */
 export function AlignmentMessage({
@@ -30,7 +31,7 @@ export function AlignmentMessage({
 }: {
   question: Question;
   draft: ReplyDraft | undefined;
-  /** The reply waiting to be sent, when there is one. */
+  /** The answer drafted and not sent yet, when there is one. */
   answer: Answer | undefined;
   /** The composer replies to it. */
   active: boolean;
@@ -41,7 +42,8 @@ export function AlignmentMessage({
   onChange: () => void;
   view: MediaContext;
 }) {
-  const replied = question.answer ?? answer;
+  const recorded = question.answer;
+  const words = recorded ? "" : (draft?.text.trim() ?? "");
   const persona = question.role ? PERSONAS[question.role] : null;
   return (
     <div className="flex flex-col gap-3" data-question={question.id}>
@@ -56,7 +58,7 @@ export function AlignmentMessage({
             <span className="rounded-full bg-muted px-1.75 py-px text-muted-foreground">
               {question.aspect}
             </span>
-            {question.mustAnswer && !replied && (
+            {question.mustAnswer && !recorded && !answer && (
               <span className="rounded-full border border-border px-1.75 text-muted-foreground">
                 Must answer
               </span>
@@ -64,26 +66,27 @@ export function AlignmentMessage({
           </div>
           <div
             data-active={active || undefined}
-            onClick={replied ? undefined : onActivate}
-            onFocus={replied ? undefined : onActivate}
-            tabIndex={!replied && question.options.length === 0 ? 0 : undefined}
+            onClick={recorded ? undefined : onActivate}
+            onFocus={recorded ? undefined : onActivate}
+            tabIndex={!recorded && question.options.length === 0 ? 0 : undefined}
             className={cn(
               "max-w-160 rounded-lg rounded-tl-sm border border-border bg-muted/50 px-3 py-2.5 outline-none data-active:border-ring",
-              !replied && "cursor-pointer",
+              !recorded && "cursor-pointer",
             )}
           >
             <p className="text-sm leading-normal font-medium text-pretty text-foreground">
               {question.question}
             </p>
-            {!replied && <Details question={question} draft={draft} onPick={onPick} view={view} />}
+            {!recorded && <Details question={question} draft={draft} onPick={onPick} view={view} />}
           </div>
         </div>
       </div>
-      {replied && (
+      {recorded && <YourReply question={question} answer={recorded} status={sent ? "sent" : null} />}
+      {words && (
         <YourReply
           question={question}
-          answer={replied}
-          status={sent ? "sent" : question.answer ? null : "draft"}
+          answer={{ kind: "text", text: words }}
+          status="draft"
           onChange={onChange}
         />
       )}
@@ -188,8 +191,8 @@ function OptionChoice({
   );
 }
 
-/** The person's own bubble. A reply not sent yet says so and can be
- * changed. One that just went out says it was sent. */
+/** The person's own bubble. Words not sent yet say so and can be changed.
+ * A reply that just went out says it was sent. */
 function YourReply({
   question,
   answer,
@@ -199,7 +202,7 @@ function YourReply({
   question: Question;
   answer: Answer;
   status: "draft" | "sent" | null;
-  onChange: () => void;
+  onChange?: () => void;
 }) {
   const words = answerOf({ ...question, answer });
   return (
