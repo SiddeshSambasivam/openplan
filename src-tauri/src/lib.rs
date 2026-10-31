@@ -201,8 +201,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            plans::setup(app);
-            sessions::setup(app);
+            // Resolved once. Two callers resolving it for themselves each
+            // commit the base at startup, and collide on git's index lock.
+            let base = openplan_core::settings::resolve_default_base().ok();
+            plans::setup(app, base.clone());
+            sessions::setup(app, base);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

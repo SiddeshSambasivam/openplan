@@ -3,6 +3,7 @@
 //! the CLI's tests can run a real one; this is the edge that starts it, tells
 //! the interface when something moved, and lets it send.
 
+use openplan_core::base::Base;
 use openplan_core::comments::CommentThread;
 use openplan_core::local::{self, AppInfo, CommentNote, Event, Notice, SessionInfo};
 use openplan_core::{comments, library, settings};
@@ -74,10 +75,8 @@ fn notes(threads: &[CommentThread], wanted: &[String]) -> Vec<CommentNote> {
         .collect()
 }
 
-pub fn setup(app: &tauri::App) {
-    let Ok(base) = settings::resolve_default_base() else {
-        return;
-    };
+pub fn setup(app: &tauri::App, base: Option<Base>) {
+    let Some(base) = base else { return };
     let handle = app.handle().clone();
     let Ok(server) = local::Server::start(base, move |notice| {
         let _ = handle.emit(

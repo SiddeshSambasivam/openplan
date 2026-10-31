@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 
 #[test]
 fn an_agent_can_file_a_plan_and_read_it_back() {
-    let home = std::env::temp_dir().join("openplan-mcp-session");
+    let home = std::env::temp_dir().join(format!("openplan-mcp-session-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&home);
     std::fs::create_dir_all(&home).unwrap();
 
@@ -204,7 +204,7 @@ fn config_dir(home: &std::path::Path) -> std::path::PathBuf {
 #[cfg(unix)]
 #[test]
 fn in_html_mode_the_plan_on_disk_is_an_html_document() {
-    let home = std::env::temp_dir().join("openplan-mcp-session-html");
+    let home = std::env::temp_dir().join(format!("openplan-mcp-session-html-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&home);
     let settings = config_dir(&home).join(openplan_core::profile::name());
     std::fs::create_dir_all(&settings).unwrap();
@@ -284,7 +284,7 @@ fn in_html_mode_the_plan_on_disk_is_an_html_document() {
 fn a_session_registers_with_the_app_and_hears_about_comments() {
     use openplan_core::local::{CommentNote, Event, Server};
 
-    let home = std::env::temp_dir().join("openplan-mcp-session-live");
+    let home = std::env::temp_dir().join(format!("openplan-mcp-session-live-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&home);
     let base_path = home.join(openplan_core::profile::base_dir_name());
     let base = openplan_core::base::ensure_base(&base_path).unwrap();

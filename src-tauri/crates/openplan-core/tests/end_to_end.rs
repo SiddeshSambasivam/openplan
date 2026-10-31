@@ -8,7 +8,7 @@ use openplan_core::{fs, library};
 
 #[test]
 fn a_plan_filed_by_an_agent_is_listed_reviewed_and_remembered() {
-    let root = std::env::temp_dir().join("openplan-e2e");
+    let root = std::env::temp_dir().join(format!("openplan-e2e-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     let base = ensure_base(&root).unwrap();
     repo::init(&base.root).unwrap();

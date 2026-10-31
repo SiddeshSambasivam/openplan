@@ -317,9 +317,9 @@ pub async fn restore_plan_revision(path: String, revision: String) -> Result<Str
 /// or an editor saving one — and tells the interface to re-read. Events are
 /// coalesced so a burst of writes is one refresh, and the watcher is
 /// OS-driven, so an idle base costs nothing.
-pub fn watch_base(app: tauri::AppHandle) {
+pub fn watch_base(app: tauri::AppHandle, base: Option<Base>) {
     std::thread::spawn(move || {
-        let Ok(base) = base() else { return };
+        let Some(base) = base else { return };
         let (tx, rx) = mpsc::channel();
         let mut watcher = match notify::recommended_watcher(move |event| {
             let _ = tx.send(event);
@@ -369,6 +369,6 @@ fn is_relevant(root: &Path, event: &notify::Result<notify::Event>) -> bool {
     })
 }
 
-pub fn setup(app: &tauri::App) {
-    watch_base(app.handle().clone());
+pub fn setup(app: &tauri::App, base: Option<Base>) {
+    watch_base(app.handle().clone(), base);
 }
