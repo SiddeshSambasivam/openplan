@@ -1011,6 +1011,36 @@ Round 4 QA, on a release build with Claude Code connected:
 7. A `github.com` repo shows its owner's avatar. Merge a recorded PR on GitHub,
    press Refresh on the board: "All PRs merged." and "Mark completed?" appear.
 
+#### GATE 7 findings, round 5 (Sid, 2026-10-31)
+Specification and answers q1 to q6: the filed plan "Make the alignment score only
+rise, gate Build on the target, and bring the person to new questions". Work lands
+on main with no PRs (q6).
+- [x] R5.1 The score only rises: coverage counts the required areas from the start
+      plus every settled area, and each answer with a reason gives 5 points, up to 20
+- [x] R5.2 Build is disabled below the alignment target (80 by default, 0 for none),
+      and its tooltip names the score, the target and any required area not asked
+- [x] R5.3 Every question with options ends with "Write my own", which focuses the
+      composer for a free-text answer
+- [x] R5.4 The standards and `ask_questions` tell agents to aim for 100 and settle
+      edge cases, error handling and scale
+- [x] R5.5 New questions on the open plan switch it to the Alignment tab, and a
+      window in the background requests attention once until it is focused
+
+Round 5 QA, on a release build with Claude Code connected:
+1. Answer round one of a new plan: the score reads 40 or so, not 80. A second
+   round arrives: the score holds. Answer it: the score rises.
+2. Below 80, Build is greyed out and its tooltip reads "Align with the agent first.
+   Alignment is 67%, and Build opens at 80%." `mod+shift+enter` does nothing. Set the
+   target to 0 in Settings: Build works.
+3. Every question with options shows "Write my own" last. Pick it, type, press
+   Enter: the reply shows as your own words.
+4. With the plan open on its Plan tab, have the agent post a round: the app
+   switches to the Alignment tab. With another app in front, have two sessions
+   post rounds: the Dock icon bounces once. Click OpenPlan, then post again from
+   the background: it bounces once more.
+5. Idle cost (NFR-8): with the window in the background and nothing posting, CPU
+   stays near 0%.
+
 #### GATE 7 QA script
 
 Run a release build of 0.3.0 against the real base, with Claude Code connected
@@ -1264,6 +1294,10 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-31 | `read_plan` ends with each alignment question and its answer | An agent woken by answers given in the app needs to read them somewhere |
 | 2026-10-31 | The app reads unmerged PRs with the person's `gh` CLI on plan open, from a board Refresh control, and when a plan's last session leaves. When every PR reads merged it offers "All PRs merged. Mark completed?". It never completes a plan on its own | Sid (q5, q6, q15). The agent's reports go stale once its session ends. `gh` uses the person's own login and needs no stored secret. The person stays the one who completes (2026-10-28) |
 | 2026-10-31 | Alignment target setting, default 80, never gates Build | Sid's write-up recommends at least 80% and lets people set their own threshold |
+| 2026-10-31 | Supersedes the row above: Build is disabled while the score is below the target, and a target of 0 turns the gate off. The gate is on the button only. The server keeps refusing `set_status in-progress` while a question has no answer, and does not learn the score | Sid (R5.2): agents aim for 100, and Build opens at the target. The score and the target live in the app, and a Rust copy of the score could drift |
+| 2026-10-31 | The score only rises. Coverage is 80 times the settled areas over the required areas (edge cases, error handling, scale) plus every settled area. Each answer with a reason gives 5 points, up to 20. Every plan gets the new score, including plans already in alignment | Sid (R5.1, q3, q4): the score went from 80 to 48 when a second round arrived, because each asked area grew the denominator before it could be answered. A share of answers with a reason could also fall. The full question bank as denominator was rejected: 12 feature aspects would push agents past three questions a round |
+| 2026-10-31 | New unanswered questions on the open plan switch it to the Alignment tab. A window in the background calls `requestUserAttention` once, then not again until it is focused. No `openplan://` deep link | Sid (R5.5, q2, q5): Tauri's core window API needs no new dependency. One request per background period keeps several sessions from nagging. Nobody has checked whether Claude Code desktop opens custom-scheme links |
+| 2026-10-31 | Every question with options ends with "Write my own" | Sid (R5.3, q1): the composer already took free text, but nothing on the question said so |
 
 ---
 
