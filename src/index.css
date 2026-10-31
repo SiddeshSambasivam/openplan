@@ -412,11 +412,16 @@
 /* ---------------------------------- */
 /* Find in document (⌘F)               */
 /* ---------------------------------- */
+/* The colours are held in inherited properties that Find sets only while a
+   search is showing results. Removing a highlight from the registry is
+   supposed to unpaint it, but WebKit — what the desktop app runs on — can
+   leave the last paint on screen; with no colour to paint there is nothing
+   to leave behind either way. */
 ::highlight(app-find-match) {
-  background-color: var(--find-match);
+  background-color: var(--find-match-paint, transparent);
 }
 ::highlight(app-find-current) {
-  background-color: var(--find-current);
+  background-color: var(--find-current-paint, transparent);
 }
 
 /* Comments highlighting is NOT done via ::highlight() — see the comment

@@ -4,12 +4,20 @@ import { HAS_HIGHLIGHT_API, findTextRanges } from "../lib/domRange";
 import { cn } from "../lib/utils";
 import { TooltipButton } from "./TooltipButton";
 
+/** Turns the highlight colours on or off; see the note in index.css. */
+function setHighlightPaint(on: boolean) {
+  const style = document.documentElement.style;
+  if (on) {
+    style.setProperty("--find-match-paint", "var(--find-match)");
+    style.setProperty("--find-current-paint", "var(--find-current)");
+  } else {
+    style.removeProperty("--find-match-paint");
+    style.removeProperty("--find-current-paint");
+  }
+}
+
 function paintHighlights(matches: Range[], currentIndex: number) {
   if (!HAS_HIGHLIGHT_API) return;
-  // Nothing to show means the registration goes away entirely. Replacing it
-  // with an empty Highlight looks equivalent, and is under Chromium, but
-  // WebKit — which is what the desktop app runs on — keeps painting the
-  // ranges the name held before.
   if (matches.length === 0) {
     clearHighlights();
     return;
@@ -18,9 +26,11 @@ function paintHighlights(matches: Range[], currentIndex: number) {
   const current = matches[currentIndex];
   if (current) CSS.highlights.set("app-find-current", new Highlight(current));
   else CSS.highlights.delete("app-find-current");
+  setHighlightPaint(true);
 }
 
 function clearHighlights() {
+  setHighlightPaint(false);
   if (!HAS_HIGHLIGHT_API) return;
   CSS.highlights.delete("app-find-match");
   CSS.highlights.delete("app-find-current");
