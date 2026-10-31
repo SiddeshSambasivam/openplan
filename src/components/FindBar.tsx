@@ -1,5 +1,5 @@
 import { CaseSensitive, ChevronDown, ChevronUp, X } from "lucide-react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { HAS_HIGHLIGHT_API, findTextRanges } from "../lib/domRange";
 import { cn } from "../lib/utils";
 import { TooltipButton } from "./TooltipButton";
@@ -32,8 +32,6 @@ export function FindBar({ articleRef, open, focusSeq, onClose }: FindBarProps) {
   const [query, setQuery] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [matchCount, setMatchCount] = useState(0);
-  const matchesRef = useRef<Range[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,55 +39,42 @@ export function FindBar({ articleRef, open, focusSeq, onClose }: FindBarProps) {
       inputRef.current?.focus();
       inputRef.current?.select();
     } else {
-      matchesRef.current = [];
       setQuery("");
     }
   }, [open, focusSeq]);
 
-  // Painted highlights outlive the bar unless something takes them down, and
-  // they are invisible to React. Tying them to a cleanup covers every way the
-  // search can end — closed, document switched, editor opened, unmounted.
-  useEffect(() => {
-    if (!open) return;
-    return clearHighlights;
-  }, [open]);
-
-  // Re-scan whenever the query or case-sensitivity changes, while open.
-  useEffect(() => {
-    if (!open) return;
+  const matches = useMemo(() => {
     const root = articleRef.current;
-    const matches = root ? findTextRanges(root, query, caseSensitive) : [];
-    matchesRef.current = matches;
-    setMatchCount(matches.length);
-    setCurrentIndex(0);
+    if (!open || !query || !root) return [];
+    return findTextRanges(root, query, caseSensitive);
   }, [open, query, caseSensitive, articleRef]);
 
-  // Keep the highlight + scroll position in sync with the current match.
+  useEffect(() => setCurrentIndex(0), [matches]);
+
+  // Highlights are painted outside React and are invisible to it, so they are
+  // derived from state in one place and torn down by the same effect. Nothing
+  // that changes what should be lit can leave the previous paint behind.
   useEffect(() => {
     if (!open) return;
-    paintHighlights(matchesRef.current, currentIndex);
-    const range = matchesRef.current[currentIndex];
-    range?.startContainer.parentElement?.scrollIntoView({
+    paintHighlights(matches, currentIndex);
+    matches[currentIndex]?.startContainer.parentElement?.scrollIntoView({
       behavior: "smooth",
       block: "center",
     });
-    // matchCount is in the deps so this re-runs right after a fresh scan
-    // (query/case change) resets currentIndex to 0, not just on navigation.
-  }, [open, currentIndex, matchCount]);
+    return clearHighlights;
+  }, [open, matches, currentIndex]);
 
-  useEffect(() => () => clearHighlights(), []);
+  const matchCount = matches.length;
 
   if (!open) return null;
 
   const goNext = () => {
-    if (matchesRef.current.length === 0) return;
-    setCurrentIndex((i) => (i + 1) % matchesRef.current.length);
+    if (matchCount === 0) return;
+    setCurrentIndex((i) => (i + 1) % matchCount);
   };
   const goPrev = () => {
-    if (matchesRef.current.length === 0) return;
-    setCurrentIndex(
-      (i) => (i - 1 + matchesRef.current.length) % matchesRef.current.length,
-    );
+    if (matchCount === 0) return;
+    setCurrentIndex((i) => (i - 1 + matchCount) % matchCount);
   };
 
   return (
