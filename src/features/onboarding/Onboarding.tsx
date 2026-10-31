@@ -228,29 +228,19 @@ export function Onboarding({ onDone }: OnboardingProps) {
                     }
                     aria-pressed={selectedTools.has(agent.id)}
                     className={cn(
-                      "animate-in flex cursor-default items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-left text-sm transition-colors fade-in duration-300",
-                      agent.installed
-                        ? "hover:bg-accent/50"
-                        : "opacity-45",
-                      selectedTools.has(agent.id) && "border-ring bg-accent/40",
+                      "animate-in flex cursor-default items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors fade-in duration-300",
+                      agent.installed ? "hover:bg-accent/50" : "opacity-40",
+                      selectedTools.has(agent.id)
+                        ? "border-foreground/40 bg-accent/50"
+                        : "border-border text-muted-foreground",
                     )}
                     style={rise(5 + i)}
                   >
-                    <span
-                      className={cn(
-                        "flex size-4 shrink-0 items-center justify-center rounded-full border",
-                        selectedTools.has(agent.id)
-                          ? "border-foreground bg-foreground text-background"
-                          : "border-border",
-                      )}
-                    >
-                      {selectedTools.has(agent.id) && <Check className="size-3" />}
-                    </span>
                     <AgentMark
                       id={agent.id}
                       className={cn(
-                        "size-4 shrink-0",
-                        agent.installed ? "text-foreground" : "text-muted-foreground",
+                        "size-5 shrink-0 text-foreground transition-all duration-200",
+                        !selectedTools.has(agent.id) && "opacity-45 grayscale",
                       )}
                     />
                     <span className="flex-1">{agent.name}</span>
@@ -299,15 +289,20 @@ export function Onboarding({ onDone }: OnboardingProps) {
                   }
                   aria-pressed={selectedSources.has(item.key)}
                   className={cn(
-                    "animate-in flex cursor-default items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-left text-sm transition-colors fade-in duration-300 hover:bg-accent/50",
-                    selectedSources.has(item.key) && "border-ring bg-accent/40",
+                    "animate-in flex cursor-default items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors fade-in duration-300 hover:bg-accent/50",
+                    selectedSources.has(item.key)
+                      ? "border-foreground/40 bg-accent/50"
+                      : "border-border text-muted-foreground",
                   )}
                   style={rise(i)}
                 >
                   {item.key.startsWith("agent:") ? (
                     <AgentMark
                       id={item.key.slice("agent:".length)}
-                      className="size-4 shrink-0 text-foreground"
+                      className={cn(
+                        "size-4 shrink-0 text-foreground transition-all duration-200",
+                        !selectedSources.has(item.key) && "opacity-45 grayscale",
+                      )}
                     />
                   ) : (
                     <Folder className="size-4 shrink-0 text-muted-foreground" />

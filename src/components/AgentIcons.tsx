@@ -1,6 +1,7 @@
 /* The marks of the agent tools OpenPlan connects to, taken from the
-   marketing site's own assets. Drawn in currentColor so they read as part of
-   whatever surface they sit on, in both themes. */
+   marketing site's own assets. Claude carries its brand terracotta, which
+   reads on both themes; the OpenAI and Cursor marks are monochrome by brand,
+   so they follow the surface they sit on. */
 
 import type { SVGProps } from "react";
 
@@ -11,7 +12,7 @@ export function ClaudeCodeIcon(props: IconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill="#D97757"
       aria-hidden
       {...props}
     >
