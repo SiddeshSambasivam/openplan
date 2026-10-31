@@ -48,6 +48,8 @@
 
 /* shadcn/ui "neutral" theme tokens */
 :root {
+  /* The app's own text, set from Settings. Plans size their text apart. */
+  --app-font-size: 13px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -174,6 +176,12 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
     "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-serif: "EB Garamond", ui-serif, Georgia, serif;
+  /* The UI text sizes follow the app text size and keep Tailwind's ratios
+     to `text-sm`. Spacing stays in rem, so only the text changes. */
+  --text-xs: calc(var(--app-font-size) * 6 / 7);
+  --text-sm: var(--app-font-size);
+  --text-base: calc(var(--app-font-size) * 8 / 7);
+  --text-lg: calc(var(--app-font-size) * 9 / 7);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -199,6 +207,7 @@
     background: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: var(--text-base);
     /* Single-storey a, open digits, rounded quotes and commas. */
     font-feature-settings: "cv11", "ss01", "ss03";
     -webkit-font-smoothing: antialiased;

@@ -37,6 +37,11 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]["id"];
 
+const FONT_SIZE_OPTIONS = FONT_SIZE_ORDER.map((value) => ({
+  value,
+  label: FONT_SIZE_LABELS[value],
+}));
+
 function Row({
   label,
   hint,
@@ -94,6 +99,8 @@ interface SettingsDialogProps {
   onToggleTheme: () => void;
   fontSize: FontSize;
   onFontSizeChange: (value: FontSize) => void;
+  appFontSize: FontSize;
+  onAppFontSizeChange: (value: FontSize) => void;
   contentWidth: ContentWidth;
   onContentWidthChange: (value: ContentWidth) => void;
   base: BaseInfo | null;
@@ -149,6 +156,8 @@ export function SettingsDialog({
   onToggleTheme,
   fontSize,
   onFontSizeChange,
+  appFontSize,
+  onAppFontSizeChange,
   contentWidth,
   onContentWidthChange,
   base,
@@ -204,7 +213,7 @@ export function SettingsDialog({
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <div className="flex h-[28rem]">
           <nav className="w-44 shrink-0 border-r border-border bg-sidebar p-2">
-            <p className="px-2 pt-2 pb-1.5 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+            <p className="px-2 pt-2 pb-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
               Settings
             </p>
             {SECTIONS.map(({ id, label, icon: Icon }) => (
@@ -241,13 +250,20 @@ export function SettingsDialog({
                       }}
                     />
                   </Row>
-                  <Row label="Text size">
+                  <Row
+                    label="App text size"
+                    hint="Menus, lists and cards. Plans keep their own size."
+                  >
+                    <Segmented
+                      value={appFontSize}
+                      options={FONT_SIZE_OPTIONS}
+                      onChange={onAppFontSizeChange}
+                    />
+                  </Row>
+                  <Row label="Plan text size">
                     <Segmented
                       value={fontSize}
-                      options={FONT_SIZE_ORDER.map((value) => ({
-                        value,
-                        label: FONT_SIZE_LABELS[value],
-                      }))}
+                      options={FONT_SIZE_OPTIONS}
                       onChange={onFontSizeChange}
                     />
                   </Row>
@@ -342,7 +358,7 @@ export function SettingsDialog({
                   <summary className="cursor-default text-xs text-muted-foreground">
                     What ships with OpenPlan
                   </summary>
-                  <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-border bg-muted/40 p-3 text-[11px] leading-4 whitespace-pre-wrap text-muted-foreground">
+                  <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-border bg-muted/40 p-3 text-xs leading-4 whitespace-pre-wrap text-muted-foreground">
                     {standards?.builtIn ?? "Loading…"}
                   </pre>
                 </details>

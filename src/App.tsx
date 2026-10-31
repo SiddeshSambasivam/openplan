@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -71,7 +72,14 @@ import {
   type NavbarKey,
   type NavbarState,
 } from "./lib/navbar";
-import { isFontSize, FONT_SIZE_SCALES, type FontSize } from "./lib/fontSize";
+import {
+  APP_FONT_SIZES,
+  isFontSize,
+  loadAppFontSize,
+  FONT_SIZE_SCALES,
+  STORE_APP_FONT_SIZE,
+  type FontSize,
+} from "./lib/fontSize";
 import { loadCardDisplay, saveCardDisplay, type CardDisplay } from "./lib/cardDisplay";
 import type {
   DocFile,
@@ -192,6 +200,7 @@ export default function App() {
       return "small";
     }
   });
+  const [appFontSize, setAppFontSize] = useState<FontSize>(loadAppFontSize);
   const [cardDisplay, setCardDisplay] = useState<CardDisplay>(loadCardDisplay);
   const changeCardDisplay = useCallback((next: CardDisplay) => {
     setCardDisplay(next);
@@ -958,6 +967,19 @@ export default function App() {
       // best-effort
     }
   }, [fontSize]);
+
+  // Before paint, so a stored size never flashes the default first.
+  useLayoutEffect(() => {
+    document.documentElement.style.setProperty(
+      "--app-font-size",
+      APP_FONT_SIZES[appFontSize],
+    );
+    try {
+      localStorage.setItem(STORE_APP_FONT_SIZE, appFontSize);
+    } catch {
+      // best-effort
+    }
+  }, [appFontSize]);
 
   // Whether there is room for the outline to have a column of its own; when
   // there isn't, it floats instead, and the two have separate open states.
@@ -1758,6 +1780,8 @@ export default function App() {
         onToggleTheme={toggleTheme}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
+        appFontSize={appFontSize}
+        onAppFontSizeChange={setAppFontSize}
         contentWidth={contentWidth}
         onContentWidthChange={setContentWidth}
         base={base}
