@@ -23,11 +23,6 @@ pub fn authoring_block(mode: &str, media: bool) -> String {
     format!("Authoring mode: {mode}\nMedia: {media}\n\n{body}\n\n")
 }
 
-/// What agents are told with media off.
-pub fn effective(mode: &str, overrides: Option<&str>) -> String {
-    effective_with_media(mode, false, overrides)
-}
-
 /// What agents are told: the mode, the media line, the built-in standards,
 /// plus whatever the user added.
 pub fn effective_with_media(mode: &str, media: bool, overrides: Option<&str>) -> String {
@@ -259,16 +254,16 @@ mod tests {
 
     #[test]
     fn without_additions_agents_get_what_ships_under_the_mode_they_write_in() {
-        let served = effective("markdown", None);
+        let served = effective_with_media("markdown", false, None);
 
         assert!(served.starts_with("Authoring mode: markdown"), "{served}");
         assert!(served.contains(BUILT_IN));
-        assert_eq!(effective("markdown", Some("   ")), served);
+        assert_eq!(effective_with_media("markdown", false, Some("   ")), served);
     }
 
     #[test]
     fn html_mode_says_what_the_body_has_to_be() {
-        let served = effective("html", None);
+        let served = effective_with_media("html", false, None);
 
         assert!(served.starts_with("Authoring mode: html"), "{served}");
         let opening = served.split("# Plan standards").next().unwrap();
@@ -283,7 +278,6 @@ mod tests {
 
         assert_eq!(second_line(effective_with_media("markdown", true, None)), "Media: on");
         assert_eq!(second_line(effective_with_media("html", false, None)), "Media: off");
-        assert_eq!(second_line(effective("markdown", None)), "Media: off");
     }
 
     #[test]
@@ -337,7 +331,7 @@ mod tests {
 
     #[test]
     fn additions_are_layered_on_rather_than_replacing() {
-        let combined = effective("markdown", Some("Always name the reviewer."));
+        let combined = effective_with_media("markdown", false, Some("Always name the reviewer."));
 
         assert!(combined.contains(BUILT_IN));
         assert!(combined.contains("Always name the reviewer."));

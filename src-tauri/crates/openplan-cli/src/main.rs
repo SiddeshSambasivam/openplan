@@ -1,9 +1,23 @@
 use openplan_cli::{run, Context};
 use openplan_core::import::now_iso;
 use openplan_core::settings;
+use std::io::{IsTerminal, Read};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // A hook runs this on every turn. It never touches the base, and it
+    // exits quietly whatever happens, so a closed app costs one refused
+    // connection and nothing else.
+    if args.first().map(String::as_str) == Some("pending") {
+        let mut hook_input = String::new();
+        if !std::io::stdin().is_terminal() {
+            let _ = std::io::stdin().read_to_string(&mut hook_input);
+        }
+        if let Some(out) = openplan_cli::pending(&args, &hook_input) {
+            println!("{out}");
+        }
+        return;
+    }
     let base = match settings::resolve_default_base() {
         Ok(base) => base,
         Err(e) => {

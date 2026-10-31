@@ -31,6 +31,10 @@ pub struct Settings {
     /// picks one, which reads as markdown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authoring: Option<String>,
+    /// Whether agents may add videos and interactive pieces. Absent until the
+    /// person turns it on, which reads as off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media: Option<bool>,
 }
 
 /// Markdown is token-efficient; HTML gives a richer page to review. Both are
@@ -54,6 +58,20 @@ pub fn current_authoring() -> &'static str {
         .and_then(|path| read_settings(&path).ok().flatten())
         .and_then(|s| s.authoring);
     authoring_mode(stored.as_deref())
+}
+
+/// Off unless someone turned it on: media makes the base heavier.
+pub fn media_on(stored: Option<bool>) -> bool {
+    stored.unwrap_or(false)
+}
+
+/// What this machine is set to, read the way the MCP server reads it.
+pub fn current_media() -> bool {
+    let stored = settings_path()
+        .ok()
+        .and_then(|path| read_settings(&path).ok().flatten())
+        .and_then(|s| s.media);
+    media_on(stored)
 }
 
 /// A blank setting is the same as an unset one; git configs in particular
@@ -240,6 +258,21 @@ mod tests {
     }
 
     #[test]
+    fn media_is_off_until_someone_turns_it_on() {
+        let dir = temp_dir("openplan-core-settings-media");
+        let file = dir.join("settings.json");
+        std::fs::write(&file, "{\"basePath\":\"/somewhere\"}\n").unwrap();
+
+        let saved = read_settings(&file).unwrap().unwrap();
+
+        assert_eq!(saved.media, None);
+        assert!(!media_on(saved.media));
+        assert!(media_on(Some(true)));
+        assert!(!media_on(Some(false)));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn settings_written_before_the_mode_existed_still_read() {
         let dir = temp_dir("openplan-core-settings-no-authoring");
         let file = dir.join("settings.json");
@@ -321,6 +354,7 @@ mod tests {
             email: Some("sid@hypotenuse.ai".to_string()),
             onboarded: true,
             authoring: Some("html".to_string()),
+            media: Some(true),
         };
 
         write_settings(&file, &settings).unwrap();

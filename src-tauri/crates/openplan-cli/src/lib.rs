@@ -3,11 +3,13 @@
 //! writes and what the app reads cannot drift.
 
 pub mod mcp;
+mod work_tools;
 
 use openplan_core::base::Base;
-use openplan_core::repo::{self, Author};
 use openplan_core::library;
+use openplan_core::local::Event;
 use openplan_core::plan::Status;
+use openplan_core::repo::{self, Author};
 use std::path::Path;
 
 pub const USAGE: &str = "\
@@ -20,6 +22,8 @@ usage:
   openplan add <file>        file an existing markdown document as a plan
   openplan doctor            check the base is healthy and report what is in it
   openplan install <tool>    connect claude-code, codex, or cursor to the base
+  openplan pending --client <tool> [--session <id>] [--format stop|context]
+                             what the app sent that session's agent, for a hook
   openplan mcp               serve MCP over stdio (agents run this, not people)
   openplan help              this text
 ";
@@ -123,6 +127,61 @@ fn install(ctx: &Context, tool: Option<&str>, dry_run: bool) -> Result<String, S
         .join("\n"))
 }
 
+/// What `openplan pending` prints, or nothing. It runs from hooks on every
+/// turn, so it never touches the base: it asks the app once and returns.
+/// `hook_input` is what the harness wrote on stdin, if anything.
+pub fn pending(args: &[String], hook_input: &str) -> Option<String> {
+    let flag = |name: &str| {
+        args.iter()
+            .position(|a| a == name)
+            .and_then(|i| args.get(i + 1))
+            .map(String::as_str)
+    };
+    let client = flag("--client")?;
+    let format = flag("--format").unwrap_or("context");
+    let events = openplan_core::local::pending(client, flag("--session"));
+    pending_output(&events, client, format, hook_input)
+}
+
+/// One line per event, in the shape the hook's event reads. For a stop
+/// hook that is JSON that keeps the agent going, unless a stop hook already
+/// kept it going this turn, which would otherwise loop.
+pub fn pending_output(events: &[Event], client: &str, format: &str, hook_input: &str) -> Option<String> {
+    if events.is_empty() {
+        return None;
+    }
+    let text = events.iter().map(pending_line).collect::<Vec<_>>().join("\n");
+    if format != "stop" {
+        return Some(text);
+    }
+    let input: serde_json::Value = serde_json::from_str(hook_input).unwrap_or_default();
+    let continuing = input["stop_hook_active"] == true
+        || input["loop_count"].as_u64().is_some_and(|n| n > 0);
+    if continuing {
+        return None;
+    }
+    let output = if client == "cursor" {
+        serde_json::json!({ "followup_message": text })
+    } else {
+        serde_json::json!({ "decision": "block", "reason": text })
+    };
+    Some(output.to_string())
+}
+
+fn pending_line(event: &Event) -> String {
+    match event {
+        Event::Comments { plan, threads } => format!(
+            "OpenPlan: a review with {} comment{} arrived on {plan}. Call get_comments.",
+            threads.len(),
+            if threads.len() == 1 { "" } else { "s" }
+        ),
+        Event::Align { plan } => format!(
+            "OpenPlan: the plan {plan} is in alignment. Ask your questions and call record_alignment."
+        ),
+        Event::Status { plan, status } => format!("OpenPlan: {plan} is now {status}."),
+    }
+}
+
 fn doctor(ctx: &Context) -> String {
     let entries = library::scan(ctx.base);
     let mut lines = vec![
@@ -143,6 +202,13 @@ fn doctor(ctx: &Context) -> String {
         if n > 0 {
             lines.push(format!("  {:12} {n}", status.as_str()));
         }
+    }
+    if let (Some(home), Ok(cli)) = (dirs::home_dir(), std::env::current_exe()) {
+        let hooks: Vec<String> = openplan_core::integrations::hooks_installed(&home, &cli)
+            .iter()
+            .map(|(tool, present)| format!("{tool} {}", if *present { "installed" } else { "missing" }))
+            .collect();
+        lines.push(format!("hooks      {}", hooks.join(", ")));
     }
     lines.join("\n")
 }
@@ -352,6 +418,85 @@ mod tests {
         assert!(out.contains("plans      1"));
         assert!(out.contains("you        user <user@openplan.local>"));
         assert!(out.contains("in-progress  1"), "{out}");
+        assert!(out.contains("hooks      claude-code "), "{out}");
+        assert!(out.contains(", cursor "), "{out}");
         let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    fn review(plan: &str, comments: usize) -> Event {
+        let note = openplan_core::local::CommentNote {
+            id: "t1".to_string(),
+            quote: "why".to_string(),
+            line_start: 1,
+            line_end: 1,
+            text: "explain".to_string(),
+            author: "Sid".to_string(),
+        };
+        Event::Comments {
+            plan: plan.to_string(),
+            threads: vec![note; comments],
+        }
+    }
+
+    fn align(plan: &str) -> Event {
+        Event::Align {
+            plan: plan.to_string(),
+        }
+    }
+
+    #[test]
+    fn pending_prints_plain_lines_for_a_prompt_hook() {
+        let out = pending_output(&[review("auth", 2), align("sync")], "claude-code", "context", "")
+            .unwrap();
+
+        assert_eq!(
+            out,
+            "OpenPlan: a review with 2 comments arrived on auth. Call get_comments.\n\
+             OpenPlan: the plan sync is in alignment. Ask your questions and call record_alignment."
+        );
+        assert_eq!(
+            pending_output(&[review("auth", 1)], "claude-code", "context", "").unwrap(),
+            "OpenPlan: a review with 1 comment arrived on auth. Call get_comments."
+        );
+    }
+
+    #[test]
+    fn pending_keeps_a_claude_code_session_going_from_a_stop_hook() {
+        let input = r#"{"session_id":"abc","hook_event_name":"Stop","stop_hook_active":false}"#;
+
+        let out = pending_output(&[align("sync")], "claude-code", "stop", input).unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["decision"], "block");
+        assert_eq!(
+            parsed["reason"],
+            "OpenPlan: the plan sync is in alignment. Ask your questions and call record_alignment."
+        );
+    }
+
+    #[test]
+    fn pending_hands_cursor_a_follow_up_message() {
+        let out = pending_output(&[review("auth", 3)], "cursor", "stop", r#"{"loop_count":0}"#)
+            .unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(
+            parsed["followup_message"],
+            "OpenPlan: a review with 3 comments arrived on auth. Call get_comments."
+        );
+    }
+
+    #[test]
+    fn pending_says_nothing_when_nothing_waits_or_a_stop_hook_already_fired() {
+        assert_eq!(pending_output(&[], "claude-code", "stop", ""), None);
+        assert_eq!(pending_output(&[], "claude-code", "context", ""), None);
+        let again = r#"{"stop_hook_active":true}"#;
+        assert_eq!(pending_output(&[align("sync")], "claude-code", "stop", again), None);
+        assert_eq!(pending_output(&[align("sync")], "cursor", "stop", r#"{"loop_count":1}"#), None);
+    }
+
+    #[test]
+    fn pending_with_no_client_or_no_app_prints_nothing() {
+        assert_eq!(pending(&["pending".to_string()], ""), None);
     }
 }

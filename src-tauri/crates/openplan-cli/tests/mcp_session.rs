@@ -48,8 +48,10 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     assert_eq!(
         names,
         vec![
-            "create_plan", "list_plans", "set_status", "read_plan",
-            "get_comments", "reply_comment", "resolve_comment", "get_standards"
+            "create_plan", "update_plan", "list_plans", "set_status", "read_plan",
+            "get_comments", "reply_comment", "resolve_comment", "get_standards",
+            "record_alignment", "add_decisions", "add_todos", "update_todo",
+            "set_repos", "pr_body", "record_pr"
         ]
     );
     let described = tools["result"]["tools"].to_string();
@@ -93,6 +95,36 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     // A session may open alignment on a draft.
     let aligning = ask(r##"{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"alignment"}}}"##);
     assert_eq!(aligning["result"]["isError"], false, "{aligning}");
+
+    // Work cannot start before the questions are answered and the work is listed.
+    let early = ask(r##"{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-progress"}}}"##);
+    assert_eq!(early["result"]["isError"], true, "{early}");
+    let refusal = early["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(refusal.contains("record_alignment") && refusal.contains("add_todos"), "{refusal}");
+
+    // An unanswered question is named back rather than recorded.
+    let half = ask(&r##"{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"record_alignment","arguments":{"id":"auth-refactor","questions":[
+        {"id":"q1","aspect":"tests","question":"What has to be tested?","options":[{"id":"a","label":"Unit tests"}],"recommended":"a","answer":{"kind":"option","options":["a"]}},
+        {"id":"q2","aspect":"scale","question":"How large a case?","options":[{"id":"a","label":"Today's largest"}]}
+    ]}}}"##.replace('\n', ""));
+    assert_eq!(half["result"]["isError"], true, "{half}");
+    assert!(half["result"]["content"][0]["text"].as_str().unwrap().contains("q2"), "{half}");
+
+    let aligned = ask(&r##"{"jsonrpc":"2.0","id":32,"method":"tools/call","params":{"name":"record_alignment","arguments":{"id":"auth-refactor","questions":[
+        {"id":"q1","aspect":"tests","question":"What has to be tested?","options":[{"id":"a","label":"Unit tests"}],"recommended":"a","answer":{"kind":"option","options":["a"]}},
+        {"id":"q2","aspect":"scale","question":"How large a case?","options":[{"id":"a","label":"Today's largest"}],"recommended":"a","answer":{"kind":"agent"}}
+    ]}}}"##.replace('\n', ""));
+    assert_eq!(aligned["result"]["isError"], false, "{aligned}");
+
+    let decided = ask(r##"{"jsonrpc":"2.0","id":33,"method":"tools/call","params":{"name":"add_decisions","arguments":{"id":"auth-refactor","decisions":[{"context":"Where tokens live","options":["cookie","header"],"decision":"Tokens travel in a header.","why":"The API has no cookies.","fromQuestion":"q1"}]}}}"##);
+    assert_eq!(decided["result"]["content"][0]["text"], "Recorded D1.", "{decided}");
+
+    let todos = ask(r##"{"jsonrpc":"2.0","id":34,"method":"tools/call","params":{"name":"add_todos","arguments":{"id":"auth-refactor","todos":["Move tokens to a header","Test the refresh path"]}}}"##);
+    assert_eq!(todos["result"]["content"][0]["text"], "Added t1 and t2.", "{todos}");
+
+    let repos = ask(r##"{"jsonrpc":"2.0","id":35,"method":"tools/call","params":{"name":"set_repos","arguments":{"id":"auth-refactor","repos":[{"path":"~/work/api","remote":"github.com/acme/api","branch":"feat/header-tokens"}]}}}"##);
+    assert_eq!(repos["result"]["isError"], false, "{repos}");
+
     let started = ask(r##"{"jsonrpc":"2.0","id":17,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-progress"}}}"##);
     assert_eq!(started["result"]["isError"], false, "{started}");
     // Once the work has started, going back to alignment is the person's call.
@@ -106,8 +138,47 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         ));
         assert_eq!(refused["result"]["isError"], true, "{status}: {refused}");
     }
+    // Review waits until no todo is open.
+    let unfinished = ask(r##"{"jsonrpc":"2.0","id":36,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-review"}}}"##);
+    assert_eq!(unfinished["result"]["isError"], true, "{unfinished}");
+    assert!(unfinished["result"]["content"][0]["text"].as_str().unwrap().contains("t1 (Move tokens to a header)"));
+    for todo in ["t1", "t2"] {
+        let done = ask(&format!(
+            r##"{{"jsonrpc":"2.0","id":37,"method":"tools/call","params":{{"name":"update_todo","arguments":{{"id":"auth-refactor","todo_id":"{todo}","state":"done"}}}}}}"##
+        ));
+        assert_eq!(done["result"]["content"][0]["text"], format!("{todo} is done."), "{done}");
+    }
     let moved = ask(r##"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-review"}}}"##);
     assert_eq!(moved["result"]["isError"], false, "{moved}");
+
+    // New work in review sends the plan back to in progress, and says so.
+    let more = ask(r##"{"jsonrpc":"2.0","id":38,"method":"tools/call","params":{"name":"add_todos","arguments":{"id":"auth-refactor","todos":["Log refresh failures"]}}}"##);
+    let more_text = more["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(more_text.contains("Added t3.") && more_text.contains("back in progress"), "{more_text}");
+    let dropped = ask(r##"{"jsonrpc":"2.0","id":39,"method":"tools/call","params":{"name":"update_todo","arguments":{"id":"auth-refactor","todo_id":"t3","state":"dropped","reason":"Logging already covers it."}}}"##);
+    assert_eq!(dropped["result"]["isError"], false, "{dropped}");
+    let back = ask(r##"{"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-review"}}}"##);
+    assert_eq!(back["result"]["isError"], false, "{back}");
+
+    let body = ask(r##"{"jsonrpc":"2.0","id":41,"method":"tools/call","params":{"name":"pr_body","arguments":{"id":"auth-refactor"}}}"##);
+    let body_text = body["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(body_text.starts_with("# Auth refactor\n\nwhy\n"), "{body_text}");
+    assert!(body_text.contains("- How large a case? Today's largest (agent decided)"), "{body_text}");
+    assert!(body_text.contains("- D1: Tokens travel in a header."), "{body_text}");
+    assert!(body_text.contains("- [x] t1 Move tokens to a header"), "{body_text}");
+    assert!(body_text.ends_with("Plan: auth-refactor in OpenPlan\n"), "{body_text}");
+
+    let pr = ask(r##"{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"record_pr","arguments":{"id":"auth-refactor","pr":{"url":"https://github.com/acme/api/pull/7","repo":"github.com/acme/api","todos":["t1","t2"],"state":"open","checks":"pending","review":"waiting"}}}}"##);
+    assert_eq!(pr["result"]["isError"], false, "{pr}");
+    let merged = ask(r##"{"jsonrpc":"2.0","id":43,"method":"tools/call","params":{"name":"record_pr","arguments":{"id":"auth-refactor","pr":{"url":"https://github.com/acme/api/pull/7","state":"merged","checks":"passing","review":"approved"}}}}"##);
+    assert_eq!(merged["result"]["isError"], false, "{merged}");
+
+    let progress = ask(r##"{"jsonrpc":"2.0","id":44,"method":"tools/call","params":{"name":"list_plans","arguments":{"status":"in-review"}}}"##);
+    assert_eq!(
+        progress["result"]["content"][0]["text"],
+        "[in-review] auth-refactor Auth refactor · todos 2/2",
+        "{progress}"
+    );
 
     let read = ask(r##"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"read_plan","arguments":{"id":"auth-refactor"}}}"##);
     let text = read["result"]["content"][0]["text"].as_str().unwrap();
@@ -201,6 +272,87 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         openplan_core::repo::history(&base.root, std::path::Path::new("plans/auth-refactor.md"))
             .unwrap();
     assert_eq!(history[0].author, "claude-code");
+    let record = openplan_core::work::read(&plan_path).unwrap().unwrap();
+    assert_eq!(record.prs.len(), 1, "one PR, reported twice");
+    assert_eq!(record.prs[0].state, openplan_core::work::PrState::Merged);
+    assert_eq!(record.repos[0].branch.as_deref(), Some("feat/header-tokens"));
+    assert_eq!(record.todos[2].reason.as_deref(), Some("Logging already covers it."));
+    assert_eq!(record.decisions[0].by, "claude-code");
+    // The work record is in the history too, under the agent's name.
+    let work_history = openplan_core::repo::history(
+        &base.root,
+        std::path::Path::new("plans/.auth-refactor.md.oplan-work.json"),
+    )
+    .unwrap();
+    let messages: Vec<&str> = work_history.iter().map(|r| r.message.as_str()).collect();
+    for verb in ["align", "decisions", "todos", "repos", "pr"] {
+        let wanted = format!("agent(claude-code): {verb} auth-refactor");
+        assert!(messages.contains(&wanted.as_str()), "no {wanted} in {messages:?}");
+    }
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+/// A plan written before 0.3.0: revised in place, with what this build does
+/// not write kept, and its PR moved into the work record.
+#[test]
+fn update_plan_keeps_the_frontmatter_and_refuses_a_finished_plan() {
+    let home = std::env::temp_dir().join(format!("openplan-mcp-session-update-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&home);
+    let plans = home.join(openplan_core::profile::base_dir_name()).join("plans");
+    std::fs::create_dir_all(&plans).unwrap();
+    std::fs::write(
+        plans.join("old-plan.md"),
+        "---\nid: old-plan\ntitle: Old plan\nstatus: in-review\ntype: bug\nsource: codex\nreviewer: Sid\npr: https://github.com/acme/api/pull/3\nupdated: 2026-01-01T00:00:00Z\n---\n# Old plan\n\nfirst draft\n",
+    )
+    .unwrap();
+    std::fs::write(
+        plans.join("shipped.md"),
+        "---\nid: shipped\ntitle: Shipped\nstatus: completed\n---\n# Shipped\n",
+    )
+    .unwrap();
+
+    let mut server = Command::new(env!("CARGO_BIN_EXE_openplan"))
+        .arg("mcp")
+        .env("HOME", &home)
+        .env_remove("XDG_CONFIG_HOME")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("the server should start");
+    let mut stdin = server.stdin.take().unwrap();
+    let mut lines = BufReader::new(server.stdout.take().unwrap()).lines();
+    let mut ask = |message: &str| -> serde_json::Value {
+        writeln!(stdin, "{message}").unwrap();
+        let line = lines.next().expect("a reply").unwrap();
+        serde_json::from_str(&line).expect("json-rpc")
+    };
+    ask(r##"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-ai","version":"1.0"}}}"##);
+
+    let updated = ask(r##"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"update_plan","arguments":{"id":"old-plan","body":"# Old plan\n\n## Summary\n\nsecond draft"}}}"##);
+    assert_eq!(updated["result"]["isError"], false, "{updated}");
+    let reply = updated["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(reply.starts_with("Updated old-plan."), "{reply}");
+    assert!(reply.contains("Reproduction"), "a bug plan is told what it lacks: {reply}");
+
+    let finished = ask(r##"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"update_plan","arguments":{"id":"shipped","body":"# Shipped\n\nchanged"}}}"##);
+    assert_eq!(finished["result"]["isError"], true, "{finished}");
+
+    drop(stdin);
+    server.wait().unwrap();
+
+    let text = std::fs::read_to_string(plans.join("old-plan.md")).unwrap();
+    assert!(text.contains("\nreviewer: Sid\n"), "{text}");
+    assert!(text.contains("\npr: https://github.com/acme/api/pull/3\n"), "{text}");
+    assert!(text.contains("\nstatus: in-review\n"), "{text}");
+    assert!(!text.contains("2026-01-01T00:00:00Z"), "updated is bumped: {text}");
+    assert!(text.ends_with("---\n# Old plan\n\n## Summary\n\nsecond draft\n"), "{text}");
+    let record = openplan_core::work::read(&plans.join("old-plan.md")).unwrap().unwrap();
+    assert_eq!(record.prs[0].url, "https://github.com/acme/api/pull/3");
+    assert_eq!(
+        std::fs::read_to_string(plans.join("shipped.md")).unwrap(),
+        "---\nid: shipped\ntitle: Shipped\nstatus: completed\n---\n# Shipped\n"
+    );
 
     let _ = std::fs::remove_dir_all(&home);
 }
@@ -312,7 +464,7 @@ fn a_session_registers_with_the_app_and_hears_about_comments() {
     .unwrap();
 
     // The app is up before the session starts, which is how the client finds it.
-    let server = Server::start(base.clone(), |_| {}).unwrap();
+    let server = Server::start(|_| {}).unwrap();
     let settings = config_dir(&home).join(openplan_core::profile::name());
     std::fs::create_dir_all(&settings).unwrap();
     openplan_core::local::write_app(
@@ -346,14 +498,14 @@ fn a_session_registers_with_the_app_and_hears_about_comments() {
     assert_eq!(joined[0].client, "claude-code");
     assert!(joined[0].plans.is_empty(), "filing is not working on it");
 
-    // Filing a plan leaves it a draft and says nothing about a session.
+    // The session that files a plan is on it, so the review reaches it.
     let created = ask(
         r##"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor"}}}"##,
     );
     assert_eq!(created["result"]["isError"], false, "{created}");
-    assert!(server.sessions()[0].plans.is_empty());
+    assert_eq!(server.sessions()[0].plans, vec!["auth-refactor".to_string()]);
 
-    // Reading one is. The plan moves with it.
+    // Reading it leaves the status where it was.
     let read = ask(r##"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read_plan","arguments":{"id":"auth-refactor"}}}"##);
     assert_eq!(read["result"]["isError"], false, "{read}");
     assert_eq!(server.sessions()[0].plans, vec!["auth-refactor".to_string()]);
@@ -361,7 +513,7 @@ fn a_session_registers_with_the_app_and_hears_about_comments() {
         .into_iter()
         .find(|e| e.meta.id == "auth-refactor")
         .unwrap();
-    assert_eq!(entry.meta.status, openplan_core::plan::Status::InProgress);
+    assert_eq!(entry.meta.status, openplan_core::plan::Status::Draft);
 
     // A review sent from the app reaches the session in its next tool result.
     let sent = server.send(
@@ -403,6 +555,44 @@ fn a_session_registers_with_the_app_and_hears_about_comments() {
         .as_str()
         .unwrap()
         .contains("New comments"));
+
+    // A hook asks the app what the agent has not seen yet, in either shape.
+    let pending = |format: &str| -> String {
+        let out = Command::new(env!("CARGO_BIN_EXE_openplan"))
+            .args(["pending", "--client", "claude-code", "--format", format])
+            .env("HOME", &home)
+            .env_remove("XDG_CONFIG_HOME")
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+        String::from_utf8(out.stdout).unwrap()
+    };
+    assert_eq!(pending("context"), "", "the review already reached the agent");
+    server.send(
+        "auth-refactor",
+        Event::Align {
+            plan: "auth-refactor".to_string(),
+        },
+    );
+    let line = "OpenPlan: the plan auth-refactor is in alignment. Ask your questions and call record_alignment.";
+    assert_eq!(pending("context"), format!("{line}\n"));
+    let stop: serde_json::Value = serde_json::from_str(&pending("stop")).unwrap();
+    assert_eq!(stop["decision"], "block");
+    assert_eq!(stop["reason"], line);
+
+    // The next tool call carries it too, and after that the hook is quiet.
+    let mut told = String::new();
+    for _ in 0..200 {
+        let listed = ask(r##"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"list_plans","arguments":{}}}"##);
+        let text = listed["result"]["content"][0]["text"].as_str().unwrap().to_string();
+        if text.contains("alignment") {
+            told = text;
+            break;
+        }
+    }
+    assert!(told.contains("record_alignment"), "{told}");
+    assert_eq!(pending("stop"), "");
 
     // The session ends when the client closes stdin.
     drop(stdin);

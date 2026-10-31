@@ -4,10 +4,19 @@
 //!
 //! Everything written into a file someone else owns lives inside one marked
 //! block, so installing twice replaces rather than repeats, and uninstalling
-//! is deleting the block.
+//! is deleting the block. A hook is found again by its exact command.
 
+use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// Claude Code's events, each with the shape `openplan pending` answers in:
+/// Stop keeps the turn going, and a prompt hook's output becomes context.
+const CLAUDE_HOOKS: [(&str, &str); 2] = [("Stop", "stop"), ("UserPromptSubmit", "context")];
+
+/// Cursor's prompt hook can block a prompt but cannot add context, so only
+/// its stop hook carries anything.
+const CURSOR_HOOKS: [(&str, &str); 1] = [("stop", "stop")];
 
 /// Marks the section these installers own, so everything a person wrote
 /// around it survives. A dev build owns a different section than the
@@ -178,7 +187,74 @@ pub fn install_claude_code(home: &Path, cli: &Path, dry_run: bool) -> Result<Vec
         &conventions(),
         dry_run,
     )?);
+    steps.push(install_claude_hooks(home, cli, dry_run)?);
     Ok(steps)
+}
+
+/// What a hook runs. The exact string is how our entries are told apart from
+/// everyone else's, so it depends on nothing but the CLI and the event.
+pub fn hook_command(cli: &Path, client: &str, format: &str) -> String {
+    format!("\"{}\" pending --client {client} --format {format}", cli.display())
+}
+
+/// Puts our hooks into a Claude Code settings document, or takes them out.
+/// Each one is its own entry, so hooks other tools added stay as they were.
+pub fn set_claude_hooks(settings: &mut Value, cli: &Path, present: bool) -> Result<(), String> {
+    let hooks = hooks_object(settings)?;
+    for (event, format) in CLAUDE_HOOKS {
+        let command = hook_command(cli, "claude-code", format);
+        let entry = json!({ "hooks": [{ "type": "command", "command": command }] });
+        set_entry(hooks, event, &command, entry, present)?;
+    }
+    Ok(())
+}
+
+/// The same for Cursor's `hooks.json`, whose entries carry the command
+/// directly.
+pub fn set_cursor_hooks(file: &mut Value, cli: &Path, present: bool) -> Result<(), String> {
+    let root = file.as_object_mut().ok_or("hooks.json isn't a JSON object.")?;
+    root.entry("version").or_insert(json!(1));
+    let hooks = hooks_object(file)?;
+    for (event, format) in CURSOR_HOOKS {
+        let command = hook_command(cli, "cursor", format);
+        let entry = json!({ "command": command });
+        set_entry(hooks, event, &command, entry, present)?;
+    }
+    Ok(())
+}
+
+/// Adds the Stop and UserPromptSubmit hooks to `~/.claude/settings.json`.
+pub fn install_claude_hooks(home: &Path, cli: &Path, dry_run: bool) -> Result<Step, String> {
+    let path = home.join(".claude").join("settings.json");
+    let label = format!("Add the Stop and UserPromptSubmit hooks to {}", path.display());
+    edit_json_file(&path, dry_run, |settings| set_claude_hooks(settings, cli, true))
+        .map(|detail| step(label, true, detail))
+}
+
+/// Whether each tool's hooks are in place, for `openplan doctor`.
+pub fn hooks_installed(home: &Path, cli: &Path) -> [(&'static str, bool); 2] {
+    let read = |path: PathBuf| -> Value {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or(Value::Null)
+    };
+    let claude = read(home.join(".claude").join("settings.json"));
+    let cursor = read(home.join(".cursor").join("hooks.json"));
+    [
+        (
+            "claude-code",
+            CLAUDE_HOOKS
+                .iter()
+                .all(|(_, format)| mentions(&claude, &hook_command(cli, "claude-code", format))),
+        ),
+        (
+            "cursor",
+            CURSOR_HOOKS
+                .iter()
+                .all(|(_, format)| mentions(&cursor, &hook_command(cli, "cursor", format))),
+        ),
+    ]
 }
 
 /// Codex: its config is a TOML file of MCP servers, and its instructions are
@@ -239,11 +315,102 @@ pub fn install_cursor(home: &Path, cli: &Path) -> Result<Vec<Step>, String> {
         &config,
         &format!("{}\n", serde_json::to_string_pretty(&root).unwrap()),
     )?;
-    Ok(vec![step(
-        format!("Register the {} MCP server", crate::profile::name()),
-        true,
-        if already { "already registered" } else { "registered" },
-    )])
+    let hooks = home.join(".cursor").join("hooks.json");
+    let detail = edit_json_file(&hooks, false, |file| set_cursor_hooks(file, cli, true))?;
+    Ok(vec![
+        step(
+            format!("Register the {} MCP server", crate::profile::name()),
+            true,
+            if already { "already registered" } else { "registered" },
+        ),
+        step(
+            format!("Add the stop hook to {}", hooks.display()),
+            true,
+            format!(
+                "{detail}. Cursor's prompt hook cannot pass a review on, so between turns it waits for the agent's next tool call"
+            ),
+        ),
+    ])
+}
+
+/// Reads a JSON file someone else owns, changes it, and writes it back in
+/// their key order. A missing file starts empty. One that does not parse is
+/// left alone rather than replaced.
+fn edit_json_file(
+    path: &Path,
+    dry_run: bool,
+    change: impl FnOnce(&mut Value) -> Result<(), String>,
+) -> Result<&'static str, String> {
+    let existing = match std::fs::read_to_string(path) {
+        Ok(raw) => Some(raw),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(format!("Couldn't read {}: {e}", path.display())),
+    };
+    let mut value = match &existing {
+        Some(raw) => serde_json::from_str(raw)
+            .map_err(|e| format!("{} isn't valid JSON, so it was left alone: {e}", path.display()))?,
+        None => json!({}),
+    };
+    let before = value.clone();
+    change(&mut value)?;
+    if dry_run {
+        return Ok("would add the hooks");
+    }
+    if value == before {
+        return Ok("already current");
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Couldn't create {}: {e}", parent.display()))?;
+    }
+    let text = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+    crate::fs::atomic_write(path, &format!("{text}\n"))?;
+    Ok("written")
+}
+
+fn hooks_object(file: &mut Value) -> Result<&mut Map<String, Value>, String> {
+    file.as_object_mut()
+        .ok_or("The hooks file isn't a JSON object.")?
+        .entry("hooks")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .ok_or_else(|| "Its \"hooks\" entry isn't an object.".to_string())
+}
+
+/// Takes out every entry that runs `command`, then adds `entry` back when
+/// the hook should be present. An event left with no entries goes too.
+fn set_entry(
+    hooks: &mut Map<String, Value>,
+    event: &str,
+    command: &str,
+    entry: Value,
+    present: bool,
+) -> Result<(), String> {
+    let list = hooks
+        .entry(event)
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .ok_or_else(|| format!("The {event} hooks aren't a list."))?;
+    list.retain(|existing| !mentions(existing, command));
+    if present {
+        list.push(entry);
+    }
+    if list.is_empty() {
+        hooks.remove(event);
+    }
+    Ok(())
+}
+
+/// Whether any `command` inside this value is exactly the one given.
+fn mentions(value: &Value, command: &str) -> bool {
+    match value {
+        Value::Object(map) => {
+            map.get("command").and_then(Value::as_str) == Some(command)
+                || map.values().any(|v| mentions(v, command))
+        }
+        Value::Array(items) => items.iter().any(|v| mentions(v, command)),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -323,19 +490,116 @@ mod tests {
         assert!(flat.contains("When every PR is merged, ask the person in the harness to confirm"));
     }
 
+    /// Someone's real settings: hooks from another tool on the same events,
+    /// and keys in an order they chose.
+    const THEIR_SETTINGS: &str = r#"{
+  "permissions": { "allow": ["Artifact"] },
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "their-stop.sh", "timeout": 10 } ] }
+    ],
+    "SessionStart": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "their-start.sh" } ] }
+    ]
+  },
+  "model": "opus"
+}"#;
+
+    fn hook_commands(settings: &serde_json::Value, event: &str) -> Vec<String> {
+        settings["hooks"][event]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .flat_map(|group| group["hooks"].as_array().cloned().unwrap_or_default())
+            .map(|hook| hook["command"].as_str().unwrap_or_default().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn claude_hooks_go_in_beside_theirs_and_replace_only_our_own() {
+        let cli = Path::new("/Applications/OpenPlan.app/Contents/MacOS/openplan");
+        let mut settings: serde_json::Value = serde_json::from_str(THEIR_SETTINGS).unwrap();
+
+        set_claude_hooks(&mut settings, cli, true).unwrap();
+        set_claude_hooks(&mut settings, cli, true).unwrap();
+
+        let stop = hook_command(cli, "claude-code", "stop");
+        let prompt = hook_command(cli, "claude-code", "context");
+        assert_eq!(hook_commands(&settings, "Stop"), ["their-stop.sh".to_string(), stop.clone()]);
+        assert_eq!(hook_commands(&settings, "UserPromptSubmit"), [prompt]);
+        assert_eq!(hook_commands(&settings, "SessionStart"), ["their-start.sh"]);
+        assert_eq!(settings["hooks"]["Stop"][0]["hooks"][0]["timeout"], 10);
+        assert_eq!(settings["hooks"]["Stop"][1]["hooks"][0]["type"], "command");
+        let keys: Vec<&String> = settings.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["permissions", "hooks", "model"], "their key order");
+
+        set_claude_hooks(&mut settings, cli, false).unwrap();
+
+        assert_eq!(hook_commands(&settings, "Stop"), ["their-stop.sh"]);
+        assert!(settings["hooks"].get("UserPromptSubmit").is_none());
+        assert_eq!(
+            settings,
+            serde_json::from_str::<serde_json::Value>(THEIR_SETTINGS).unwrap()
+        );
+    }
+
+    #[test]
+    fn the_hook_command_runs_pending_for_the_client_in_its_shape() {
+        let command = hook_command(Path::new("/opt/Open Plan/openplan"), "cursor", "stop");
+
+        assert_eq!(command, "\"/opt/Open Plan/openplan\" pending --client cursor --format stop");
+    }
+
+    #[test]
+    fn installing_claude_hooks_writes_the_settings_file_and_doctor_sees_them() {
+        let home = temp_home("openplan-core-int-claude-hooks");
+        let cli = Path::new("/usr/local/bin/openplan");
+        std::fs::create_dir_all(home.join(".claude")).unwrap();
+        std::fs::write(home.join(".claude/settings.json"), THEIR_SETTINGS).unwrap();
+        assert_eq!(hooks_installed(&home, cli), [("claude-code", false), ("cursor", false)]);
+
+        let step = install_claude_hooks(&home, cli, false).unwrap();
+
+        assert!(step.done, "{step:?}");
+        let raw = std::fs::read_to_string(home.join(".claude/settings.json")).unwrap();
+        let written: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(hook_commands(&written, "Stop").len(), 2, "{raw}");
+        assert_eq!(hooks_installed(&home, cli), [("claude-code", true), ("cursor", false)]);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn a_settings_file_that_is_not_json_is_left_alone() {
+        let home = temp_home("openplan-core-int-claude-broken");
+        std::fs::create_dir_all(home.join(".claude")).unwrap();
+        std::fs::write(home.join(".claude/settings.json"), "{ not json").unwrap();
+
+        let err = install_claude_hooks(&home, Path::new("/usr/local/bin/openplan"), false)
+            .unwrap_err();
+
+        assert!(err.contains("settings.json"), "{err}");
+        let raw = std::fs::read_to_string(home.join(".claude/settings.json")).unwrap();
+        assert_eq!(raw, "{ not json");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
     #[test]
     fn a_dry_run_writes_nothing_and_says_what_it_would_do() {
         let home = temp_home("openplan-core-int-claude");
         std::fs::create_dir_all(home.join(".claude")).unwrap();
         std::fs::write(home.join(".claude/CLAUDE.md"), "# Sid's rules\n").unwrap();
+        std::fs::write(home.join(".claude/settings.json"), THEIR_SETTINGS).unwrap();
 
         let steps =
             install_claude_code(&home, Path::new("/usr/local/bin/openplan"), true).unwrap();
 
         let md = std::fs::read_to_string(home.join(".claude/CLAUDE.md")).unwrap();
         assert_eq!(md, "# Sid's rules\n", "a dry run wrote to their file");
+        let settings = std::fs::read_to_string(home.join(".claude/settings.json")).unwrap();
+        assert_eq!(settings, THEIR_SETTINGS, "a dry run wrote their settings");
         assert!(steps.iter().any(|s| s.detail.contains("claude mcp add-json")));
         assert!(steps.iter().any(|s| s.detail.contains("would add")));
+        assert!(steps.iter().any(|s| s.label.contains("Stop and UserPromptSubmit")), "{steps:?}");
 
         install_claude_code(&home, Path::new("/usr/local/bin/openplan"), true).unwrap();
         let wet = std::fs::read_to_string(home.join(".claude/CLAUDE.md")).unwrap();
@@ -375,6 +639,39 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert!(parsed["mcpServers"]["other"].is_object(), "{raw}");
         assert_eq!(parsed["mcpServers"][crate::profile::name()]["args"][0], "mcp");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn installing_for_cursor_adds_a_stop_hook_beside_theirs_once() {
+        let home = temp_home("openplan-core-int-cursor-hooks");
+        let cli = Path::new("/usr/local/bin/openplan");
+        std::fs::create_dir_all(home.join(".cursor")).unwrap();
+        std::fs::write(
+            home.join(".cursor/hooks.json"),
+            r#"{"version":1,"hooks":{"stop":[{"command":"./audit.sh"}],"afterFileEdit":[{"command":"./fmt.sh"}]}}"#,
+        )
+        .unwrap();
+
+        install_cursor(&home, cli).unwrap();
+        install_cursor(&home, cli).unwrap();
+
+        let raw = std::fs::read_to_string(home.join(".cursor/hooks.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(parsed["version"], 1);
+        let stop: Vec<&str> = parsed["hooks"]["stop"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|h| h["command"].as_str().unwrap())
+            .collect();
+        assert_eq!(stop, ["./audit.sh", hook_command(cli, "cursor", "stop").as_str()]);
+        assert_eq!(parsed["hooks"]["afterFileEdit"][0]["command"], "./fmt.sh");
+        assert!(hooks_installed(&home, cli).contains(&("cursor", true)));
+
+        let mut file = parsed.clone();
+        set_cursor_hooks(&mut file, cli, false).unwrap();
+        assert_eq!(file["hooks"]["stop"].as_array().unwrap().len(), 1);
         let _ = std::fs::remove_dir_all(&home);
     }
 }

@@ -3,12 +3,10 @@
 //! working on; the app answers with the comments and status changes meant for
 //! it. Nothing here is required for a plan to be filed: with no app listening
 //! the client hands back nothing and every tool works against files alone.
+//! Being on a plan never moves it: a session only counts who is working.
 
-use crate::base::Base;
+use crate::fs;
 use crate::import::now_iso;
-use crate::plan::{self, Status};
-use crate::repo::{self, Author};
-use crate::{fs, library, settings};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -53,6 +51,10 @@ pub enum Event {
         plan: String,
         status: String,
     },
+    /// The person set the plan to alignment, so the agent asks its questions.
+    Align {
+        plan: String,
+    },
 }
 
 /// A session as the interface lists it.
@@ -68,8 +70,6 @@ pub struct SessionInfo {
 /// What the app should tell the interface after a request changed something.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Notice {
-    /// A plan on disk moved.
-    BaseChanged,
     /// Who is working, or on what, is different.
     SessionsChanged,
 }
@@ -79,6 +79,9 @@ struct Session {
     plans: Vec<String>,
     since: String,
     events: Vec<Event>,
+    /// Sent but not yet in front of the agent: the poll has taken them, and
+    /// no tool result has carried them yet. A hook reads these.
+    unheard: Vec<Event>,
     /// When this session last spoke. Only consulted while nothing is waiting
     /// on its behalf, since a held-open poll is proof enough that it is there.
     seen: Instant,
@@ -106,10 +109,7 @@ pub struct Server {
 impl Server {
     /// Binds loopback on a free port and serves until shutdown. `notify` runs
     /// on the connection's thread, so it should hand off rather than work.
-    pub fn start(
-        base: Base,
-        notify: impl Fn(Notice) + Send + Sync + 'static,
-    ) -> Result<Server, String> {
+    pub fn start(notify: impl Fn(Notice) + Send + Sync + 'static) -> Result<Server, String> {
         let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
             .map_err(|e| format!("Couldn't start OpenPlan's local server: {e}"))?;
         let port = listener
@@ -128,9 +128,8 @@ impl Server {
                 }
                 let Ok(stream) = stream else { continue };
                 let shared = served.clone();
-                let base = base.clone();
                 let notify = notify.clone();
-                std::thread::spawn(move || handle(&shared, &base, notify.as_ref(), stream));
+                std::thread::spawn(move || handle(&shared, notify.as_ref(), stream));
             }
         });
         Ok(Server { port, shared })
@@ -154,6 +153,7 @@ impl Server {
         for session in state.sessions.values_mut() {
             if session.plans.iter().any(|p| p == plan_id) {
                 session.events.push(event.clone());
+                session.unheard.push(event.clone());
                 sent += 1;
             }
         }
@@ -195,7 +195,7 @@ fn sweep(state: &mut State) {
         .retain(|_, session| session.polling || session.seen.elapsed() < IDLE_LIMIT);
 }
 
-fn handle(shared: &Shared, base: &Base, notify: &dyn Fn(Notice), mut stream: TcpStream) {
+fn handle(shared: &Shared, notify: &dyn Fn(Notice), mut stream: TcpStream) {
     let Some(request) = read_request(&stream) else {
         let _ = respond(&mut stream, "400 Bad Request", "{}");
         return;
@@ -221,10 +221,10 @@ fn handle(shared: &Shared, base: &Base, notify: &dyn Fn(Notice), mut stream: Tcp
             }
             let _ = respond(&mut stream, if existed { "200 OK" } else { "404 Not Found" }, "{}");
         }
-        ("POST", ["sessions", id, "plans"]) => {
-            take_plan(shared, base, notify, id, &request.body, &mut stream)
-        }
+        ("POST", ["sessions", id, "plans"]) => take_plan(shared, notify, id, &request.body, &mut stream),
         ("GET", ["sessions", id, "events"]) => poll(shared, notify, id, &mut stream),
+        ("GET", ["sessions", id, "pending"]) => pending_events(shared, id, &mut stream),
+        ("POST", ["sessions", id, "heard"]) => heard(shared, id, &request.body, &mut stream),
         _ => {
             let _ = respond(&mut stream, "404 Not Found", "{}");
         }
@@ -246,6 +246,7 @@ fn open_session(shared: &Shared, notify: &dyn Fn(Notice), body: &str, stream: &m
             plans: Vec::new(),
             since: now_iso(),
             events: Vec::new(),
+            unheard: Vec::new(),
             seen: Instant::now(),
             polling: false,
         },
@@ -267,7 +268,6 @@ fn end_session(shared: &Shared, id: &str) -> bool {
 
 fn take_plan(
     shared: &Shared,
-    base: &Base,
     notify: &dyn Fn(Notice),
     id: &str,
     body: &str,
@@ -277,7 +277,7 @@ fn take_plan(
         let _ = respond(stream, "400 Bad Request", "{}");
         return;
     };
-    let client = {
+    {
         let Ok(mut state) = shared.0.lock() else {
             let _ = respond(stream, "500 Internal Server Error", "{}");
             return;
@@ -288,43 +288,43 @@ fn take_plan(
         };
         session.seen = Instant::now();
         if !session.plans.iter().any(|p| p == &plan_id) {
-            session.plans.push(plan_id.clone());
+            session.plans.push(plan_id);
         }
-        session.client.clone()
-    };
-    let moved = start_work(base, &client, &plan_id);
-    notify(Notice::SessionsChanged);
-    if moved {
-        notify(Notice::BaseChanged);
     }
+    notify(Notice::SessionsChanged);
     let _ = respond(stream, "200 OK", "{}");
 }
 
-/// A draft someone is working on is in progress. Anything further along is
-/// left where the person or the agent put it.
-fn start_work(base: &Base, client: &str, plan_id: &str) -> bool {
-    let Some(entry) = library::scan(base).into_iter().find(|e| e.meta.id == plan_id) else {
-        return false;
+/// What a hook would tell the agent now. Answers at once and takes nothing,
+/// so the next tool call still carries the same events.
+fn pending_events(shared: &Shared, id: &str, stream: &mut TcpStream) {
+    let events = shared
+        .0
+        .lock()
+        .ok()
+        .and_then(|state| state.sessions.get(id).map(|s| s.unheard.clone()));
+    let _ = match events {
+        Some(events) => respond(stream, "200 OK", &format!("{{\"events\":{}}}", json_array(&events))),
+        None => respond(stream, "404 Not Found", "{}"),
     };
-    if entry.meta.status != Status::Draft {
-        return false;
-    }
-    let Ok(text) = fs::read_to_string(&entry.path) else {
-        return false;
-    };
-    let mut parsed = plan::parse(&text, &entry.path);
-    let now = now_iso();
-    parsed.meta.set_status(Status::InProgress, &now);
-    parsed.meta.updated = Some(now);
-    if fs::atomic_write(&entry.path, &plan::serialize(&parsed)).is_err() {
-        return false;
-    }
-    let _ = repo::commit_all(
-        &base.root,
-        &Author::agent_for(client, &settings::current_identity()),
-        &format!("agent({client}): in-progress {plan_id}"),
-    );
-    true
+}
+
+/// The session put this many of its oldest events in front of the agent.
+/// The poll hands events over in the order they were sent, so the oldest are
+/// the ones it means.
+fn heard(shared: &Shared, id: &str, body: &str, stream: &mut TcpStream) {
+    let count = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| v.get("count")?.as_u64())
+        .unwrap_or(0) as usize;
+    let found = shared.0.lock().ok().and_then(|mut state| {
+        let session = state.sessions.get_mut(id)?;
+        let count = count.min(session.unheard.len());
+        session.unheard.drain(..count);
+        Some(())
+    });
+    let status = if found.is_some() { "200 OK" } else { "404 Not Found" };
+    let _ = respond(stream, status, "{}");
 }
 
 /// Holds the connection until there is something to say. The wait is on a
@@ -444,6 +444,14 @@ impl Client {
         let _ = request(self.port, "POST", &path, &body, Some(REPLY_TIMEOUT));
     }
 
+    /// Says the latest tool result carried this many events, so a hook stops
+    /// repeating them. Best effort, like `take_plan`.
+    pub fn heard(&self, count: usize) {
+        let path = format!("/sessions/{}/heard", self.id);
+        let body = format!("{{\"count\":{count}}}");
+        let _ = request(self.port, "POST", &path, &body, Some(REPLY_TIMEOUT));
+    }
+
     /// Blocks until the app has something for this session. `None` once the
     /// session is over, whichever side ended it.
     pub fn events(&self) -> Option<Vec<Event>> {
@@ -462,6 +470,47 @@ impl Client {
 #[derive(Deserialize)]
 struct EventsReply {
     events: Vec<Event>,
+}
+
+#[derive(Deserialize)]
+struct SessionsReply {
+    sessions: Vec<SessionInfo>,
+}
+
+/// What the app has sent a session that its agent has not seen yet, for a
+/// hook to print. Empty when no app is open. One short request and no
+/// retries, because a hook runs on every turn.
+pub fn pending(client_name: &str, session: Option<&str>) -> Vec<Event> {
+    let Some(info) = app_path().ok().and_then(|path| read_app(&path)) else {
+        return Vec::new();
+    };
+    pending_at(info.port, client_name, session)
+}
+
+/// The named session, or the newest one of that client working on a plan.
+fn pending_at(port: u16, client_name: &str, session: Option<&str>) -> Vec<Event> {
+    let Some(id) = session
+        .map(str::to_string)
+        .or_else(|| newest_session(port, client_name))
+    else {
+        return Vec::new();
+    };
+    request(port, "GET", &format!("/sessions/{id}/pending"), "", Some(REPLY_TIMEOUT))
+        .and_then(|reply| serde_json::from_str::<EventsReply>(&reply).ok())
+        .map(|reply| reply.events)
+        .unwrap_or_default()
+}
+
+fn newest_session(port: u16, client_name: &str) -> Option<String> {
+    let reply = request(port, "GET", "/sessions", "", Some(REPLY_TIMEOUT))?;
+    let listed: SessionsReply = serde_json::from_str(&reply).ok()?;
+    listed
+        .sessions
+        .into_iter()
+        .filter(|s| s.client == client_name && !s.plans.is_empty())
+        // Ids count up from s1, so the highest number opened last.
+        .max_by_key(|s| s.id.trim_start_matches('s').parse::<u64>().unwrap_or(0))
+        .map(|s| s.id)
 }
 
 /// One request, one connection. `None` for anything that is not a plain 200,
@@ -561,8 +610,10 @@ fn field(body: &str, name: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::base::ensure_base;
-    use crate::plan::PlanMeta;
+    use crate::base::{ensure_base, Base};
+    use crate::library;
+    use crate::plan::{self, PlanMeta, Status};
+    use crate::repo::{self, Author};
 
     fn temp_dir(name: &str) -> std::path::PathBuf {
         // Named per process: every checkout on this machine shares one
@@ -613,32 +664,39 @@ mod tests {
             .status
     }
 
+    fn open(server: &Server, client_name: &str) -> Client {
+        let body = format!("{{\"client\":{}}}", quoted(client_name));
+        let reply = request(server.port, "POST", "/sessions", &body, Some(REPLY_TIMEOUT)).unwrap();
+        Client {
+            port: server.port,
+            id: field(&reply, "id").unwrap(),
+        }
+    }
+
+    fn align(plan: &str) -> Event {
+        Event::Align {
+            plan: plan.to_string(),
+        }
+    }
+
     #[test]
-    fn a_session_taking_a_draft_puts_it_in_progress_under_the_agents_name() {
+    fn a_session_taking_a_plan_is_counted_and_leaves_its_status_alone() {
         let (dir, base) = a_base("openplan-core-local-take");
         file_a_draft(&base, "auth-refactor");
-        let server = Server::start(base.clone(), |_| {}).unwrap();
+        let server = Server::start(|_| {}).unwrap();
 
-        let client = {
-            let body = "{\"client\":\"claude-code\"}";
-            let reply = request(server.port, "POST", "/sessions", body, Some(REPLY_TIMEOUT)).unwrap();
-            Client {
-                port: server.port,
-                id: field(&reply, "id").unwrap(),
-            }
-        };
+        let client = open(&server, "claude-code");
         client.take_plan("auth-refactor");
 
         let sessions = server.sessions();
         assert_eq!(sessions.len(), 1, "{sessions:?}");
         assert_eq!(sessions[0].client, "claude-code");
         assert_eq!(sessions[0].plans, vec!["auth-refactor".to_string()]);
-        assert_eq!(status_of(&base, "auth-refactor"), Status::InProgress);
-
+        // Presence says who is live. Only a guarded call moves a plan.
+        assert_eq!(status_of(&base, "auth-refactor"), Status::Draft);
         let history =
             repo::history(&base.root, std::path::Path::new("plans/auth-refactor.md")).unwrap();
-        assert_eq!(history[0].author, "claude-code");
-        assert_eq!(history[0].message, "agent(claude-code): in-progress auth-refactor");
+        assert_eq!(history.len(), 1, "{history:?}");
 
         // Saying goodbye takes the session off the board.
         client.end();
@@ -649,10 +707,58 @@ mod tests {
     }
 
     #[test]
+    fn pending_answers_at_once_and_leaves_the_events_for_the_next_tool_call() {
+        let server = Server::start(|_| {}).unwrap();
+        let client = open(&server, "claude-code");
+        client.take_plan("auth-refactor");
+
+        // Nothing waiting is an empty answer, not a held connection.
+        assert_eq!(pending_at(server.port, "claude-code", None), Vec::<Event>::new());
+
+        server.send("auth-refactor", align("auth-refactor"));
+        // The session's own poll takes the event, and the hook still sees it.
+        assert_eq!(client.events().unwrap(), vec![align("auth-refactor")]);
+        assert_eq!(pending_at(server.port, "claude-code", None), vec![align("auth-refactor")]);
+        assert_eq!(pending_at(server.port, "claude-code", None), vec![align("auth-refactor")]);
+
+        // Once a tool result carried it, the hook has nothing left to say.
+        client.heard(1);
+        assert_eq!(pending_at(server.port, "claude-code", None), Vec::<Event>::new());
+
+        server.shutdown();
+    }
+
+    #[test]
+    fn pending_asks_the_newest_session_of_that_client_working_on_a_plan() {
+        let server = Server::start(|_| {}).unwrap();
+        let older = open(&server, "claude-code");
+        older.take_plan("old-plan");
+        let newer = open(&server, "claude-code");
+        newer.take_plan("new-plan");
+        let idle = open(&server, "claude-code");
+        let cursor = open(&server, "cursor");
+        cursor.take_plan("cursor-plan");
+        for plan in ["old-plan", "new-plan", "cursor-plan"] {
+            server.send(plan, align(plan));
+        }
+
+        assert_eq!(pending_at(server.port, "claude-code", None), vec![align("new-plan")]);
+        assert_eq!(pending_at(server.port, "cursor", None), vec![align("cursor-plan")]);
+        assert_eq!(
+            pending_at(server.port, "claude-code", Some(older.id())),
+            vec![align("old-plan")]
+        );
+        assert_eq!(pending_at(server.port, "codex", None), Vec::<Event>::new());
+        assert_eq!(pending_at(server.port, "claude-code", Some(idle.id())), Vec::<Event>::new());
+
+        server.shutdown();
+    }
+
+    #[test]
     fn a_poll_waits_for_an_event_and_takes_it_only_once() {
         let (dir, base) = a_base("openplan-core-local-poll");
         file_a_draft(&base, "auth-refactor");
-        let server = Server::start(base.clone(), |_| {}).unwrap();
+        let server = Server::start(|_| {}).unwrap();
         let reply = request(
             server.port,
             "POST",
@@ -724,40 +830,13 @@ mod tests {
     }
 
     #[test]
-    fn a_plan_nobody_is_working_on_gets_nothing_and_a_plan_past_draft_is_left_alone() {
-        let (dir, base) = a_base("openplan-core-local-quiet");
-        file_a_draft(&base, "auth-refactor");
-        // Already in review: a session opening it should not walk it back.
-        let entry = library::scan(&base).into_iter().next().unwrap();
-        let text = fs::read_to_string(&entry.path).unwrap();
-        let mut parsed = plan::parse(&text, &entry.path);
-        parsed.meta.status = Status::InReview;
-        fs::atomic_write(&entry.path, &plan::serialize(&parsed)).unwrap();
+    fn a_plan_nobody_is_working_on_gets_nothing() {
+        let server = Server::start(|_| {}).unwrap();
+        open(&server, "cursor").take_plan("auth-refactor");
 
-        let server = Server::start(base.clone(), |_| {}).unwrap();
-        let reply = request(
-            server.port,
-            "POST",
-            "/sessions",
-            "{\"client\":\"cursor\"}",
-            Some(REPLY_TIMEOUT),
-        )
-        .unwrap();
-        let client = Client {
-            port: server.port,
-            id: field(&reply, "id").unwrap(),
-        };
-        client.take_plan("auth-refactor");
-
-        assert_eq!(status_of(&base, "auth-refactor"), Status::InReview);
-        let elsewhere = Event::Status {
-            plan: "some-other-plan".to_string(),
-            status: "draft".to_string(),
-        };
-        assert_eq!(server.send("some-other-plan", elsewhere), 0);
+        assert_eq!(server.send("some-other-plan", align("some-other-plan")), 0);
 
         server.shutdown();
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -799,5 +878,9 @@ mod tests {
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains("\"kind\":\"status\""), "{json}");
         assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), status);
+
+        let json = serde_json::to_string(&align("auth-refactor")).unwrap();
+        assert_eq!(json, "{\"kind\":\"align\",\"plan\":\"auth-refactor\"}");
+        assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), align("auth-refactor"));
     }
 }
