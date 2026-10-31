@@ -1427,39 +1427,46 @@ export default function App() {
           nothing beside it reflows. */}
       <div className="h-full shrink-0" style={{ width: navbarWidth }}>
         <div
-          inert={layout === "hidden" && !navbar.revealed}
           onPointerLeave={layout === "hidden" ? concealNavbar : undefined}
           className={cn(
-            "h-full overflow-hidden",
+            "h-full",
             layout === "hidden" &&
-              "fixed inset-y-0 left-0 z-40 transition-transform duration-200 ease-out",
+              "fixed inset-y-0 left-0 z-40 rounded-r-lg transition-transform duration-200 ease-out",
             layout === "hidden" && (navbar.revealed ? "shadow-lg" : "-translate-x-full"),
           )}
           style={{ width: layout === "rail" ? RAIL_WIDTH : sidebarWidth }}
         >
-          <Sidebar
-            rail={layout === "rail"}
-            onRequestOpen={openNavbar}
-            name={personName ?? identity?.name ?? null}
-            baseName={base ? basename(base.root) : null}
-            plans={plans}
-            folders={knownFolders}
-            folder={folder}
-            onSelectFolder={chooseFolder}
-            recent={sections.recent}
-            view={mainView}
-            onSelectView={showView}
-            forYouCount={forYouCount}
-            activePlanPath={activePlanPath}
-            onSelectPlan={selectPlan}
-            onOpenSettings={openSettings}
-            padTop={isTauri && isMac && !fullscreen}
-          />
+          <div
+            inert={layout === "hidden" && !navbar.revealed}
+            className={cn("h-full overflow-hidden", layout === "hidden" && "rounded-r-lg")}
+          >
+            <Sidebar
+              rail={layout === "rail"}
+              onRequestOpen={openNavbar}
+              name={personName ?? identity?.name ?? null}
+              baseName={base ? basename(base.root) : null}
+              plans={plans}
+              folders={knownFolders}
+              folder={folder}
+              onSelectFolder={chooseFolder}
+              recent={sections.recent}
+              view={mainView}
+              onSelectView={showView}
+              forYouCount={forYouCount}
+              activePlanPath={activePlanPath}
+              onSelectPlan={selectPlan}
+              onOpenSettings={openSettings}
+              padTop={isTauri && isMac && !fullscreen}
+            />
+          </div>
+          {layout === "hidden" && (
+            // The window's left edge while the navbar is away. It hangs off
+            // the navbar and stays there, so the pointer that reveals it is
+            // already inside it and leaving fires however fast it goes.
+            <div aria-hidden onPointerEnter={revealNavbar} className="absolute inset-y-0 left-full w-2" />
+          )}
         </div>
       </div>
-      {layout === "hidden" && !navbar.revealed && (
-        <div aria-hidden onPointerEnter={revealNavbar} className="fixed inset-y-0 left-0 z-40 w-2" />
-      )}
 
       {layout === "open" && (
         <div
