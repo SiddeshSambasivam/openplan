@@ -1108,15 +1108,15 @@ upright Inter face is vendored, so italics are synthesised.
 ### Phase 8 — 0.6.0: builds on S3 and updates in the app
 Specification and decisions q1 to q6: the filed plan "Ship OpenPlan builds from S3 and
 update the app in place". Started 2026-10-31 on Sid's recorded GATE 7 waiver (§9).
-- [ ] P8.1 Updater key pair in GitHub secrets and the password manager (Sid)
+- [x] P8.1 Updater key pair in GitHub secrets and the password manager (Sid)
 - [x] P8.2 AWS: private bucket, CloudFront with origin access control, GitHub OIDC
       role, monthly budget alarm; the commands and the host recorded here
-- [ ] P8.3 `latest.json` from the `.sig` files and the host **(T)**
-- [ ] P8.4 CI: updater artifacts, signing secrets, a `publish` job that uploads
+- [x] P8.3 `latest.json` from the `.sig` files and the host **(T)**
+- [x] P8.4 CI: updater artifacts, signing secrets, a `publish` job that uploads
       `releases/<version>/` and then `latest.json`
-- [ ] P8.5 Updater and process plugins, endpoint and public key, `checkUpdates`
+- [x] P8.5 Updater and process plugins, endpoint and public key, `checkUpdates`
       setting **(T)**
-- [ ] P8.6 Settings > Updates, the top bar notice, the package-install hint, the
+- [x] P8.6 Settings > Updates, the top bar notice, the package-install hint, the
       unsaved-edits guard; checks at launch and on focus after 24 hours **(T)**
 - [ ] P8.7 Release 0.6.0 by hand, then update it to 0.6.1 on each platform
 #### Update hosting (set up 2026-10-31, AWS account 941377150511, us-east-1)
