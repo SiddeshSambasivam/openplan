@@ -371,12 +371,21 @@ pub fn progress(record: &WorkRecord) -> (usize, usize) {
     (done, counted.count())
 }
 
-/// One plan's todo progress, as the board shows it on the plan's card.
+/// What the board shows of one plan's record on its card: todo progress,
+/// the repos and how many PRs are merged.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct PlanProgress {
     pub path: PathBuf,
     pub done: usize,
     pub total: usize,
+    pub repos: Vec<Repo>,
+    pub prs: PrSummary,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct PrSummary {
+    pub total: usize,
+    pub merged: usize,
 }
 
 /// Progress for each plan that has a record. A plan without one, or with one
@@ -387,10 +396,20 @@ pub fn progress_of(doc_paths: &[PathBuf]) -> Vec<PlanProgress> {
         .filter_map(|path| {
             let record = read(path).ok()??;
             let (done, total) = progress(&record);
+            let merged = record
+                .prs
+                .iter()
+                .filter(|pr| pr.state == PrState::Merged)
+                .count();
             Some(PlanProgress {
                 path: path.clone(),
                 done,
                 total,
+                prs: PrSummary {
+                    total: record.prs.len(),
+                    merged,
+                },
+                repos: record.repos,
             })
         })
         .collect()
@@ -902,8 +921,16 @@ mod tests {
         let worked = dir.join("worked.md");
         let untouched = dir.join("untouched.md");
         let broken = dir.join("broken.md");
+        let repo = Repo {
+            path: "~/Personal/openplan".to_string(),
+            remote: Some("github.com/owner/openplan".to_string()),
+            branch: Some("feat/cards".to_string()),
+        };
         modify(&worked, |r| {
             add_todos(r, &texts(&["a", "b"]), "claude-code", None);
+            set_repos(r, vec![repo.clone()]);
+            record_pr(r, pr("https://github.com/owner/openplan/pull/1", PrState::Merged));
+            record_pr(r, pr("https://github.com/owner/openplan/pull/2", PrState::Open));
             update_todo(r, "t1", TodoState::Done, None, "claude-code").map(|_| ())
         })
         .unwrap();
@@ -916,7 +943,9 @@ mod tests {
             vec![PlanProgress {
                 path: worked,
                 done: 1,
-                total: 2
+                total: 2,
+                repos: vec![repo],
+                prs: PrSummary { total: 2, merged: 1 },
             }]
         );
         let _ = std::fs::remove_dir_all(&dir);

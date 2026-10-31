@@ -155,8 +155,8 @@ async fn read_work_record(path: String) -> Result<Option<openplan_core::work::Wo
     openplan_core::work::read(Path::new(&path))
 }
 
-/// Todo progress for the given plans, in one call so the board does not ask
-/// once per card.
+/// What the cards show of the given plans' work records, in one call so the
+/// board does not ask once per card.
 #[tauri::command]
 async fn list_work_progress(
     paths: Vec<std::path::PathBuf>,
