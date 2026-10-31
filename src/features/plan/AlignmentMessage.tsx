@@ -149,6 +149,7 @@ function Details({
             option={{ id: WRITE_OWN, label: "Write my own" }}
             recommended={false}
             view={view}
+            onChoose={pickedChoice(draft) === WRITE_OWN ? onWriteOwn : undefined}
           />
         </RadioGroup>
       )}
@@ -164,16 +165,20 @@ function OptionChoice({
   option,
   recommended,
   view,
+  onChoose,
 }: {
   questionId: string;
   option: Choice;
   recommended: boolean;
   view: MediaContext;
+  /** Runs on a click even when the choice is already picked, which the
+   * radio group does not report. */
+  onChoose?: () => void;
 }) {
   const id = `option-${questionId}-${option.id}`;
   return (
     <div className="rounded-md border border-border bg-background transition-transform duration-120 hover:border-ring active:scale-99.5 has-data-[state=checked]:border-primary">
-      <label htmlFor={id} className="flex cursor-pointer gap-2.5 px-2.5 py-2 text-sm leading-normal">
+      <label htmlFor={id} onClick={onChoose} className="flex cursor-pointer gap-2.5 px-2.5 py-2 text-sm leading-normal">
         <RadioGroupItem id={id} value={option.id} className="mt-0.5 cursor-pointer" />
         <span className="min-w-0">
           <span className="flex flex-wrap items-center gap-2 font-medium text-foreground">
