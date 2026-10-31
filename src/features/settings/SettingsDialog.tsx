@@ -3,8 +3,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import { FONT_SIZE_LABELS, FONT_SIZE_ORDER, type FontSize } from "@/lib/fontSize";
 import { WIDTH_LABELS, WIDTH_ORDER, type ContentWidth } from "@/lib/width";
 import {
+  AUTHORING_LABELS,
+  AUTHORING_ORDER,
+  getAuthoring,
   getStandards,
+  setAuthoring,
   setStandardsOverrides,
+  type Authoring,
   type BaseInfo,
   type Standards,
 } from "@/lib/planBase";
@@ -105,6 +110,7 @@ export function SettingsDialog({
   const [standards, setStandards] = useState<Standards | null>(null);
   const [draft, setDraft] = useState("");
   const [saved, setSaved] = useState(false);
+  const [authoring, setAuthoringMode] = useState<Authoring>("markdown");
 
   useEffect(() => {
     if (!open || version != null) return;
@@ -124,7 +130,13 @@ export function SettingsDialog({
       setStandards(next);
       setDraft(next?.overrides ?? "");
     });
+    void getAuthoring().then(setAuthoringMode);
   }, [open]);
+
+  const chooseAuthoring = (mode: Authoring) => {
+    setAuthoringMode(mode);
+    void setAuthoring(mode);
+  };
 
   const saveStandards = async () => {
     await setStandardsOverrides(draft);
@@ -213,6 +225,19 @@ export function SettingsDialog({
                   with a good set built in. Anything you write here is added on
                   top of them.
                 </p>
+
+                <div className="mt-4 divide-y divide-border border-t border-border">
+                  <Row label="How agents write plans">
+                    <Segmented
+                      value={authoring}
+                      options={AUTHORING_ORDER.map((value) => ({
+                        value,
+                        label: AUTHORING_LABELS[value],
+                      }))}
+                      onChange={chooseAuthoring}
+                    />
+                  </Row>
+                </div>
 
                 <label
                   htmlFor="standards-overrides"

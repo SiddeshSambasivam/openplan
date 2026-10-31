@@ -88,6 +88,25 @@ pub async fn get_standards() -> Result<Standards, String> {
     })
 }
 
+/// Which format agents write plan bodies in.
+#[tauri::command]
+pub async fn get_authoring() -> Result<String, String> {
+    let saved = settings::read_settings(&settings::settings_path()?)?;
+    Ok(settings::authoring_mode(saved.and_then(|s| s.authoring).as_deref()).to_string())
+}
+
+/// Takes effect on the next plan an agent files.
+#[tauri::command]
+pub async fn set_authoring(mode: String) -> Result<(), String> {
+    let path = settings::settings_path()?;
+    let mut saved = settings::read_settings(&path)?.unwrap_or_default();
+    if saved.base_path.as_os_str().is_empty() {
+        saved.base_path = base()?.root;
+    }
+    saved.authoring = Some(settings::authoring_mode(Some(&mode)).to_string());
+    settings::write_settings(&path, &saved)
+}
+
 /// Agents are told the built-in standards with these layered on top.
 #[tauri::command]
 pub async fn set_standards_overrides(text: String) -> Result<(), String> {

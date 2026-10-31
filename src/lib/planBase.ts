@@ -105,6 +105,26 @@ export async function setStandardsOverrides(text: string): Promise<void> {
   await invoke<void>("set_standards_overrides", { text });
 }
 
+/** How agents write plan bodies. Markdown unless the person picked HTML. */
+export type Authoring = "markdown" | "html";
+
+export const AUTHORING_ORDER: Authoring[] = ["markdown", "html"];
+
+export const AUTHORING_LABELS: Record<Authoring, string> = {
+  markdown: "Markdown, compact",
+  html: "HTML, richer pages",
+};
+
+export async function getAuthoring(): Promise<Authoring> {
+  if (!isTauri) return "markdown";
+  return invoke<Authoring>("get_authoring");
+}
+
+export async function setAuthoring(mode: Authoring): Promise<void> {
+  if (!isTauri) return;
+  await invoke<void>("set_authoring", { mode });
+}
+
 export async function scanPlans(): Promise<PlanSummary[]> {
   if (!isTauri) return [];
   return invoke<PlanSummary[]>("scan_plans");
