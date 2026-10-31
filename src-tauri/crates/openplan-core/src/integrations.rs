@@ -65,14 +65,19 @@ Plans are managed by the `{}` MCP server, not by loose files.
   body). Do not leave it only in the conversation.
 - To see or reread existing plans, use `list_plans` and `read_plan` rather
   than searching the filesystem for them.
-- Every plan is draft, active, or archived. This is worked out from what has
-  happened to the plan, so never try to set it. Working on a plan makes it
-  active on its own.
+- A plan is draft, in-progress, in-review, or completed. Call `set_status`
+  with in-progress when you start implementing, and with in-review plus the
+  PR link when you open the pull request. Only the person marks it
+  completed. Never change a status to file a plan away.
 - Comments are how people review plans. Call `get_comments` whenever you
   work on one, and answer every open thread with `reply_comment`. Always
   reply in the thread, not only in chat.
 - Keep each reply to one or two lines: what you changed, or what you
-  decided. Call `resolve_comment` once you have acted on it.",
+  decided. Call `resolve_comment` once you have acted on it.
+- Write plans and replies plainly. No em dashes. None of: additionally,
+  crucial, delve, leverage, robust, seamless, not just X but Y, groups of
+  three for their own sake, I hope this helps. Say what the thing does, not
+  how it feels. Active voice. One idea per sentence.",
         crate::profile::name()
     )
 }

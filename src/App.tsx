@@ -60,7 +60,8 @@ import {
   getIdentity,
   renamePlan,
   renameDocument,
-  setPlanTags,
+  setPlanStatus,
+  type Status,
   SOURCE_LABELS,
   type PlanSummary,
 } from "./lib/planBase";
@@ -513,10 +514,10 @@ export default function App() {
     [openFilePaths],
   );
 
-  const changeTags = useCallback(
-    (tags: string[]) => {
+  const changeStatus = useCallback(
+    (status: Status) => {
       if (!activePlan) return;
-      void setPlanTags(activePlan.path, tags).then(refreshPlans);
+      void setPlanStatus(activePlan.path, status).then(refreshPlans);
     },
     [activePlan, refreshPlans],
   );
@@ -1370,7 +1371,7 @@ export default function App() {
               >
                 <PlanMetaBar
                   plan={activePlan}
-                  onTagsChange={changeTags}
+                  onStatusChange={changeStatus}
                   onOpenHistory={() => setHistoryOpen(true)}
                 />
               </div>

@@ -48,7 +48,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     assert_eq!(
         names,
         vec![
-            "create_plan", "list_plans", "tag_plan", "read_plan",
+            "create_plan", "list_plans", "set_status", "read_plan",
             "get_comments", "reply_comment", "resolve_comment", "get_standards"
         ]
     );
@@ -60,7 +60,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         .contains("Plan standards"));
 
     let created = ask(
-        r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor\n\n## Context\n\nwhy","project":"~/work/api","tags":["auth"]}}}"##,
+        r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor\n\n## Context\n\nwhy","project":"github.com/acme/api","type":"feature"}}}"##,
     );
     assert_eq!(created["result"]["isError"], false, "{created}");
 
@@ -74,16 +74,24 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     assert!(listed["result"]["content"][0]["text"]
         .as_str()
         .unwrap()
-        .contains("auth-refactor [auth] Auth refactor"));
+        .contains("[draft] auth-refactor Auth refactor"));
 
-    let tagged = ask(r##"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"tag_plan","arguments":{"id":"auth-refactor","tags":["auth","needs-review"]}}}"##);
-    assert_eq!(tagged["result"]["isError"], false, "{tagged}");
+    // The agent cannot finish a plan on the person's behalf...
+    let finished = ask(r##"{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"completed"}}}"##);
+    assert_eq!(finished["result"]["isError"], true, "{finished}");
+    // ...nor send it for review without saying where the PR is.
+    let no_pr = ask(r##"{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-review"}}}"##);
+    assert_eq!(no_pr["result"]["isError"], true, "{no_pr}");
+    let moved = ask(r##"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-review","pr":"https://github.com/acme/api/pull/4"}}}"##);
+    assert_eq!(moved["result"]["isError"], false, "{moved}");
 
     let read = ask(r##"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"read_plan","arguments":{"id":"auth-refactor"}}}"##);
     let text = read["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("source: claude-code"), "client name normalised: {text}");
-    assert!(text.contains("project: ~/work/api"));
-    assert!(text.contains("tags: auth, needs-review"), "{text}");
+    assert!(text.contains("project: github.com/acme/api"));
+    assert!(text.contains("type: feature"), "{text}");
+    assert!(text.contains("status: in-review"), "{text}");
+    assert!(text.contains("pr: https://github.com/acme/api/pull/4"), "{text}");
 
     // The user leaves a review comment the way the app writes one...
     // Whichever build this is, the server puts its base where that

@@ -7,7 +7,7 @@
 
 use openplan_core::base::Base;
 use openplan_core::import::iso_from_unix;
-use openplan_core::plan::{self, slugify, Plan, PlanMeta};
+use openplan_core::plan::{self, slugify, Plan, PlanMeta, Status};
 use openplan_core::repo::{self, Author};
 use openplan_core::{comments, fs, library, settings, standards};
 use serde_json::{json, Value};
@@ -46,43 +46,43 @@ fn tool_list() -> Value {
     json!([
         {
             "name": "create_plan",
-            "description": "File a finished plan into the user's plan base. Call get_standards first and follow it. The body is the full markdown of the plan; the title should read as a change, not a topic.",
+            "description": "File a finished plan into the user's plan base. Call get_standards first and follow it. The body is the full markdown of the plan; the title should read as a change, not a topic. A new plan is a draft.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "title": { "type": "string", "description": "One line, reading as a change" },
                     "body": { "type": "string", "description": "The plan, as markdown" },
-                    "project": { "type": "string", "description": "The repo or context the plan belongs to" },
-                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Free labels, e.g. [\"search\", \"infra\"]" }
+                    "type": { "type": "string", "enum": ["feature", "bug", "migration", "research", "audit"], "description": "What kind of work this is. It decides which sections the plan needs and how the app lays it out." },
+                    "project": { "type": "string", "description": "The git remote of the repo you are working in, as owner/repo or its URL. Leave it out only when there is no repo." }
                 },
                 "required": ["title", "body"]
             }
         },
         {
             "name": "list_plans",
-            "description": "The plans in the user's plan base, with where each one stands and its tags. A plan is draft until an agent works on it, active once one has, and archived once the user says the work is done.",
+            "description": "The plans in the user's plan base, with where each one stands: draft (filed, not started), in-progress (a session is working on it), in-review (a PR is open and a person is looking), or completed (the person said it is done).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "tag": { "type": "string", "description": "Only plans carrying this tag" },
-                    "lifecycle": {
+                    "status": {
                         "type": "string",
-                        "enum": ["draft", "active", "archived"],
+                        "enum": ["draft", "in-progress", "in-review", "completed"],
                         "description": "Only plans in this state"
                     }
                 }
             }
         },
         {
-            "name": "tag_plan",
-            "description": "Replace a plan's tags. Tags are free labels shared by the user and their agents, for subject matter rather than progress. Where a plan stands is worked out from what has happened to it, so do not tag that. The one exception is \"archived\", which says the work is finished.",
+            "name": "set_status",
+            "description": "Move a plan along. Set in-progress when you start implementing it. Set in-review when you open the pull request, and pass the PR link. Only the person marks a plan completed, so that value is refused. Never set a status to file a plan away; if a plan is superseded, say so in the new plan's body instead.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "id": { "type": "string" },
-                    "tags": { "type": "array", "items": { "type": "string" } }
+                    "status": { "type": "string", "enum": ["draft", "in-progress", "in-review"] },
+                    "pr": { "type": "string", "description": "The pull request URL. Required with in-review." }
                 },
-                "required": ["id", "tags"]
+                "required": ["id", "status"]
             }
         },
         {
@@ -158,23 +158,15 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
         );
     }
     let now = now_iso();
-    let tags = args
-        .get("tags")
-        .and_then(Value::as_array)
-        .map(|list| {
-            list.iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default();
     let filed = Plan {
         meta: PlanMeta {
             id: id.clone(),
             title: title.trim().to_string(),
-            tags,
+            status: Status::Draft,
+            plan_type: args.get("type").and_then(Value::as_str).map(str::to_string),
             source: author.to_string(),
             project: args.get("project").and_then(Value::as_str).map(str::to_string),
+            pr: None,
             created: Some(now.clone()),
             updated: Some(now),
         },
@@ -197,11 +189,14 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
 
 fn list_plans(base: &Base, args: &Value) -> Value {
     let mut entries = library::scan(base);
-    if let Some(tag) = args.get("tag").and_then(Value::as_str) {
-        entries.retain(|e| e.meta.tags.iter().any(|t| t == tag));
-    }
-    if let Some(state) = args.get("lifecycle").and_then(Value::as_str) {
-        entries.retain(|e| e.lifecycle.as_str() == state);
+    if let Some(wanted) = args.get("status").and_then(Value::as_str) {
+        let Some(wanted) = Status::parse(wanted) else {
+            return text_result(
+                "status must be draft, in-progress, in-review, or completed.",
+                true,
+            );
+        };
+        entries.retain(|e| e.meta.status == wanted);
     }
     if entries.is_empty() {
         return text_result("No plans yet.", false);
@@ -209,25 +204,34 @@ fn list_plans(base: &Base, args: &Value) -> Value {
     entries.sort_by(|a, b| b.meta.updated.cmp(&a.meta.updated));
     let lines: Vec<String> = entries
         .iter()
-        .map(|e| {
-            let tags = if e.meta.tags.is_empty() {
-                String::new()
-            } else {
-                format!(" [{}]", e.meta.tags.join(", "))
-            };
-            format!("[{}] {}{tags} {}", e.lifecycle.as_str(), e.meta.id, e.meta.title)
-        })
+        .map(|e| format!("[{}] {} {}", e.meta.status.as_str(), e.meta.id, e.meta.title))
         .collect();
     text_result(lines.join("\n"), false)
 }
 
-fn tag_plan(base: &Base, author: &str, args: &Value) -> Value {
+fn set_status(base: &Base, author: &str, args: &Value) -> Value {
     let Some(id) = args.get("id").and_then(Value::as_str) else {
-        return text_result("tag_plan needs an id.", true);
+        return text_result("set_status needs an id.", true);
     };
-    let Some(tags) = args.get("tags").and_then(Value::as_array) else {
-        return text_result("tag_plan needs tags, an array of strings.", true);
+    let status = match args.get("status").and_then(Value::as_str).map(Status::parse) {
+        Some(Some(Status::Completed)) => {
+            return text_result(
+                "Only the person marks a plan completed. Set in-review and pass the PR; they take it from there.",
+                true,
+            )
+        }
+        Some(Some(status)) => status,
+        _ => return text_result("status must be draft, in-progress, or in-review.", true),
     };
+    let pr = args
+        .get("pr")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(str::to_string);
+    if status == Status::InReview && pr.is_none() {
+        return text_result("in-review needs the pull request link, as pr.", true);
+    }
     let Some(entry) = library::scan(base).into_iter().find(|e| e.meta.id == id) else {
         return text_result(format!("No plan called {id}."), true);
     };
@@ -236,22 +240,22 @@ fn tag_plan(base: &Base, author: &str, args: &Value) -> Value {
         Err(e) => return text_result(e, true),
     };
     let mut parsed = plan::parse(&text, &entry.path);
-    parsed.meta.tags = tags
-        .iter()
-        .filter_map(Value::as_str)
-        .map(str::to_string)
-        .collect();
+    parsed.meta.status = status;
+    if pr.is_some() {
+        parsed.meta.pr = pr;
+    }
+    parsed.meta.updated = Some(now_iso());
     if let Err(e) = fs::atomic_write(&entry.path, &plan::serialize(&parsed)) {
         return text_result(e, true);
     }
     if let Err(e) = repo::commit_all(
         &base.root,
         &Author::agent_for(author, &openplan_core::settings::current_identity()),
-        &format!("agent({author}): tag {id}"),
+        &format!("agent({author}): {} {id}", status.as_str()),
     ) {
         return text_result(e, true);
     }
-    text_result(format!("Tagged {id}: {}", parsed.meta.tags.join(", ")), false)
+    text_result(format!("{id} is now {}.", status.as_str()), false)
 }
 
 fn read_plan(base: &Base, args: &Value) -> Value {
@@ -388,7 +392,7 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                 match name {
                     "create_plan" => Ok(create_plan(base, &author, &args)),
                     "list_plans" => Ok(list_plans(base, &args)),
-                    "tag_plan" => Ok(tag_plan(base, &author, &args)),
+                    "set_status" => Ok(set_status(base, &author, &args)),
                     "read_plan" => Ok(read_plan(base, &args)),
                     "get_comments" => Ok(get_comments(base, &args)),
                     "reply_comment" => Ok(reply_comment(base, &author, &args)),

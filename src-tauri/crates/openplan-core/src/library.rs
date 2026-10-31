@@ -18,8 +18,6 @@ pub struct PlanEntry {
     /// The documents in a set, in reading order, relative to the set's folder.
     /// Empty for a plan that is a single file.
     pub documents: Vec<PathBuf>,
-    /// Where the plan stands. Derived, never stored, so it cannot go stale.
-    pub lifecycle: crate::lifecycle::Lifecycle,
 }
 
 /// The entry point of a plan set. A large change is written as a folder — see
@@ -151,8 +149,6 @@ pub fn plan_paths(base: &Base) -> Vec<PathBuf> {
 pub fn scan(base: &Base) -> Vec<PlanEntry> {
     let mut found = Vec::new();
     walk(&base.root, &mut found);
-    // One walk of the history for the whole base, not one per plan.
-    let agent_paths = crate::repo::agent_touched_paths(&base.root);
     found
         .into_iter()
         .filter_map(|(path, documents)| {
@@ -165,17 +161,11 @@ pub fn scan(base: &Base) -> Vec<PlanEntry> {
                     meta.id = folder.to_string_lossy().into_owned();
                 }
             }
-            let lifecycle = crate::lifecycle::of(
-                &meta.tags,
-                &meta.source,
-                crate::lifecycle::touched(&agent_paths, &relative_path, !documents.is_empty()),
-            );
             Some(PlanEntry {
                 meta,
                 path,
                 relative_path,
                 documents,
-                lifecycle,
             })
         })
         .collect()
@@ -359,15 +349,16 @@ mod tests {
 
     #[test]
     fn a_scan_says_where_every_plan_stands() {
-        let base = temp_base("openplan-core-library-lifecycle");
+        use crate::plan::Status;
+        let base = temp_base("openplan-core-library-status");
         let plans = base.plans_dir();
-        std::fs::write(plans.join("mine.md"), "---\ntitle: Mine\nsource: manual\n---\n# Mine\n")
-            .unwrap();
+        std::fs::write(plans.join("mine.md"), "---\ntitle: Mine\n---\n# Mine\n").unwrap();
         std::fs::write(
             plans.join("theirs.md"),
-            "---\ntitle: Theirs\nsource: claude-code\n---\n# Theirs\n",
+            "---\ntitle: Theirs\nstatus: in-progress\n---\n# Theirs\n",
         )
         .unwrap();
+        // Written by a build from before statuses were stored.
         std::fs::write(
             plans.join("done.md"),
             "---\ntitle: Done\nsource: claude-code\ntags: archived\n---\n# Done\n",
@@ -380,12 +371,13 @@ mod tests {
                 .iter()
                 .find(|e| e.meta.id == id)
                 .unwrap_or_else(|| panic!("no {id}"))
-                .lifecycle
+                .meta
+                .status
         };
 
-        assert_eq!(of("mine"), crate::lifecycle::Lifecycle::Draft);
-        assert_eq!(of("theirs"), crate::lifecycle::Lifecycle::Active);
-        assert_eq!(of("done"), crate::lifecycle::Lifecycle::Archived);
+        assert_eq!(of("mine"), Status::Draft);
+        assert_eq!(of("theirs"), Status::InProgress);
+        assert_eq!(of("done"), Status::Completed);
         let _ = std::fs::remove_dir_all(&base.root);
     }
 }

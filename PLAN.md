@@ -797,7 +797,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 ### Phase 6 — 0.2.0: status, board, rendered plans, loopback server
 Started 2026-09-22 ahead of Phase 5 and without gates 1 to 4, on Sid's recorded
 waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the base.
-- [ ] P6.1 Contract: stored `status`, `type`, `pr`; tags removed from the contract,
+- [x] P6.1 Contract: stored `status`, `type`, `pr`; tags removed from the contract,
       the UI, the CLI and the MCP (`tag_plan` becomes `set_status`); legacy reads
       map (§6.1); `lifecycle.rs` deleted **(T)**
 - [ ] P6.2 Projects as git remotes: `project` normalised to `owner/repo`, project

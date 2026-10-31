@@ -2,7 +2,7 @@
 //! someone asks for changes, and the history remembers who did what.
 
 use openplan_core::base::ensure_base;
-use openplan_core::plan;
+use openplan_core::plan::{self, Status};
 use openplan_core::repo::{self, Author};
 use openplan_core::{fs, library};
 
@@ -18,7 +18,7 @@ fn a_plan_filed_by_an_agent_is_listed_reviewed_and_remembered() {
     let path = base.plans_dir().join("auth-refactor.md");
     fs::atomic_write(
         &path,
-        "---\nid: auth-refactor\ntitle: Auth refactor\ntags: auth\nsource: claude-code\n---\n# Auth refactor\n\nSteps here.\n",
+        "---\nid: auth-refactor\ntitle: Auth refactor\nstatus: draft\nsource: claude-code\n---\n# Auth refactor\n\nSteps here.\n",
     )
     .unwrap();
     repo::commit_all(
@@ -36,18 +36,18 @@ fn a_plan_filed_by_an_agent_is_listed_reviewed_and_remembered() {
         .expect("the plan should be listed");
     assert_eq!(entry.meta.title, "Auth refactor");
     assert_eq!(entry.meta.source, "claude-code");
-    assert_eq!(entry.meta.tags, vec!["auth"]);
+    assert_eq!(entry.meta.status, Status::Draft);
 
-    // Someone tags it for review.
+    // The work starts and the plan moves along.
     let text = fs::read_to_string(&path).unwrap();
     let mut parsed = plan::parse(&text, &path);
-    parsed.meta.tags = vec!["auth".into(), "needs-review".into()];
+    parsed.meta.status = Status::InProgress;
     fs::atomic_write(&path, &plan::serialize(&parsed)).unwrap();
-    repo::commit_all(&base.root, &Author::user(), "tags: auth-refactor").unwrap();
+    repo::commit_all(&base.root, &Author::user(), "status: auth-refactor").unwrap();
 
-    // The tag change left the body alone.
+    // The status change left the body alone.
     let after = plan::parse(&fs::read_to_string(&path).unwrap(), &path);
-    assert_eq!(after.meta.tags, vec!["auth", "needs-review"]);
+    assert_eq!(after.meta.status, Status::InProgress);
     assert_eq!(after.body, "# Auth refactor\n\nSteps here.\n");
 
     // Search finds it by its text.
@@ -62,7 +62,7 @@ fn a_plan_filed_by_an_agent_is_listed_reviewed_and_remembered() {
 
     // And the plan as the agent first wrote it is still readable.
     let original = repo::read_at(&base.root, &entry.relative_path, &revisions[1].id).unwrap();
-    assert!(original.contains("tags: auth\n"), "{original}");
+    assert!(original.contains("status: draft\n"), "{original}");
 
     let _ = std::fs::remove_dir_all(&root);
 }

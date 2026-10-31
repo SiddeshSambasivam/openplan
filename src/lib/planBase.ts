@@ -11,47 +11,43 @@ export const SOURCE_LABELS: Record<string, string> = {
   import: "Imported",
 };
 
-/** Where a plan stands. Worked out from what has happened to it, so the
- * only one anyone sets is archived. */
-export type Lifecycle = "draft" | "active" | "archived";
+/** Where a plan stands. Stored in the plan, and the one field anyone sets. */
+export type Status = "draft" | "in-progress" | "in-review" | "completed";
 
-export const LIFECYCLE_ORDER: Lifecycle[] = ["active", "draft", "archived"];
+/** The order groups and columns show them in: what is moving first. */
+export const STATUS_ORDER: Status[] = ["in-progress", "in-review", "draft", "completed"];
 
-export const LIFECYCLE_LABELS: Record<Lifecycle, string> = {
-  active: "Active",
+export const STATUS_LABELS: Record<Status, string> = {
   draft: "Draft",
-  archived: "Archived",
+  "in-progress": "In progress",
+  "in-review": "In review",
+  completed: "Completed",
 };
 
 /** What each state means, for the one place that has room to say it. */
-export const LIFECYCLE_HINTS: Record<Lifecycle, string> = {
-  active: "An agent has worked on this.",
-  draft: "No agent has worked on this yet.",
-  archived: "You marked this work finished.",
+export const STATUS_HINTS: Record<Status, string> = {
+  draft: "Filed. No session has started on it.",
+  "in-progress": "A session is working on it.",
+  "in-review": "A pull request is open. It waits on you.",
+  completed: "You marked the work done.",
 };
-
-/** Archiving is the one part of the lifecycle anyone declares, and it is
- * still carried as a tag. */
-export const ARCHIVED_TAG = "archived";
-
-export function isArchived(plan: PlanSummary): boolean {
-  return plan.lifecycle === "archived";
-}
 
 export interface PlanSummary {
   id: string;
   title: string;
-  /** Free labels, shared by the user and their agents. */
-  tags: string[];
+  status: Status;
+  /** What kind of work it is: feature, bug, migration, research, audit. */
+  type: string | null;
   source: string;
   project: string | null;
+  /** The pull request the work went out in. */
+  pr: string | null;
   created: string | null;
   updated: string | null;
   path: string;
   relativePath: string;
   /** A set's documents, in reading order. Empty for a single-file plan. */
   documents: string[];
-  lifecycle: Lifecycle;
 }
 
 export interface BaseInfo {
@@ -119,8 +115,8 @@ export async function searchPlans(query: string): Promise<SearchHit[]> {
   return invoke<SearchHit[]>("search_plans", { query });
 }
 
-export async function setPlanTags(path: string, tags: string[]): Promise<void> {
-  return invoke<void>("set_plan_tags", { path, tags });
+export async function setPlanStatus(path: string, status: Status): Promise<void> {
+  return invoke<void>("set_plan_status", { path, status });
 }
 
 export async function commitBase(message: string): Promise<void> {

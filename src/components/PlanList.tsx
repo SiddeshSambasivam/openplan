@@ -1,14 +1,10 @@
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
-import {
-  ARCHIVED_TAG,
-  LIFECYCLE_LABELS,
-  LIFECYCLE_ORDER,
-  type PlanSummary,
-} from "@/lib/planBase";
+import { STATUS_LABELS, STATUS_ORDER, type PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
 import { MarqueeText } from "./MarqueeText";
+import { StatusGlyph } from "./StatusGlyph";
 
 interface PlanListProps {
   plans: PlanSummary[];
@@ -245,9 +241,6 @@ const PlanRow = memo(function PlanRow({
     () => (isSet && everExpanded ? buildSetTree(plan.documents) : null),
     [isSet, everExpanded, plan.documents],
   );
-  // The archived label is the group it sits in; repeating it as a chip
-  // says nothing.
-  const chipTags = plan.tags.filter((tag) => tag !== ARCHIVED_TAG);
   return (
     <li>
       <button
@@ -305,12 +298,6 @@ const PlanRow = memo(function PlanRow({
             {plan.documents.length}
           </span>
         )}
-        {chipTags.length > 0 && (
-          <span className="max-w-24 shrink-0 truncate rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
-            {chipTags[0]}
-            {chipTags.length > 1 && ` +${chipTags.length - 1}`}
-          </span>
-        )}
       </button>
 
       {/* A set opens at its entry point; the rest of it is only reachable
@@ -364,26 +351,26 @@ export function PlanList({
       ),
     [plans],
   );
-  const groups = LIFECYCLE_ORDER.map((state) => ({
+  const groups = STATUS_ORDER.map((state) => ({
     state,
-    plans: sorted.filter((plan) => plan.lifecycle === state),
+    plans: sorted.filter((plan) => plan.status === state),
   })).filter((group) => group.plans.length > 0);
 
   // A set follows whatever is being read until someone says otherwise, and
   // then it stays where they put it.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
-  // Archived plans are kept, not shown: the group starts closed, and opens
-  // itself only when the plan being read is inside it.
-  const [archiveOpen, setArchiveOpen] = useState(false);
+  // Finished work is kept, not shown: the group starts closed. Opening a
+  // completed plan opens the group once; after that the toggle is the
+  // person's, so a click always does what it says.
+  const [doneOpen, setDoneOpen] = useState<boolean | null>(null);
   const [renaming, setRenaming] = useState<Renaming | null>(null);
-  // Finished work is kept, not shown: the group stays closed until someone
-  // opens it, or until what is being read is inside it.
-  const readingArchived = sorted.some(
+  const readingCompleted = sorted.some(
     (plan) =>
-      plan.lifecycle === "archived" &&
+      plan.status === "completed" &&
       (plan.path === activePath ||
         !!activePath?.startsWith(plan.path.slice(0, plan.path.lastIndexOf("/") + 1))),
   );
+  const shownDone = doneOpen ?? readingCompleted;
 
   const toggleExpand = useCallback((plan: PlanSummary, next: boolean) => {
     setToggled((t) => ({ ...t, [plan.path]: next }));
@@ -434,8 +421,8 @@ export function PlanList({
       {groups.map(({ state, plans: inState }) => {
         // Only finished work folds away; the states you are working in are
         // always open, so nothing live is ever a click from view.
-        const collapsible = state === "archived";
-        const shown = !collapsible || archiveOpen || readingArchived;
+        const collapsible = state === "completed";
+        const shown = !collapsible || shownDone;
         const heading = (
           <>
             {collapsible && (
@@ -446,7 +433,8 @@ export function PlanList({
                 )}
               />
             )}
-            {LIFECYCLE_LABELS[state]}
+            <StatusGlyph status={state} className="size-3" />
+            {STATUS_LABELS[state]}
             <span className="tabular-nums opacity-60">{inState.length}</span>
           </>
         );
@@ -454,7 +442,7 @@ export function PlanList({
           <div key={state}>
             {collapsible ? (
               <button
-                onClick={() => setArchiveOpen((o) => !o)}
+                onClick={() => setDoneOpen(!shown)}
                 aria-expanded={shown}
                 className="flex w-full cursor-default items-center gap-1 rounded-md px-2 pb-1 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
               >
