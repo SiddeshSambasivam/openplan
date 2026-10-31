@@ -954,7 +954,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 #### GATE 7 findings, round 3 (Sid, 2026-10-29)
 - [x] R3.1 Minimized navbar: the gaps around the section dividers are too large
 - [x] R3.2 A board with no plans in its open columns shows the animated empty state
-- [ ] R3.3 Profile: the person sets a picture, a display name and an email
+- [x] R3.3 Profile: the person sets a picture, a display name and an email
 
 #### GATE 7 QA script
 
@@ -1183,6 +1183,9 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | The profile avatar is a marble drawn from a hash of the email, coloured from shadcn's `--chart-1` to `--chart-5`, which the theme now defines | A generated avatar needs no upload and no dependency, and the chart tokens follow light and dark |
 | 2026-10-29 | The width-transition exception extends to a navbar section's label band: minimized, it shrinks to 16px around the divider, on the same 180ms curve | Sid (R3.1): the minimized rail had 35px around a 1px divider. Changing the band without a transition would jump the rows vertically during the width change |
 | 2026-10-29 | The board shows the animated empty state when it has no plans, and when every plan is completed or archived, with a button that opens those columns | Sid (R3.2). A board of empty columns read as broken. All-finished is the common case once work wraps up |
+| 2026-10-29 | The profile picture is copied beside the settings file as `avatar-<stamp>.<ext>` and older ones are removed; the setting stores the file name. PNG, JPEG, WebP and GIF up to 5 MB, no cropping | Sid (R3.3). A new stamp is a new URL, so the webview never shows a cached picture. The picture belongs to this machine, like the rest of the settings |
+| 2026-10-29 | Name and email are trimmed; a blank one falls back to the git config; an email with whitespace or without text on both sides of an @ is refused | Sid (R3.3). The fallback keeps the existing `resolve_identity` order |
+| 2026-10-29 | Settings has a Profile section, opened by Edit profile in the avatar menu. The picture saves on pick, the name and email on Save, and each save replaces the app's identity at once | Sid (R3.3). One place to edit the profile, with no reload |
 | 2026-10-29 | Pull requests gain a `draft` state; a card shows the icon of the most advanced PR (merged, open, draft, closed), or a muted "no PR yet" icon only when the plan has a repo with a remote; merged uses a new `--merged` violet token | Sid (R2.6): one icon per state, as GitHub shows them. A plain folder never gets a PR, so the empty icon would mislead there |
 | 2026-10-29 | Alignment questions carry `context` (two to four sentences: why it matters, what the agent found) and options a `tradeoff`, both optional so old records read; `pr_body` prints the context only where the answer departs from the recommendation | Sid (R2.7): questions were too thin to answer well. The PR reviewer needs the reasoning only where the person overrode the agent |
 | 2026-10-29 | Plans are selected by a drag box from empty space, cmd+click, shift+click (adds the range, as Linear does) and cmd+a; a floating bar and a right-click menu act on the selection | Sid (R2.1). Folded groups are skipped by cmd+a and the box |
