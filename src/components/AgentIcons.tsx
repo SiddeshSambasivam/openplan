@@ -46,3 +46,15 @@ export function CursorIcon(props: IconProps) {
     </svg>
   );
 }
+
+const AGENT_ICONS: Record<string, typeof ClaudeCodeIcon> = {
+  "claude-code": ClaudeCodeIcon,
+  codex: CodexIcon,
+  cursor: CursorIcon,
+};
+
+/** The mark for an agent tool's id, or nothing for a tool without one. */
+export function AgentMark({ id, className }: { id: string; className?: string }) {
+  const Icon = AGENT_ICONS[id];
+  return Icon ? <Icon className={className} /> : null;
+}

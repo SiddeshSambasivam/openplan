@@ -1,281 +1,368 @@
-import { Check, Loader2 } from "lucide-react";
-import {
-  ClaudeCodeIcon,
-  CodexIcon,
-  CursorIcon,
-} from "@/components/AgentIcons";
-import { useEffect, useState } from "react";
+import { ChevronLeft, LoaderCircle } from "lucide-react";
+import { useEffect, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
+import { Progress } from "@/components/ui/progress";
+import {
+  canContinue,
+  finishOnboarding,
+  installTools,
+  litBars,
+  onboardingKey,
+  startOnboarding,
+  step,
+  type InstallStep,
+  type OnboardingEvent,
+  type OnboardingResult,
+  type OnboardingStep,
+} from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
 import type { Sources } from "@/features/settings/importSources";
+import { AgentPicker } from "./AgentPicker";
+import { AgentSetup } from "./AgentSetup";
+import { OnboardingBackdrop } from "./OnboardingBackdrop";
+import { PanelPreview } from "./PanelPreview";
+import { RolePicker } from "./RolePicker";
 
-interface InstallStep {
-  label: string;
-  done: boolean;
-  detail: string;
-}
+export { AgentMark } from "@/components/AgentIcons";
 
-type Stage = "hello" | "connect";
+/** How long a screen takes to fade out before the next one rises. */
+const LEAVE_MS = 160;
 
-const AGENT_ICONS: Record<string, typeof ClaudeCodeIcon> = {
-  "claude-code": ClaudeCodeIcon,
-  codex: CodexIcon,
-  cursor: CursorIcon,
-};
-
-export function AgentMark({ id, className }: { id: string; className?: string }) {
-  const Icon = AGENT_ICONS[id];
-  return Icon ? <Icon className={className} /> : null;
-}
-
-/** Staggered entrance for a column of elements. */
-function rise(index: number): React.CSSProperties {
-  return { animationDelay: `${index * 120}ms`, animationFillMode: "backwards" };
-}
+const RISE = "animate-in fade-in slide-in-from-bottom-3 duration-600 fill-mode-backwards";
 
 interface OnboardingProps {
-  onDone: (name: string | null) => void;
+  onDone: (result: OnboardingResult) => void;
 }
 
 /**
- * First run: a hello that shows the tools on this machine, then connecting
- * the ones that will file plans from now on. Every step can be skipped.
+ * First run: a welcome, then the person's name, their role, the agents to set
+ * up and the setup itself, then the board. Every step after the welcome can
+ * be skipped, and every action has a key.
  */
 export function Onboarding({ onDone }: OnboardingProps) {
-  const [stage, setStage] = useState<Stage>("hello");
-  const [name, setName] = useState("");
-  const [sources, setSources] = useState<Sources | null>(null);
-  const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
-  const [installing, setInstalling] = useState(false);
-  const [installResults, setInstallResults] = useState<
-    { tool: string; steps: InstallStep[]; error?: string }[]
-  >([]);
+  const [state, dispatch] = useReducer(step, undefined, startOnboarding);
+  const [detected, setDetected] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const { shown, leaving } = useLeavingStep(state.step);
 
-  // Detection runs while the hello is still animating in, so the tools are
-  // listed by the time anyone looks.
+  // Detection starts on the welcome, so the cards are ready by the time
+  // anyone reaches them.
   useEffect(() => {
-    void invoke<Sources>("discover_sources").then((found) => {
-      setSources(found);
-      setSelectedTools(
-        new Set(found.agents.filter((a) => a.installed).map((a) => a.id)),
-      );
-    });
+    void invoke<Sources>("discover_sources")
+      .then((found) =>
+        dispatch({
+          type: "detected",
+          agents: found.agents.map(({ id, name, installed }) => ({ id, name, installed })),
+        }),
+      )
+      .catch(() => {})
+      .finally(() => setDetected(true));
   }, []);
 
-  const toggle = (set: Set<string>, value: string) => {
-    const next = new Set(set);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    return next;
-  };
+  const install = (tools: string[]) =>
+    installTools(tools, (tool) => invoke<InstallStep[]>("install_tool", { tool }), dispatch);
 
-  const runInstalls = async () => {
-    setInstalling(true);
-    const results: { tool: string; steps: InstallStep[]; error?: string }[] = [];
-    for (const tool of selectedTools) {
-      try {
-        const steps = await invoke<InstallStep[]>("install_tool", { tool });
-        results.push({ tool, steps });
-      } catch (e) {
-        results.push({ tool, steps: [], error: String(e) });
-      }
-      setInstallResults([...results]);
-    }
-    setInstalling(false);
-    // When every connection worked, the last click was the one that mattered.
-    if (results.every((r) => !r.error)) {
-      setTimeout(() => onDone(name.trim() || null), 1200);
+  const openBoard = async () => {
+    setFinishing(true);
+    setSaveError(false);
+    try {
+      onDone(await finishOnboarding(invoke, state.name, state.role));
+    } catch {
+      setSaveError(true);
+      setFinishing(false);
     }
   };
 
-  const agentName = (id: string) =>
-    sources?.agents.find((a) => a.id === id)?.name ?? id;
+  // Setup starts from the event that opens its screen, not from an effect,
+  // so each install runs once.
+  const send = (event: OnboardingEvent) => {
+    if (finishing) return;
+    if (state.step === "finish" && event.type === "next") return void openBoard();
+    const next = step(state, event);
+    dispatch(event);
+    if (state.step !== "setup" && next.step === "setup") void install(next.picked);
+  };
 
+  const onKey = useRef<(e: KeyboardEvent) => void>(() => {});
+  onKey.current = (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+    const event = onboardingKey(state, e.key, e.target instanceof HTMLInputElement);
+    if (!event) return;
+    e.preventDefault();
+    send(event);
+  };
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => onKey.current(e);
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, []);
+
+  const next = () => send({ type: "next" });
+  const skip = () => send({ type: "skip" });
+  const showsBack = state.step !== "welcome" && state.step !== "finish";
+  const canGoBack = step(state, { type: "back" }).step !== state.step;
+  const agentName = (id: string) => state.agents.find((agent) => agent.id === id)?.name ?? id;
+
+  // Clipped rather than hidden: the rays reach past the window, and a hidden
+  // overflow still scrolls sideways when a control is brought into view.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-background">
-      <div className="w-full max-w-md px-8 py-12">
-        {stage === "hello" && (
-          <div className="flex flex-col gap-6">
-            <h1
-              className="flex animate-in items-center gap-4 font-serif text-5xl tracking-[-0.01em] fade-in slide-in-from-bottom-4 duration-700"
-              style={rise(0)}
-            >
-              <BrandMark className="size-8 shrink-0" />
-              OpenPlan
-            </h1>
-            <p
-              className="animate-in text-sm leading-6 text-muted-foreground fade-in slide-in-from-bottom-2 duration-500"
-              style={rise(2)}
-            >
-              Keep every plan you and your coding agents write in one place.
-              One more step and you are in.
-            </p>
-            <div
-              className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-              style={rise(3)}
-            >
-              <label htmlFor="onboarding-name" className="text-sm text-foreground">
-                What should we call you?
-              </label>
-              <Input
-                id="onboarding-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") setStage("connect");
-                }}
-                placeholder="Your name"
-                className="mt-1.5"
-                autoFocus
-              />
-            </div>
-            <div
-              className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-              style={rise(4)}
-            >
-              <p className="pb-1.5 text-sm text-foreground">On this machine</p>
-              <div className="flex flex-col gap-1.5">
-                {(sources?.agents ?? []).map((agent, i) => (
-                  <button
-                    key={agent.id}
-                    disabled={!agent.installed}
-                    onClick={() =>
-                      setSelectedTools((s) => toggle(s, agent.id))
-                    }
-                    aria-pressed={selectedTools.has(agent.id)}
-                    className={cn(
-                      "animate-in flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors fade-in duration-300",
-                      agent.installed ? "hover:bg-accent/50" : "opacity-40",
-                      selectedTools.has(agent.id)
-                        ? "border-foreground/40 bg-accent/50"
-                        : "border-border text-muted-foreground",
-                    )}
-                    style={rise(5 + i)}
-                  >
-                    <AgentMark
-                      id={agent.id}
-                      className={cn(
-                        "size-5 shrink-0 text-foreground transition-all duration-200",
-                        !selectedTools.has(agent.id) && "opacity-45 grayscale",
-                      )}
-                    />
-                    <span className="flex-1">{agent.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {agent.installed ? "Detected" : "Not found"}
-                    </span>
-                  </button>
-                ))}
-                {!sources && (
-                  <p className="py-2 text-xs text-muted-foreground">
-                    <Loader2 className="mr-1.5 inline size-3 animate-spin" />
-                    Looking around…
-                  </p>
-                )}
-              </div>
-            </div>
-            <div
-              className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-              style={rise(8)}
-            >
-              <Button onClick={() => setStage("connect")} className="w-full">
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
+    <div className="fixed inset-0 z-50 overflow-clip bg-background text-foreground">
+      <OnboardingBackdrop dim={state.step !== "welcome"} />
 
-        {stage === "connect" && (
-          <div className="flex flex-col gap-5">
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
-              <h2 className="text-xl font-semibold tracking-tight">
-                Connect your agents
-              </h2>
-              <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-                Connected tools can file plans here and read your standards.
-                OpenPlan adds a short note to each tool's instructions and
-                changes nothing else in its files.
-              </p>
-            </div>
+      <header className="absolute inset-x-0 top-0 z-10 flex h-13 items-center justify-between px-4">
+        <div className="flex w-30">
+          {showsBack && (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Back"
+              disabled={!canGoBack}
+              onClick={() => send({ type: "back" })}
+              className="text-muted-foreground"
+            >
+              <ChevronLeft />
+              <Kbd>Esc</Kbd>
+            </Button>
+          )}
+        </div>
+        <div
+          aria-hidden
+          className={cn("flex gap-1.5 transition-opacity duration-400", state.step === "welcome" && "opacity-0")}
+        >
+          {[0, 1, 2, 3].map((bar) => (
+            <Progress
+              key={bar}
+              value={bar < litBars(state.step) ? 100 : 0}
+              className="h-0.75 w-5.5"
+            />
+          ))}
+        </div>
+        <div className="w-30" />
+      </header>
 
-            {installResults.length === 0 ? (
-              <div className="flex flex-col gap-1.5">
-                {[...selectedTools].map((tool, i) => (
-                  <div
-                    key={tool}
-                    className="animate-in flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm fade-in duration-300"
-                    style={rise(i)}
-                  >
-                    <AgentMark id={tool} className="size-4 shrink-0 text-foreground" />
-                    <span className="flex-1">{agentName(tool)}</span>
-                    {installing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
-                  </div>
-                ))}
-                {selectedTools.size === 0 && (
-                  <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                    No tools selected. You can connect them any time from Settings.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {installResults.map((result) => (
-                  <div
-                    key={result.tool}
-                    className="animate-in rounded-lg border border-border px-3 py-2.5 fade-in duration-300"
-                  >
-                    <p className="flex items-center gap-2 text-sm font-medium">
-                      <AgentMark id={result.tool} className="size-4 shrink-0" />
-                      {agentName(result.tool)}
-                    </p>
-                    {result.error ? (
-                      <p className="mt-1 text-xs text-destructive">{result.error}</p>
-                    ) : (
-                      result.steps.map((step) => (
-                        <p
-                          key={step.label}
-                          className="mt-1 flex items-start gap-1.5 text-xs text-muted-foreground"
-                        >
-                          <Check className="mt-0.5 size-3 shrink-0 text-success" />
-                          <span>
-                            {step.label}: {step.detail}
-                          </span>
-                        </p>
-                      ))
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {installResults.length > 0 || selectedTools.size === 0 ? (
-              <Button
-                onClick={() => onDone(name.trim() || null)}
-                disabled={installing}
-                className="w-full"
+      <main className="absolute inset-x-0 top-13 bottom-0 overflow-y-auto">
+        <section
+          key={shown}
+          className={cn(
+            "mx-auto flex min-h-full w-full flex-col justify-center px-8 pt-4 pb-14 short:pt-0 short:pb-4",
+            WIDTHS[shown],
+            leaving && "animate-out fade-out slide-out-to-top-2 duration-200 fill-mode-forwards",
+          )}
+        >
+          {shown === "welcome" && (
+            <>
+              <h1
+                className={cn("mb-4 flex items-center gap-4 font-serif text-5xl leading-none tracking-tight", RISE)}
+                style={rise(2)}
               >
-                Open OpenPlan
-              </Button>
-            ) : (
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => void runInstalls()}
-                  disabled={installing}
-                  className="flex-1"
-                >
-                  {installing && <Loader2 className="animate-spin" />}
-                  Connect
-                </Button>
-                <Button variant="ghost" onClick={() => onDone(name.trim() || null)}>
-                  Skip
-                </Button>
+                <BrandMark className="size-8 shrink-0" />
+                OpenPlan
+              </h1>
+              <p className={cn("mb-8 max-w-md text-base text-muted-foreground", RISE)} style={rise(5)}>
+                Every plan you and your agents write, in one place.
+              </p>
+              <MainButton onClick={next} index={7}>
+                Get started
+              </MainButton>
+            </>
+          )}
+
+          {shown === "name" && (
+            <>
+              <Title sub="Your name shows on comments and replies you write.">What should we call you?</Title>
+              <Input
+                aria-label="Your name"
+                value={state.name}
+                onChange={(e) => send({ type: "name", name: e.target.value })}
+                placeholder="Your name"
+                autoComplete="off"
+                autoFocus
+                className={cn("h-auto bg-card/80 px-3.5 py-3 text-2xl md:text-2xl", RISE)}
+                style={rise(2)}
+              />
+              <Actions index={3}>
+                <MainButton onClick={next}>Continue</MainButton>
+                <SkipButton onClick={skip} />
+              </Actions>
+            </>
+          )}
+
+          {shown === "role" && (
+            <>
+              <Title sub="Every plan gets questions from four reviewers. Your role decides who they are.">
+                What do you do?
+              </Title>
+              <div className={RISE} style={rise(2)}>
+                <RolePicker value={state.role} onChange={(role) => send({ type: "pickRole", role })} />
               </div>
-            )}
-          </div>
-        )}
-      </div>
+              <div className={cn("mt-4 short:mt-2.5", RISE)} style={rise(3)}>
+                <PanelPreview role={state.role} />
+              </div>
+              <Actions index={4}>
+                <MainButton onClick={next} disabled={!canContinue(state)}>
+                  Continue
+                </MainButton>
+                <SkipButton onClick={skip} />
+                <span className="ml-auto text-xs text-muted-foreground">You can change this in Settings.</span>
+              </Actions>
+            </>
+          )}
+
+          {shown === "agents" && (
+            <>
+              <Title sub="We set up OpenPlan in each one you pick, so it can file plans here and read your standards.">
+                Which agents do you use?
+              </Title>
+              <div className={RISE} style={rise(2)}>
+                {detected ? (
+                  <AgentPicker
+                    agents={state.agents}
+                    picked={state.picked}
+                    onToggle={(id) => send({ type: "toggleAgent", id })}
+                  />
+                ) : (
+                  <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                    <LoaderCircle className="size-4 animate-spin" />
+                    Looking for agents on this computer
+                  </p>
+                )}
+              </div>
+              <p className={cn("mt-3 text-xs text-muted-foreground", RISE)} style={rise(3)}>
+                Each one gets the OpenPlan server and a short note in its instructions. Nothing else in its files
+                changes.
+              </p>
+              <Actions index={4}>
+                <MainButton onClick={next}>{state.picked.length > 0 ? "Set up" : "Continue"}</MainButton>
+                <SkipButton onClick={skip} />
+              </Actions>
+            </>
+          )}
+
+          {shown === "setup" && (
+            <>
+              <Title sub="This takes a few seconds.">Setting up your agents</Title>
+              <div className={RISE} style={rise(2)}>
+                <AgentSetup
+                  rows={state.setup}
+                  agentName={agentName}
+                  onRetry={(tool) => void install([tool])}
+                />
+              </div>
+              <Actions index={3}>
+                <MainButton onClick={next} disabled={!canContinue(state)}>
+                  Continue
+                </MainButton>
+              </Actions>
+            </>
+          )}
+
+          {shown === "finish" && (
+            <>
+              <h2
+                className={cn("mb-2 font-serif text-5xl leading-tight short:text-4xl", RISE)}
+                style={rise(0)}
+              >
+                {state.name.trim() ? `Welcome, ${state.name.trim()}` : "You're all set"}
+              </h2>
+              <p className={cn("mb-6 max-w-md text-sm text-muted-foreground short:mb-3", RISE)} style={rise(1)}>
+                Your board has a Demo folder with a plan at every stage. A short tour walks you through them.
+              </p>
+              <MainButton onClick={next} disabled={finishing} index={2}>
+                Open my board
+              </MainButton>
+              {saveError && (
+                <p className="mt-3 text-xs text-destructive">Couldn't save your settings. Try again.</p>
+              )}
+            </>
+          )}
+        </section>
+      </main>
     </div>
+  );
+}
+
+/** How wide each screen's column is, and how it lines up. */
+const WIDTHS: Record<OnboardingStep, string> = {
+  welcome: "max-w-xl items-center pb-24 text-center short:pb-16",
+  name: "max-w-120",
+  role: "max-w-170",
+  agents: "max-w-170",
+  setup: "max-w-130",
+  finish: "max-w-xl items-center text-center",
+};
+
+/** The screen on show, which trails the step by a short fade out. */
+function useLeavingStep(current: OnboardingStep): { shown: OnboardingStep; leaving: boolean } {
+  const [shown, setShown] = useState(current);
+  useEffect(() => {
+    if (current === shown) return;
+    const timer = setTimeout(() => setShown(current), LEAVE_MS);
+    return () => clearTimeout(timer);
+  }, [current, shown]);
+  return { shown, leaving: current !== shown };
+}
+
+/** Staggers a screen's parts as they rise. */
+function rise(index: number): CSSProperties {
+  return { animationDelay: `${index * 70}ms` };
+}
+
+function Title({ children, sub }: { children: ReactNode; sub: string }) {
+  return (
+    <>
+      <h2 className={cn("mb-2 font-serif text-4xl leading-tight short:mb-1 short:text-2xl", RISE)} style={rise(0)}>
+        {children}
+      </h2>
+      <p className={cn("mb-6 text-sm text-muted-foreground short:mb-3", RISE)} style={rise(1)}>
+        {sub}
+      </p>
+    </>
+  );
+}
+
+function Actions({ children, index }: { children: ReactNode; index: number }) {
+  return (
+    <div className={cn("mt-6 flex items-center gap-2 short:mt-3", RISE)} style={rise(index)}>
+      {children}
+    </div>
+  );
+}
+
+/** The screen's main action, which Enter presses too. */
+function MainButton({
+  children,
+  onClick,
+  disabled,
+  index,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  index?: number;
+}) {
+  return (
+    <Button
+      size="lg"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn("gap-2.5 pr-3 pl-4.5 active:scale-98", index != null && RISE)}
+      style={index != null ? rise(index) : undefined}
+    >
+      {children}
+      <Kbd className="bg-primary-foreground/15 text-primary-foreground">↵</Kbd>
+    </Button>
+  );
+}
+
+function SkipButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button variant="ghost" size="lg" onClick={onClick} className="text-muted-foreground">
+      Skip
+    </Button>
   );
 }
