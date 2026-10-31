@@ -813,6 +813,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Global search is on-demand scan, never indexed (FR-15) | NFR-8: no background indexing; base size makes cold scans instant |
 | 2026-08-15 | North star addition: OpenPlan is the interoperable *convention* for plans; the app is a convenience client | Sid's vision note |
 | 2026-08-15 | Marketing site is a standalone static page in `site/` (no build step, no deps), with positioning and copy owned by MARKETING.md | Sid: landing page + marketing content; keeps the app's toolchain untouched and "less code" intact. Site design is deliberately NOT the app's shadcn system — it is a separate marketing surface (§2 Design system governs the app only) |
+| 2026-08-16 | Renaming a set document keeps its numeric prefix unless the new name starts with digits; the entry document (README/00-*) refuses rename and points at the plan row | The prefix is the set's reading order and must survive casual renames; the entry file IS the plan's identity, so renaming it goes through `rename_plan` |
 
 ---
 
