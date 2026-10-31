@@ -2,6 +2,7 @@ mod onboarding;
 mod plans;
 mod projects;
 mod review;
+mod sessions;
 
 use std::path::Path;
 
@@ -201,6 +202,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             plans::setup(app);
+            sessions::setup(app);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -230,6 +232,8 @@ pub fn run() {
             plans::restore_plan_revision,
             projects::list_projects,
             review::review_summaries,
+            sessions::live_sessions,
+            sessions::send_comments,
             read_markdown,
             write_markdown,
             scan_folder,
@@ -238,6 +242,11 @@ pub fn run() {
             write_comments,
             delete_comments
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                sessions::teardown();
+            }
+        });
 }
