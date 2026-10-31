@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sessionCounts } from "./liveSessions";
+import { deliveryLine, sessionCounts } from "./liveSessions";
 
 const session = (id: string, plans: string[]) => ({
   id,
@@ -32,5 +32,21 @@ describe("sessionCounts", () => {
     ]);
 
     expect(counts.get("auth-refactor")).toBe(1);
+  });
+});
+
+describe("deliveryLine", () => {
+  it("says it reached one session", () => {
+    expect(deliveryLine(1)).toBe("Delivered to 1 session.");
+  });
+
+  it("counts every session that got it", () => {
+    expect(deliveryLine(2)).toBe("Delivered to 2 sessions.");
+  });
+
+  it("tells the person how to deliver it when no session got it", () => {
+    expect(deliveryLine(0)).toBe(
+      "Waiting for the session. Type anything in it to deliver.",
+    );
   });
 });

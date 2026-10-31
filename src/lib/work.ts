@@ -169,6 +169,13 @@ export function alignmentStartsOpen(status: Status): boolean {
   return STATUS_FLOW.indexOf(status) <= STATUS_FLOW.indexOf("in-progress");
 }
 
+/** Completed stays the person's call. The app offers it once the agent has
+ * reported every PR merged, which it never checks for itself. */
+export function offersCompletion(status: Status, record: WorkRecord | null): boolean {
+  const prs = record?.prs ?? [];
+  return status === "in-review" && prs.length > 0 && prs.every((pr) => pr.state === "merged");
+}
+
 /** A PR link short enough for a row: `owner/repo#12` where the host's URL
  * shape is known. */
 export function prLabel(url: string): string {

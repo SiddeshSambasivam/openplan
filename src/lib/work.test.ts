@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   alignmentStartsOpen,
+  offersCompletion,
   answerOf,
   prBadges,
   prLabel,
@@ -214,5 +215,34 @@ describe("prBadges", () => {
       ["Checks passing", "outline"],
       ["Approved", "outline"],
     ]);
+  });
+});
+
+describe("offersCompletion", () => {
+  const withPrs = (prs: Pr[]): WorkRecord => ({ ...record([]), prs });
+
+  it("offers completion once every recorded PR on an in-review plan is merged", () => {
+    const merged = withPrs([pr({ state: "merged" }), pr({ url: "b", state: "merged" })]);
+
+    expect(offersCompletion("in-review", merged)).toBe(true);
+  });
+
+  it("waits while any PR is still open or was closed", () => {
+    expect(
+      offersCompletion("in-review", withPrs([pr({ state: "merged" }), pr({ state: "open" })])),
+    ).toBe(false);
+    expect(offersCompletion("in-review", withPrs([pr({ state: "closed" })]))).toBe(false);
+  });
+
+  it("offers nothing for a plan with no PRs or no record", () => {
+    expect(offersCompletion("in-review", withPrs([]))).toBe(false);
+    expect(offersCompletion("in-review", null)).toBe(false);
+  });
+
+  it("offers nothing outside in-review", () => {
+    const merged = withPrs([pr({ state: "merged" })]);
+
+    expect(offersCompletion("in-progress", merged)).toBe(false);
+    expect(offersCompletion("completed", merged)).toBe(false);
   });
 });

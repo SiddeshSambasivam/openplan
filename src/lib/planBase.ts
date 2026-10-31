@@ -63,6 +63,14 @@ export const STATUS_HINTS: Record<Status, string> = {
   archived: "Done and put away.",
 };
 
+/** The agent moves a plan into these, and the server guards each move. The
+ * person steers them through comments and alignment instead. */
+const AGENT_STATUSES: Status[] = ["in-progress", "in-review"];
+
+export function personCanSet(status: Status): boolean {
+  return !AGENT_STATUSES.includes(status);
+}
+
 export interface PlanSummary {
   id: string;
   title: string;
@@ -157,6 +165,43 @@ export async function getAuthoring(): Promise<Authoring> {
 export async function setAuthoring(mode: Authoring): Promise<void> {
   if (!isTauri) return;
   await invoke<void>("set_authoring", { mode });
+}
+
+/** Settings the app reads once at startup and again after a change. */
+export interface Preferences {
+  /** Whether agents may add videos and interactive pieces. */
+  media: boolean;
+  /** Days a completed plan waits before it is archived. 0 means never. */
+  archiveAfterDays: number;
+}
+
+const BROWSER_PREFERENCES: Preferences = { media: true, archiveAfterDays: 7 };
+
+export async function getPreferences(): Promise<Preferences> {
+  if (!isTauri) return BROWSER_PREFERENCES;
+  return invoke<Preferences>("preferences");
+}
+
+export async function setMedia(on: boolean): Promise<void> {
+  if (!isTauri) return;
+  await invoke<void>("set_media", { on });
+}
+
+export async function setArchiveAfterDays(days: number): Promise<void> {
+  if (!isTauri) return;
+  await invoke<void>("set_archive_after_days", { days });
+}
+
+/** Archives plans completed longer ago than the setting, and says how many. */
+export async function archiveStale(): Promise<number> {
+  if (!isTauri) return 0;
+  return invoke<number>("archive_stale");
+}
+
+/** Tells the sessions on a plan to start aligning. Returns how many heard. */
+export async function sendAlign(planId: string): Promise<number> {
+  if (!isTauri) return 0;
+  return invoke<number>("send_align", { plan: planId });
 }
 
 export async function scanPlans(): Promise<PlanSummary[]> {

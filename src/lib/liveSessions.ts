@@ -14,6 +14,13 @@ export function sessionCounts(sessions: LiveSession[]): Map<string, number> {
   return counts;
 }
 
+/** What the top bar says after a review or an align event went out. With no
+ * session on the plan, the hooks deliver it on the next prompt. */
+export function deliveryLine(sessions: number): string {
+  if (sessions === 0) return "Waiting for the session. Type anything in it to deliver.";
+  return `Delivered to ${sessions} ${sessions === 1 ? "session" : "sessions"}.`;
+}
+
 /**
  * Who is working right now. The app tells us when this changes, so nothing
  * here runs on a timer.
