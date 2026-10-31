@@ -129,6 +129,7 @@ import {
 import { useWorkRecord } from "./features/plan/useWorkRecord";
 import { WORK_PANEL_PX, WORK_RAIL_PX, WorkPanel } from "./features/plan/PlanWork";
 import { loadWorkPanelMode, saveWorkPanelMode } from "./lib/workPanel";
+import { buildTooltip } from "./lib/alignmentScore";
 import { originLabel, pushOrigin, type Origin } from "./lib/origin";
 import { PLAN_TABS, tabFor, withTab, type PlanTab, type PlanTabs } from "./lib/planTab";
 import { restoreScroll, scrollMarks, type ScrollMark } from "./lib/scroll";
@@ -1796,6 +1797,7 @@ export default function App() {
           onStatusOpenChange={setStatusOpen}
           offerCompletion={offerCompletion}
           onBuild={canBuild ? build : undefined}
+          buildTooltip={buildTooltip(workRecord)}
           folders={knownFolders}
           folder={folder}
           onSelectFolder={setChosenFolder}
