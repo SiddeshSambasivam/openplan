@@ -204,7 +204,7 @@ export function Viewer({
           dark={dark}
         />
       ) : (
-        <Markdown content={previewContent ?? ""} docPath={doc.path} dark={dark} />
+        <Markdown content={previewContent ?? ""} docPath={doc.path} dark={dark} media />
       )}
     </div>
   );

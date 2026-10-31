@@ -39,6 +39,14 @@ export function isMarkdownPath(path: string): boolean {
   return MARKDOWN_EXTENSIONS.includes(extensionOf(path));
 }
 
+const VIDEO_EXTENSIONS = ["mp4", "webm", "mov"];
+
+/** True for a src that names a video file, ignoring any query or fragment. */
+export function isVideoPath(src: string | undefined): boolean {
+  if (!src) return false;
+  return VIDEO_EXTENSIONS.includes(extensionOf(src.split(/[?#]/)[0]));
+}
+
 /** Basename without its extension — what we show in the sidebar. */
 export function displayName(path: string): string {
   const base = basename(path);
@@ -108,30 +116,41 @@ export async function openExternal(url: string): Promise<void> {
 }
 
 /**
- * Resolve an image src found in a document. Relative paths are resolved
- * against the document's folder and served through Tauri's asset protocol;
- * absolute URLs (http, https, data:, …) pass through untouched.
+ * Resolve an image or video src found in a document. Relative paths are
+ * resolved against the document's folder and served through Tauri's asset
+ * protocol; absolute URLs (http, https, data:, …) pass through untouched.
  */
 export function resolveAssetSrc(
   src: string | undefined,
   docPath: string | undefined,
 ): string | undefined {
-  if (!src) return src;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//") || src.startsWith("#")) {
-    return src;
-  }
-  if (!isTauri || !docPath) return src;
+  const path = isTauri ? docRelativePath(src, docPath) : null;
+  return path ? convertFileSrc(path) : src;
+}
 
+/** The file on disk a document's src points at, or null when the src is a
+ * URL or a fragment, or there is no document to resolve it from. */
+export function docRelativePath(
+  src: string | undefined,
+  docPath: string | undefined,
+): string | null {
+  if (!src || !docPath) return null;
+  // A drive letter reads like a URL scheme, so it is checked first.
+  const windowsDrive = /^[A-Za-z]:[\\/]/.test(src);
+  if (
+    !windowsDrive &&
+    (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//") || src.startsWith("#"))
+  ) {
+    return null;
+  }
   let rel = src.split(/[?#]/)[0];
   try {
     rel = decodeURIComponent(rel);
   } catch {
     // keep the raw value if it isn't valid percent-encoding
   }
-  const windowsStyle = docPath.includes("\\");
-  const isAbsolute = rel.startsWith("/") || /^[A-Za-z]:[\\/]/.test(rel);
-  const abs = isAbsolute
-    ? rel
-    : dirname(docPath) + (windowsStyle ? "\\" : "/") + (windowsStyle ? rel.replace(/\//g, "\\") : rel);
-  return convertFileSrc(abs);
+  if (windowsDrive || rel.startsWith("/")) return rel;
+  return docPath.includes("\\")
+    ? `${dirname(docPath)}\\${rel.replace(/\//g, "\\")}`
+    : `${dirname(docPath)}/${rel}`;
 }

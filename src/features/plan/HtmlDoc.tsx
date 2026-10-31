@@ -3,7 +3,7 @@ import { frameSrcDoc, type FrameTheme } from "@/lib/htmlDoc";
 
 /** The app's colours and type, read as values. The frame has no same-origin
  * access, so it cannot read the variables these come from. */
-function readTheme(): FrameTheme {
+export function readTheme(): FrameTheme {
   const style = getComputedStyle(document.documentElement);
   const token = (name: string, fallback: string) =>
     style.getPropertyValue(name).trim() || fallback;

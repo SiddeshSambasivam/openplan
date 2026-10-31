@@ -1,12 +1,16 @@
 import { memo, type MouseEvent } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import { cn } from "../lib/utils";
-import { openExternal, resolveAssetSrc } from "../lib/platform";
+import { fenceLanguage } from "../lib/fences";
+import { basename, isVideoPath, openExternal, resolveAssetSrc } from "../lib/platform";
+import { HtmlFence } from "./HtmlFence";
 import { Mermaid } from "./Mermaid";
 
 // Minimal shape we need from react-markdown's hast nodes — avoids pulling in
@@ -15,7 +19,7 @@ interface HastNode {
   type: string;
   tagName?: string;
   value?: string;
-  properties?: { className?: unknown };
+  properties?: { className?: unknown; src?: unknown };
   children?: HastNode[];
 }
 
@@ -25,16 +29,20 @@ function hastToText(node: HastNode | undefined): string {
   return (node.children ?? []).map(hastToText).join("");
 }
 
-function mermaidCodeChild(node: HastNode | undefined): HastNode | undefined {
-  const child = node?.children?.[0];
-  if (child?.type !== "element" || child.tagName !== "code") return undefined;
-  const classes = child.properties?.className;
-  const isMermaid = Array.isArray(classes) && classes.includes("language-mermaid");
-  return isMermaid ? child : undefined;
+/** A `<video>`'s file: its own src, or else its first `<source>`'s. */
+function videoFile(node: HastNode | undefined): string | undefined {
+  const own = node?.properties?.src;
+  if (typeof own === "string") return own;
+  const source = node?.children?.find(
+    (child) => child.type === "element" && child.tagName === "source",
+  );
+  const src = source?.properties?.src;
+  return typeof src === "string" ? src : undefined;
 }
 
 interface PositionedNode {
   type: string;
+  tagName?: string;
   position?: { start?: { line?: number }; end?: { line?: number } };
   properties?: Record<string, unknown>;
   children?: PositionedNode[];
@@ -60,9 +68,34 @@ function rehypeSourceLines(offset: number) {
   };
 }
 
+function wrapMathBlocks(node: PositionedNode) {
+  node.children = node.children?.map((child) => {
+    if (fenceLanguage(child) !== "math") {
+      wrapMathBlocks(child);
+      return child;
+    }
+    const { dataLine, dataLineEnd } = child.properties ?? {};
+    return {
+      type: "element",
+      tagName: "div",
+      properties: { dataLine, dataLineEnd },
+      children: [child],
+    };
+  });
+}
+
+/** KaTeX swaps a block formula's `pre` for markup with no source position.
+ * A stamped wrapper around it keeps the formula on its source lines. */
+function rehypeWrapMathBlocks() {
+  return (tree: PositionedNode) => {
+    wrapMathBlocks(tree);
+  };
+}
+
 // GitHub-like sanitize schema, extended for task lists, footnotes,
 // fenced-code language classes (rehype-highlight runs after sanitizing),
-// and the source-line data attributes rehypeSourceLines adds above.
+// video, and the source-line data attributes rehypeSourceLines adds above.
+// Autoplay is never allowed.
 const schema = {
   ...defaultSchema,
   tagNames: [
@@ -72,6 +105,8 @@ const schema = {
     "summary",
     "kbd",
     "mark",
+    "video",
+    "source",
   ],
   attributes: {
     ...defaultSchema.attributes,
@@ -91,16 +126,22 @@ const schema = {
       ...(defaultSchema.attributes?.section ?? []),
       ["className", "footnotes"],
     ],
+    video: ["src", "poster", "controls", "preload", "muted", "loop", "playsInline"],
+    source: ["src"],
   },
 };
 
-const remarkPlugins = [remarkGfm];
+const remarkPlugins = [remarkGfm, remarkMath];
 
 function rehypePlugins(offset: number) {
   return [
     rehypeRaw,
     [rehypeSourceLines, offset],
     [rehypeSanitize, schema],
+    // KaTeX runs on sanitized input and builds its own markup, like the
+    // highlighter below, so the schema never has to allow its inline styles.
+    rehypeWrapMathBlocks,
+    rehypeKatex,
     rehypeSlug,
     // mermaid blocks are rendered as diagrams (see the `pre` override below),
     // not syntax-highlighted source.
@@ -134,6 +175,16 @@ function handleAnchorClick(e: MouseEvent<HTMLAnchorElement>, href?: string) {
   }
 }
 
+/** What a video shows as when media is off: a link naming its file. */
+function FileLink({ src, label }: { src?: string; label?: string }) {
+  if (!src) return null;
+  return (
+    <a href={src} onClick={(e) => handleAnchorClick(e, src)}>
+      {label || basename(src)}
+    </a>
+  );
+}
+
 interface MarkdownProps {
   content: string;
   /** Absolute path of the doc on disk — used to resolve relative image paths. */
@@ -144,6 +195,9 @@ interface MarkdownProps {
   lineOffset?: number;
   /** Extra classes on the rendered article. */
   className?: string;
+  /** Plays videos and runs `html` fences. Off, they show as a link and as
+   * code. Math renders either way. */
+  media?: boolean;
 }
 
 export const Markdown = memo(function Markdown({
@@ -152,6 +206,7 @@ export const Markdown = memo(function Markdown({
   dark,
   lineOffset = 0,
   className,
+  media = false,
 }: MarkdownProps) {
   const components: Components = {
     a({ href, children, ...props }) {
@@ -168,19 +223,51 @@ export const Markdown = memo(function Markdown({
           : typeof props.src === "string"
             ? props.src
             : undefined;
+      const alt = typeof props.alt === "string" ? props.alt : "";
+      if (isVideoPath(raw)) {
+        if (!media) return <FileLink src={raw} label={alt} />;
+        return (
+          <video
+            src={resolveAssetSrc(raw, docPath)}
+            aria-label={alt || undefined}
+            preload="metadata"
+            controls
+          />
+        );
+      }
+      return <img {...props} src={resolveAssetSrc(raw, docPath)} loading="lazy" alt={alt} />;
+    },
+    video({ node, src, poster, preload, children, ...props }) {
+      if (!media) return <FileLink src={videoFile(node as HastNode | undefined)} />;
       return (
-        <img
+        <video
           {...props}
-          src={resolveAssetSrc(raw, docPath)}
-          loading="lazy"
-          alt={typeof props.alt === "string" ? props.alt : ""}
-        />
+          src={resolveAssetSrc(src, docPath)}
+          poster={resolveAssetSrc(poster, docPath)}
+          preload={preload ?? "metadata"}
+          // A video with no controls and no autoplay could never start.
+          controls
+          autoPlay={false}
+        >
+          {children}
+        </video>
       );
     },
+    source({ node, src, ...props }) {
+      return <source {...props} src={resolveAssetSrc(src, docPath)} />;
+    },
     pre({ children, node, ...props }) {
-      const mermaidNode = mermaidCodeChild(node as HastNode | undefined);
-      if (mermaidNode) {
-        return <Mermaid code={hastToText(mermaidNode)} dark={dark} />;
+      const fence = node as HastNode | undefined;
+      const language = fenceLanguage(fence);
+      if (language === "mermaid") {
+        return <Mermaid code={hastToText(fence)} dark={dark} />;
+      }
+      if (language === "html" && media) {
+        return (
+          <HtmlFence code={hastToText(fence)} dark={dark} {...props}>
+            <pre {...props}>{children}</pre>
+          </HtmlFence>
+        );
       }
       return <pre {...props}>{children}</pre>;
     },

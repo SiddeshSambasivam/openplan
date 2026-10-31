@@ -30,7 +30,7 @@ function Body({
   // Each slice parses on its own, so the offset puts its stamps back into the
   // body's lines. Comments anchor to those stamps.
   return (
-    <Markdown content={content} lineOffset={line - 1} docPath={docPath} dark={dark} />
+    <Markdown content={content} lineOffset={line - 1} docPath={docPath} dark={dark} media />
   );
 }
 
