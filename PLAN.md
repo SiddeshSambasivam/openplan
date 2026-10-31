@@ -934,10 +934,10 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       live in the base's `openplan.json` and the navbar lists the union with frontmatter
 - [x] R1.12 Navbar: `cmd+shift+[` and `cmd+shift+]` step through the navbar rows
 #### GATE 7 findings, round 2 (Sid, 2026-10-29)
-- [ ] R2.1 Plans can be selected by dragging a box over them, and archived in bulk
-- [ ] R2.2 The webview's own context menu (with Reload) never shows; plans get an
+- [x] R2.1 Plans can be selected by dragging a box over them, and archived in bulk
+- [x] R2.2 The webview's own context menu (with Reload) never shows; plans get an
       app context menu instead
-- [ ] R2.3 A plan can be deleted, alone or in bulk, behind a two-step confirmation
+- [x] R2.3 A plan can be deleted, alone or in bulk, behind a two-step confirmation
 - [x] R2.4 Minimized navbar: the top bar spans the full width above the rail, so the
       traffic lights sit in the top bar and nothing crowds them
 - [x] R2.5 Every clickable control shows the pointer cursor
@@ -1175,6 +1175,10 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | The profile avatar is a marble drawn from a hash of the email, coloured from shadcn's `--chart-1` to `--chart-5`, which the theme now defines | A generated avatar needs no upload and no dependency, and the chart tokens follow light and dark |
 | 2026-10-29 | Pull requests gain a `draft` state; a card shows the icon of the most advanced PR (merged, open, draft, closed), or a muted "no PR yet" icon only when the plan has a repo with a remote; merged uses a new `--merged` violet token | Sid (R2.6): one icon per state, as GitHub shows them. A plain folder never gets a PR, so the empty icon would mislead there |
 | 2026-10-29 | Alignment questions carry `context` (two to four sentences: why it matters, what the agent found) and options a `tradeoff`, both optional so old records read; `pr_body` prints the context only where the answer departs from the recommendation | Sid (R2.7): questions were too thin to answer well. The PR reviewer needs the reasoning only where the person overrode the agent |
+| 2026-10-29 | Plans are selected by a drag box from empty space, cmd+click, shift+click (adds the range, as Linear does) and cmd+a; a floating bar and a right-click menu act on the selection | Sid (R2.1). Folded groups are skipped by cmd+a and the box |
+| 2026-10-29 | Archive and delete of several plans commit once (`edit: archive N plans`, `delete: N plans`); delete is the person's only, refuses any path outside the base, a hidden component or a non-plan, and checks every path before removing anything; a folder change on several plans commits once per plan | Sid (R2.1, R2.3). One command per kind of bulk change keeps the Tauri surface small, and git history keeps a deleted plan restorable |
+| 2026-10-29 | Deleting asks twice in one dialog: the first press arms the button as "Confirm delete" for 4 seconds, the second deletes; focus starts on Cancel | Sid asked for double confirmation. A second dialog would ask the same question twice |
+| 2026-10-29 | The webview's own context menu is suppressed everywhere except inputs, editors and a page with a text selection | Sid (R2.2): it offered Reload. Copy still has to work on selected text |
 
 ---
 
