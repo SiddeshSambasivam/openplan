@@ -22,6 +22,8 @@ interface EditorProps {
   initialDoc: string;
   /** Fires on every buffer change; keep it cheap (no React state per keystroke). */
   onDocChange: () => void;
+  /** No markdown grammar — an HTML plan is edited as text. */
+  plainText?: boolean;
 }
 
 // Single theme driven by the app's CSS variables, so it follows light/dark
@@ -125,7 +127,7 @@ const markdownHighlight = HighlightStyle.define([
 ]);
 
 export const Editor = forwardRef<EditorApi, EditorProps>(function Editor(
-  { initialDoc, onDocChange },
+  { initialDoc, onDocChange, plainText = false },
   ref,
 ) {
   const container = useRef<HTMLDivElement>(null);
@@ -133,6 +135,7 @@ export const Editor = forwardRef<EditorApi, EditorProps>(function Editor(
   const onDocChangeRef = useRef(onDocChange);
   onDocChangeRef.current = onDocChange;
   const initialDocRef = useRef(initialDoc);
+  const plainTextRef = useRef(plainText);
 
   useEffect(() => {
     const view = new EditorView({
@@ -147,8 +150,14 @@ export const Editor = forwardRef<EditorApi, EditorProps>(function Editor(
             ...searchKeymap, // binds Mod-f/Mod-g/Shift-Mod-g to open/next/previous
             indentWithTab,
           ]),
-          markdown({ base: markdownLanguage }), // GFM tables, task lists, etc.
-          syntaxHighlighting(markdownHighlight),
+          // GFM tables, task lists, etc. An HTML plan gets no grammar: the
+          // editor package ships none for it.
+          ...(plainTextRef.current
+            ? []
+            : [
+                markdown({ base: markdownLanguage }),
+                syntaxHighlighting(markdownHighlight),
+              ]),
           EditorView.lineWrapping,
           placeholder("Start writing…"),
           theme,

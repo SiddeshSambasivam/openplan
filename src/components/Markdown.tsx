@@ -5,6 +5,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
+import { cn } from "../lib/utils";
 import { openExternal, resolveAssetSrc } from "../lib/platform";
 import { Mermaid } from "./Mermaid";
 
@@ -39,21 +40,23 @@ interface PositionedNode {
   children?: PositionedNode[];
 }
 
-function tagSourceLines(node: PositionedNode) {
+function tagSourceLines(node: PositionedNode, offset: number) {
   if (node.type === "element" && node.position?.start?.line != null) {
     node.properties ??= {};
-    node.properties.dataLine = node.position.start.line;
-    node.properties.dataLineEnd = node.position.end?.line ?? node.position.start.line;
+    node.properties.dataLine = node.position.start.line + offset;
+    node.properties.dataLineEnd =
+      (node.position.end?.line ?? node.position.start.line) + offset;
   }
-  node.children?.forEach(tagSourceLines);
+  node.children?.forEach((child) => tagSourceLines(child, offset));
 }
 
 /** Tags every rendered element with `data-line`/`data-line-end` (1-indexed,
  * inclusive) from its markdown source position — lets the comments feature
- * map a DOM selection back to source lines without re-parsing anything. */
-function rehypeSourceLines() {
+ * map a DOM selection back to source lines without re-parsing anything.
+ * `offset` puts a slice of a document back into the document's own lines. */
+function rehypeSourceLines(offset: number) {
   return (tree: PositionedNode) => {
-    tagSourceLines(tree);
+    tagSourceLines(tree, offset);
   };
 }
 
@@ -92,16 +95,19 @@ const schema = {
 };
 
 const remarkPlugins = [remarkGfm];
-const rehypePlugins = [
-  rehypeRaw,
-  rehypeSourceLines,
-  [rehypeSanitize, schema],
-  rehypeSlug,
-  // mermaid blocks are rendered as diagrams (see the `pre` override below),
-  // not syntax-highlighted source.
-  [rehypeHighlight, { plainText: ["mermaid"] }],
-  // react-markdown accepts this plugin-list shape; the cast quiets TS.
-] as import("react-markdown").Options["rehypePlugins"];
+
+function rehypePlugins(offset: number) {
+  return [
+    rehypeRaw,
+    [rehypeSourceLines, offset],
+    [rehypeSanitize, schema],
+    rehypeSlug,
+    // mermaid blocks are rendered as diagrams (see the `pre` override below),
+    // not syntax-highlighted source.
+    [rehypeHighlight, { plainText: ["mermaid"] }],
+    // react-markdown accepts this plugin-list shape; the cast quiets TS.
+  ] as import("react-markdown").Options["rehypePlugins"];
+}
 
 function handleAnchorClick(e: MouseEvent<HTMLAnchorElement>, href?: string) {
   if (!href) return;
@@ -134,12 +140,18 @@ interface MarkdownProps {
   docPath?: string;
   /** Re-renders mermaid diagrams with the matching neutral palette. */
   dark: boolean;
+  /** Lines above `content` in the document it was sliced out of. */
+  lineOffset?: number;
+  /** Extra classes on the rendered article. */
+  className?: string;
 }
 
 export const Markdown = memo(function Markdown({
   content,
   docPath,
   dark,
+  lineOffset = 0,
+  className,
 }: MarkdownProps) {
   const components: Components = {
     a({ href, children, ...props }) {
@@ -175,10 +187,15 @@ export const Markdown = memo(function Markdown({
   };
 
   return (
-    <article className="markdown-body prose prose-neutral dark:prose-invert max-w-none">
+    <article
+      className={cn(
+        "markdown-body prose prose-neutral dark:prose-invert max-w-none",
+        className,
+      )}
+    >
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
+        rehypePlugins={rehypePlugins(lineOffset)}
         components={components}
       >
         {content}

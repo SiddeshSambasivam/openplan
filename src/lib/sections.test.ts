@@ -142,6 +142,50 @@ describe("splitSections", () => {
   });
 });
 
+describe("slice line numbers", () => {
+  // Each slice renders on its own, and the renderer stamps its blocks with
+  // the slice's line plus the line inside it. Comments anchor to those
+  // stamps, so a slice that reports the wrong line moves every thread in it.
+  const body = [
+    "# A plan", // 1
+    "", // 2
+    "The lead.", // 3
+    "", // 4
+    "## Summary", // 5
+    "", // 6
+    "It works.", // 7
+    "", // 8
+    "## Decisions", // 9
+    "", // 10
+    "**D1 Keys.** Context: names collide.", // 11
+    "", // 12
+    "**D2 Renames.** Decision: explicit.", // 13
+  ].join("\n");
+  const lines = body.split("\n");
+
+  function agrees(slice: { body: string; line: number }) {
+    return slice.body
+      .split("\n")
+      .every((line, i) => lines[slice.line - 1 + i] === line);
+  }
+
+  it("places every slice where its text really is in the body", () => {
+    const plan = splitSections(body, "A plan");
+
+    expect(agrees(plan.lead!)).toBe(true);
+    for (const section of plan.sections) expect(agrees(section)).toBe(true);
+  });
+
+  it("keeps decision cards in body lines, not section lines", () => {
+    const decisions = splitSections(body, "A plan").sections[1];
+
+    const cards = splitDecisions(decisions.body, decisions.line);
+
+    expect(cards.map((c) => c.line)).toEqual([9, 11, 13]);
+    for (const card of cards) expect(agrees(card)).toBe(true);
+  });
+});
+
 describe("splitDecisions", () => {
   it("cards a paragraph whose bold lead names a decision", () => {
     const body = [

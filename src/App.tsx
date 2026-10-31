@@ -59,6 +59,7 @@ import type {
   ViewMode,
 } from "./lib/types";
 import { splitFrontmatter } from "./lib/frontmatter";
+import { isHtmlPath } from "./lib/htmlDoc";
 import { useOutline } from "./lib/useOutline";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
@@ -1276,8 +1277,12 @@ export default function App() {
   const commentLineOffset =
     planHeader === "" ? 0 : planHeader.split("\n").length - 1;
 
+  // Comments anchor to markdown source lines, so an HTML plan has none.
   const canComment =
-    view === "preview" && activeDoc?.path != null && content != null;
+    view === "preview" &&
+    activeDoc?.path != null &&
+    !isHtmlPath(activeDoc.path) &&
+    content != null;
   const commentsDoc = canComment ? (activeDoc?.path ?? null) : null;
   const {
     threads: commentThreads,
@@ -1494,6 +1499,7 @@ export default function App() {
           onFontSizeChange={setFontSize}
           outlineOpen={outlineShown}
           onToggleOutline={toggleOutline}
+          canComment={canComment}
           commentsOpen={commentsOpen}
           onToggleComments={() => setCommentsOpen((o) => !o)}
           openCommentCount={openCommentCount}
@@ -1602,6 +1608,7 @@ export default function App() {
             {activeDoc ? (
               <Viewer
                 doc={activeDoc}
+                plan={activePlan}
                 content={content == null ? null : planBody}
                 error={error}
                 loading={loading}
