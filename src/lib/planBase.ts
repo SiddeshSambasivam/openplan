@@ -195,8 +195,10 @@ export interface Preferences {
   /** Days a completed plan waits before it is archived. 0 means never. */
   archiveAfterDays: number;
   /** The alignment score, as a percentage, the person aims for before
-   * Build. It never stops Build. 0 means none. */
+   * Build. Build waits for it. 0 means none. */
   alignmentTarget: number;
+  /** Whether the app looks for a new version at launch and on focus. */
+  checkUpdates: boolean;
 }
 
 const BROWSER_PREFERENCES: Preferences = {
@@ -204,6 +206,7 @@ const BROWSER_PREFERENCES: Preferences = {
   wake: true,
   archiveAfterDays: 7,
   alignmentTarget: 80,
+  checkUpdates: true,
 };
 
 export async function getPreferences(): Promise<Preferences> {
@@ -224,6 +227,11 @@ export async function setArchiveAfterDays(days: number): Promise<void> {
 export async function setAlignmentTarget(percent: number): Promise<void> {
   if (!isTauri) return;
   await invoke<void>("set_alignment_target", { percent });
+}
+
+export async function setCheckUpdates(on: boolean): Promise<void> {
+  if (!isTauri) return;
+  await invoke<void>("set_check_updates", { on });
 }
 
 /** Archives plans completed longer ago than the setting, and says how many. */
