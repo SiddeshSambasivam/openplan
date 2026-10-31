@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PlanSummary } from "./planBase";
 import {
+  navbarItems,
   navbarLayout,
   navbarSections,
   navbarToggleLabel,
@@ -8,6 +9,7 @@ import {
   pressNavbarKey,
   RAIL_WIDTH,
   recentPlans,
+  stepNavbarItem,
   toggleSection,
   TOP_BAR_PADDING,
   topBarGap,
@@ -110,16 +112,58 @@ describe("parseNavbarMode", () => {
   });
 });
 
+describe("stepNavbarItem", () => {
+  const items = navbarItems(["infra", "search"]);
+
+  it("lists the views, then each folder as a filter on the board", () => {
+    expect(items).toEqual([
+      { view: "board", folder: null },
+      { view: "list", folder: null },
+      { view: "for-you", folder: null },
+      { view: "board", folder: "infra" },
+      { view: "board", folder: "search" },
+    ]);
+  });
+
+  it("moves to the next and previous row in that order", () => {
+    expect(stepNavbarItem(items, "board", null, 1)).toEqual(items[1]);
+    expect(stepNavbarItem(items, "for-you", null, 1)).toEqual(items[3]);
+    expect(stepNavbarItem(items, "board", "infra", 1)).toEqual(items[4]);
+    expect(stepNavbarItem(items, "board", "infra", -1)).toEqual(items[2]);
+  });
+
+  it("reads a folder filter on another view as that view's row", () => {
+    expect(stepNavbarItem(items, "list", "infra", 1)).toEqual(items[2]);
+  });
+
+  it("wraps at both ends", () => {
+    expect(stepNavbarItem(items, "board", "search", 1)).toEqual(items[0]);
+    expect(stepNavbarItem(items, "board", null, -1)).toEqual(items[4]);
+  });
+
+  it("starts from the ends when no row is current", () => {
+    expect(stepNavbarItem(items, "plan", null, 1)).toEqual(items[0]);
+    expect(stepNavbarItem(items, "plan", null, -1)).toEqual(items[4]);
+  });
+});
+
 describe("navbarSections", () => {
   it("lists every folder once, sorted by name", () => {
     const plans = [plan("a", ["Search", "infra"]), plan("b", ["search"]), plan("c", ["Billing"])];
-    expect(navbarSections(plans, []).folders).toEqual(["Billing", "infra", "Search"]);
+    expect(navbarSections(plans, [], []).folders).toEqual(["Billing", "infra", "Search"]);
+  });
+
+  it("adds the folders saved in the base", () => {
+    expect(navbarSections([plan("a", ["infra"])], [], ["Empty"]).folders).toEqual([
+      "Empty",
+      "infra",
+    ]);
   });
 
   it("caps recent at five, newest first", () => {
     const plans = Array.from({ length: 7 }, (_, i) => plan(String(i)));
     const paths = plans.map((p) => p.path).reverse();
-    const recent = navbarSections(plans, paths).recent;
+    const recent = navbarSections(plans, paths, []).recent;
     expect(recent.map((p) => p.id)).toEqual(["6", "5", "4", "3", "2"]);
   });
 });

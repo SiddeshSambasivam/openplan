@@ -63,11 +63,13 @@ import {
 import {
   loadNavbarMode,
   NAVBAR_OVERLAY_BREAKPOINT,
+  navbarItems,
   navbarLayout,
   navbarSections,
   pressNavbarKey,
   RAIL_WIDTH,
   saveNavbarMode,
+  stepNavbarItem,
   topBarGap,
   type NavbarState,
 } from "./lib/navbar";
@@ -87,6 +89,7 @@ import { usePlanBase } from "./lib/usePlanBase";
 import {
   archiveStale,
   commitBase,
+  getBaseFolders,
   getIdentity,
   getPreferences,
   renamePlan,
@@ -94,6 +97,7 @@ import {
   reviewSummaries,
   sendAlign,
   setArchiveAfterDays,
+  setBaseFolders,
   setFolders,
   setMedia,
   setPlanStatus,
@@ -106,7 +110,7 @@ import { forYou, planCrumb, steppedPlan, viewOrder, type ReviewSummary } from ".
 import { useShortcuts, type ShortcutHandlers } from "./lib/shortcuts";
 import { listWorkProgress, offersCompletion, type TodoCount } from "./lib/work";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
-import { filterByFolder, type FolderFilter } from "./lib/folders";
+import { addFolder, filterByFolder, removeFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
 import { BoardView } from "./features/board/BoardView";
 import { ForYouView } from "./features/board/ForYouView";
@@ -211,6 +215,11 @@ export default function App() {
     }
   });
   const [recentPaths, setRecentPaths] = useState<string[]>(loadRecent);
+  // The folders the person made, which may hold no plan yet.
+  const [savedFolders, setSavedFolders] = useState<string[]>([]);
+  useEffect(() => {
+    void getBaseFolders().then(setSavedFolders).catch(() => {});
+  }, []);
   const [summaries, setSummaries] = useState<ReviewSummary[]>([]);
 
   const { base, plans, refresh: refreshPlans, arrivals } = usePlanBase();
@@ -1312,7 +1321,28 @@ export default function App() {
 
   useEffect(() => saveRecent(recentPaths), [recentPaths]);
 
-  const sections = useMemo(() => navbarSections(plans, recentPaths), [plans, recentPaths]);
+  const sections = useMemo(
+    () => navbarSections(plans, recentPaths, savedFolders),
+    [plans, recentPaths, savedFolders],
+  );
+  const saveFolders = useCallback(
+    (next: string[]) => {
+      if (next === savedFolders) return;
+      setSavedFolders(next);
+      void setBaseFolders(next)
+        .then(setSavedFolders)
+        .catch(() => notify("Couldn't save the folders"));
+    },
+    [savedFolders, notify],
+  );
+  const createFolder = useCallback(
+    (typed: string) => saveFolders(addFolder(savedFolders, typed)),
+    [saveFolders, savedFolders],
+  );
+  const forgetFolder = useCallback(
+    (name: string) => saveFolders(removeFolder(savedFolders, name)),
+    [saveFolders, savedFolders],
+  );
   const knownFolders = sections.folders;
   // A folder the last plan left is no filter at all, so the views fall back
   // to every plan rather than showing an empty board.
@@ -1391,6 +1421,11 @@ export default function App() {
     [shownPlans, summaries, activePlanPath, selectPlan],
   );
   const lastPlan = sections.recent[0];
+  const stepNavbar = (step: 1 | -1) => {
+    const item = stepNavbarItem(navbarItems(knownFolders), mainView, folder, step);
+    setChosenFolder(item.folder);
+    showView(item.view);
+  };
 
   // Topmost first. Menus and dialogs close themselves; these are the app's
   // own panels.
@@ -1425,6 +1460,8 @@ export default function App() {
       : lastPlan
         ? () => selectPlan(lastPlan)
         : undefined,
+    previousNavItem: () => stepNavbar(-1),
+    nextNavItem: () => stepNavbar(1),
     previousPlan: shownPlans.length > 0 ? () => stepPlan(-1) : undefined,
     nextPlan: shownPlans.length > 0 ? () => stepPlan(1) : undefined,
     edit: onPlan && (view === "edit" || canEnterEdit) ? toggleEdit : undefined,
@@ -1473,6 +1510,8 @@ export default function App() {
               folders={knownFolders}
               folder={folder}
               onSelectFolder={chooseFolder}
+              onCreateFolder={createFolder}
+              onRemoveFolder={forgetFolder}
               recent={sections.recent}
               view={mainView}
               onSelectView={showView}

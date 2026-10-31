@@ -6,15 +6,17 @@ import {
   Folders,
   Inbox,
   List,
+  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   Search,
   Settings,
 } from "lucide-react";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { cn } from "../lib/utils";
 import type { MainView } from "../lib/types";
-import type { FolderFilter } from "../lib/folders";
+import { folderName, type FolderFilter } from "../lib/folders";
 import {
   loadCollapsedSections,
   navbarToggleLabel,
@@ -30,6 +32,14 @@ import { ShortcutLabel } from "./ShortcutKeys";
 import { StatusGlyph } from "./StatusGlyph";
 import { TooltipButton } from "./TooltipButton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 
 interface SidebarProps {
   /** Shows each row as an icon with its label in a tooltip. */
@@ -44,6 +54,9 @@ interface SidebarProps {
   folders: string[];
   folder: FolderFilter;
   onSelectFolder: (folder: FolderFilter) => void;
+  /** Takes the name as typed. */
+  onCreateFolder: (name: string) => void;
+  onRemoveFolder: (name: string) => void;
   /** The plans last opened, newest first. */
   recent: PlanSummary[];
   view: MainView;
@@ -67,6 +80,8 @@ export const Sidebar = memo(function Sidebar({
   folders,
   folder,
   onSelectFolder,
+  onCreateFolder,
+  onRemoveFolder,
   recent,
   view,
   onSelectView,
@@ -79,6 +94,11 @@ export const Sidebar = memo(function Sidebar({
   const [collapsed, setCollapsed] = useState<SectionId[]>(loadCollapsedSections);
   useEffect(() => saveCollapsedSections(collapsed), [collapsed]);
   const toggle = (id: SectionId) => setCollapsed((old) => toggleSection(old, id));
+  const [creating, setCreating] = useState(false);
+  const startFolder = () => {
+    setCollapsed((old) => old.filter((id) => id !== "folders"));
+    setCreating(true);
+  };
 
   const viewRow = (
     target: MainView,
@@ -102,14 +122,18 @@ export const Sidebar = memo(function Sidebar({
     const chosen = folder === name;
     const Icon = name == null ? Folders : chosen ? FolderOpen : Folder;
     return (
-      <NavRow
-        key={label}
-        minimized={minimized}
-        icon={<Icon className={cn(ICON, chosen && "text-sidebar-foreground")} />}
-        label={label}
-        chosen={chosen}
-        onClick={() => onSelectFolder(name)}
-      />
+      <div key={label} className="group/folder relative">
+        <NavRow
+          minimized={minimized}
+          icon={<Icon className={cn(ICON, chosen && "text-sidebar-foreground")} />}
+          label={label}
+          chosen={chosen}
+          onClick={() => onSelectFolder(name)}
+        />
+        {name != null && !minimized && (
+          <FolderMenu name={name} onRemove={() => onRemoveFolder(name)} />
+        )}
+      </div>
     );
   };
 
@@ -171,7 +195,32 @@ export const Sidebar = memo(function Sidebar({
           {viewRow("for-you", "forYou", <Inbox className={ICON} />, "For you", forYouCount)}
         </Section>
 
-        <Section id="folders" label="Folders" minimized={minimized} collapsed={collapsed} onToggle={toggle}>
+        <Section
+          id="folders"
+          label="Folders"
+          minimized={minimized}
+          collapsed={collapsed}
+          onToggle={toggle}
+          action={
+            <TooltipButton
+              variant="ghost"
+              size="icon-xs"
+              onClick={startFolder}
+              tooltip="New folder"
+              tooltipSide="right"
+              aria-label="New folder"
+              className="size-5 text-muted-foreground opacity-0 group-hover/section:opacity-100 focus-visible:opacity-100"
+            >
+              <Plus />
+            </TooltipButton>
+          }
+        >
+          {creating && !minimized && (
+            <NewFolderInput
+              onCreate={onCreateFolder}
+              onDone={() => setCreating(false)}
+            />
+          )}
           {folderRow(null, "All plans")}
           {folders.map((name) => folderRow(name, name))}
         </Section>
@@ -325,6 +374,7 @@ function Section({
   minimized,
   collapsed,
   onToggle,
+  action,
   children,
 }: {
   id: SectionId;
@@ -332,13 +382,16 @@ function Section({
   minimized: boolean;
   collapsed: SectionId[];
   onToggle: (id: SectionId) => void;
+  /** A control beside the label, shown on hover and focus. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   // One tree for both modes, so the rows survive a mode change.
   const open = minimized || !collapsed.includes(id);
   return (
     <div className="pt-4">
-      <div className="relative">
+      <div className="group/section relative">
+        {action && !minimized && <div className="absolute -top-0.5 right-1">{action}</div>}
         <button
           onClick={() => onToggle(id)}
           aria-expanded={open}
@@ -367,5 +420,71 @@ function Section({
         <div className="flex flex-col gap-px animate-in fade-in-0 duration-150">{children}</div>
       )}
     </div>
+  );
+}
+
+/** The name field a new folder starts from. Enter makes it, Escape or
+ * leaving the field drops it. */
+function NewFolderInput({
+  onCreate,
+  onDone,
+}: {
+  onCreate: (name: string) => void;
+  onDone: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  // The plan file cannot hold some characters in a folder name, so say so
+  // before they disappear.
+  const loses = folderName(typed) !== typed.trim().replace(/\s+/g, " ");
+  return (
+    <div className="pb-1">
+      <Input
+        autoFocus
+        value={typed}
+        onChange={(e) => setTyped(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" && e.key !== "Escape") return;
+          // Handled here, so the app's own Escape leaves its panels alone.
+          e.preventDefault();
+          if (e.key === "Enter") onCreate(typed);
+          onDone();
+        }}
+        onBlur={onDone}
+        placeholder="Folder name"
+        aria-label="New folder name"
+        className="h-7 text-sm"
+      />
+      {loses && (
+        <p className="px-1 pt-1 text-xs text-muted-foreground">
+          Commas, brackets, quotes, colons and # are left out of folder names.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** A folder row's menu. Removing a folder takes it off the navbar only. */
+function FolderMenu({ name, onRemove }: { name: string; onRemove: () => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <TooltipButton
+          variant="ghost"
+          size="icon-xs"
+          tooltip="Folder options"
+          tooltipSide="right"
+          aria-label={`Options for ${name}`}
+          className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+        >
+          <MoreHorizontal />
+        </TooltipButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="start" className="w-52">
+        <DropdownMenuItem onSelect={onRemove}>Remove folder</DropdownMenuItem>
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          It stays while plans are in it.
+        </DropdownMenuLabel>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

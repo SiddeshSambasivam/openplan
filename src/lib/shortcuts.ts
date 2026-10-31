@@ -57,6 +57,13 @@ export const SHORTCUTS = [
     when: "In the order of the last view",
   },
   {
+    id: "previousNavItem",
+    label: "Previous navbar item",
+    keys: "mod+shift+[",
+    group: "Views",
+  },
+  { id: "nextNavItem", label: "Next navbar item", keys: "mod+shift+]", group: "Views" },
+  {
     id: "edit",
     label: "Edit or preview",
     keys: "mod+e",
@@ -152,7 +159,7 @@ export function shortcutFor(
   const ours = platform === "mac" ? press.metaKey : press.ctrlKey;
   const theirs = platform === "mac" ? press.ctrlKey : press.metaKey;
   if (press.altKey || theirs) return null;
-  const key = press.key.toLowerCase();
+  const key = (press.shiftKey && SHIFTED_BRACKETS[press.key]) || press.key.toLowerCase();
   const chord = ours ? `mod+${press.shiftKey ? "shift+" : ""}${key}` : key;
   const action = BY_KEYS.get(chord);
   if (!action || (typing && !action.whileTyping)) return null;
@@ -202,6 +209,10 @@ const OTHER_NAMES: Record<string, string> = {
 };
 
 const NAMED_KEYS = ["enter", "escape"];
+
+/** Shift turns a bracket into a brace on US layouts, and the registry names
+ * the key on the keycap. */
+const SHIFTED_BRACKETS: Record<string, string> = { "{": "[", "}": "]" };
 
 const TEXT_TAGS = ["INPUT", "TEXTAREA", "SELECT"];
 

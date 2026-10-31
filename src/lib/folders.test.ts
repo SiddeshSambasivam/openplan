@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  addFolder,
   allFolders,
   filterByFolder,
   folderChoices,
   folderName,
+  removeFolder,
   toggleFolder,
 } from "./folders";
 import type { PlanSummary } from "./planBase";
@@ -39,6 +41,35 @@ describe("allFolders", () => {
 
   it("has nothing to list when no plan is in a folder", () => {
     expect(allFolders([plan("a", [])])).toEqual([]);
+  });
+});
+
+describe("allFolders with saved folders", () => {
+  it("adds the folders saved in the base to the ones plans are in, once each, sorted", () => {
+    const plans = [plan("a", ["Search"]), plan("b", ["infra"])];
+    expect(allFolders(plans, ["Billing", "search", "Empty"])).toEqual([
+      "Billing",
+      "Empty",
+      "infra",
+      "Search",
+    ]);
+  });
+});
+
+describe("addFolder", () => {
+  it("cleans the typed name the way the plan file stores it", () => {
+    expect(addFolder(["infra"], '  "Q4:  roadmap" ')).toEqual(["infra", "Q4 roadmap"]);
+  });
+
+  it("keeps the list as it is for an empty name or one it already has", () => {
+    expect(addFolder(["infra"], " #, ")).toEqual(["infra"]);
+    expect(addFolder(["infra"], "INFRA")).toEqual(["infra"]);
+  });
+});
+
+describe("removeFolder", () => {
+  it("drops the folder whatever its case", () => {
+    expect(removeFolder(["Billing", "infra"], "INFRA")).toEqual(["Billing"]);
   });
 });
 

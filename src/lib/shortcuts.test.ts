@@ -66,6 +66,19 @@ describe("shortcutFor", () => {
     expect(shortcutFor(press("S", { metaKey: true, shiftKey: true }), "mac", false)).toBe("status");
   });
 
+  it("reads a bracket chord with shift whether the key arrives shifted or not", () => {
+    for (const key of ["[", "{"]) {
+      expect(shortcutFor(press(key, { metaKey: true, shiftKey: true }), "mac", false)).toBe(
+        "previousNavItem",
+      );
+    }
+    for (const key of ["]", "}"]) {
+      expect(shortcutFor(press(key, { ctrlKey: true, shiftKey: true }), "other", false)).toBe(
+        "nextNavItem",
+      );
+    }
+  });
+
   it("reads a bare key without its modifiers", () => {
     expect(shortcutFor(press("["), "mac", false)).toBe("previousPlan");
     expect(shortcutFor(press("?", { shiftKey: true }), "other", false)).toBe("shortcuts");

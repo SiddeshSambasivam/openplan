@@ -1,7 +1,16 @@
-import { allFolders } from "./folders";
+import { allFolders, sameFolder, type FolderFilter } from "./folders";
 import type { PlanSummary } from "./planBase";
 import { RECENT_LIMIT } from "./recent";
 import { STORAGE_PREFIX } from "./storage";
+import type { MainView } from "./types";
+
+/** A navbar row the keyboard can land on: a view, filtered or not. */
+export interface NavbarItem {
+  view: Exclude<MainView, "plan">;
+  folder: FolderFilter;
+}
+
+const LIST_VIEWS = ["board", "list", "for-you"] as const;
 
 /** Expanded shows icons and labels, minimized shows icons only. */
 export type NavbarMode = "expanded" | "minimized";
@@ -68,11 +77,42 @@ export function parseNavbarMode(stored: string | null): NavbarMode {
     : "expanded";
 }
 
+/** `savedFolders` are the folders the base keeps, which may hold no plan. */
 export function navbarSections(
   plans: PlanSummary[],
   recentPaths: string[],
+  savedFolders: string[],
 ): { folders: string[]; recent: PlanSummary[] } {
-  return { folders: allFolders(plans), recent: recentPlans(plans, recentPaths) };
+  return {
+    folders: allFolders(plans, savedFolders),
+    recent: recentPlans(plans, recentPaths),
+  };
+}
+
+/** The rows cmd+shift+[ and cmd+shift+] step through, in the navbar's order:
+ * the views, then each folder as a filter on the board. */
+export function navbarItems(folders: string[]): NavbarItem[] {
+  return [
+    ...LIST_VIEWS.map((view) => ({ view, folder: null })),
+    ...folders.map((folder) => ({ view: "board" as const, folder })),
+  ];
+}
+
+/** The row before or after the current one, wrapping at the ends. With no
+ * current row, as on the plan page, it starts from the first or the last. */
+export function stepNavbarItem(
+  items: NavbarItem[],
+  view: MainView,
+  folder: FolderFilter,
+  step: 1 | -1,
+): NavbarItem {
+  const at = items.findIndex((item) =>
+    view === "board" && folder != null
+      ? item.folder != null && sameFolder(item.folder, folder)
+      : item.view === view && item.folder == null,
+  );
+  const next = at === -1 ? (step === 1 ? 0 : items.length - 1) : at + step;
+  return items[(next + items.length) % items.length];
 }
 
 /** The plans behind the recent paths, newest first, skipping any that are gone. */

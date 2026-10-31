@@ -254,6 +254,18 @@ export async function setFolders(path: string, folders: string[]): Promise<void>
   return invoke<void>("set_folders", { path, folders });
 }
 
+/** The folders the person made, including ones no plan is in yet. */
+export async function getBaseFolders(): Promise<string[]> {
+  if (!isTauri) return [];
+  return invoke<string[]>("base_folders");
+}
+
+/** Replaces the folders the person made and returns them as stored. */
+export async function setBaseFolders(folders: string[]): Promise<string[]> {
+  if (!isTauri) return folders;
+  return invoke<string[]>("set_base_folders", { folders });
+}
+
 export async function commitBase(message: string): Promise<void> {
   if (!isTauri) return;
   await invoke<string | null>("commit_base", { message });
