@@ -952,8 +952,8 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       and the shortcut list; the theme toggle leaves the top bar
 
 #### GATE 7 findings, round 3 (Sid, 2026-10-29)
-- [ ] R3.1 Minimized navbar: the gaps around the section dividers are too large
-- [ ] R3.2 A board with no plans in its open columns shows the animated empty state
+- [x] R3.1 Minimized navbar: the gaps around the section dividers are too large
+- [x] R3.2 A board with no plans in its open columns shows the animated empty state
 - [ ] R3.3 Profile: the person sets a picture, a display name and an email
 
 #### GATE 7 QA script
@@ -1181,6 +1181,8 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | Minimized, the top bar spans the full window above the rail and carries the traffic lights, the mark (which morphs into the expand chevron) and the title; expanded, the navbar's top row sits level with the top bar with a left inset on macOS instead of a spacer above it | Sid (R2.4): the lights crowded the rail and the title. One row height in both modes keeps the rows from jumping vertically on a flip |
 | 2026-10-29 | The width-transition exception extends to the top bar's `margin-left`, on the same 180ms curve | The title then slides with the navbar instead of jumping; sampled at 16ms it moves smoothly from x 114 to 256 |
 | 2026-10-29 | The profile avatar is a marble drawn from a hash of the email, coloured from shadcn's `--chart-1` to `--chart-5`, which the theme now defines | A generated avatar needs no upload and no dependency, and the chart tokens follow light and dark |
+| 2026-10-29 | The width-transition exception extends to a navbar section's label band: minimized, it shrinks to 16px around the divider, on the same 180ms curve | Sid (R3.1): the minimized rail had 35px around a 1px divider. Changing the band without a transition would jump the rows vertically during the width change |
+| 2026-10-29 | The board shows the animated empty state when it has no plans, and when every plan is completed or archived, with a button that opens those columns | Sid (R3.2). A board of empty columns read as broken. All-finished is the common case once work wraps up |
 | 2026-10-29 | Pull requests gain a `draft` state; a card shows the icon of the most advanced PR (merged, open, draft, closed), or a muted "no PR yet" icon only when the plan has a repo with a remote; merged uses a new `--merged` violet token | Sid (R2.6): one icon per state, as GitHub shows them. A plain folder never gets a PR, so the empty icon would mislead there |
 | 2026-10-29 | Alignment questions carry `context` (two to four sentences: why it matters, what the agent found) and options a `tradeoff`, both optional so old records read; `pr_body` prints the context only where the answer departs from the recommendation | Sid (R2.7): questions were too thin to answer well. The PR reviewer needs the reasoning only where the person overrode the agent |
 | 2026-10-29 | Plans are selected by a drag box from empty space, cmd+click, shift+click (adds the range, as Linear does) and cmd+a; a floating bar and a right-click menu act on the selection | Sid (R2.1). Folded groups are skipped by cmd+a and the box |
