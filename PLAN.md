@@ -928,7 +928,8 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [ ] R1.7 Video: confirm playback in the desktop app (the media setting was turned
       on after the app had launched); standards ask for Remotion explainers in a
       clean, minimal, Apple-like style with smooth motion
-
+- [ ] R1.8 Cards: a Display option clamps the title to two lines
+- [ ] R1.9 Cards: a plan filed in the last few minutes carries a "New" tag
 #### GATE 7 QA script
 
 Run a release build of 0.3.0 against the real base, with Claude Code connected
