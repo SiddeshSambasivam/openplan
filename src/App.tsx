@@ -1518,6 +1518,7 @@ export default function App() {
   );
 
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const openShortcuts = useCallback(() => sheetRef.current?.open(), []);
 
   const wordCount = useMemo(() => {
     if (content == null) return null;
@@ -1575,7 +1576,7 @@ export default function App() {
   // buttons. An action that cannot run here has none.
   const shortcutHandlers: ShortcutHandlers = {
     palette: openPalette,
-    shortcuts: () => sheetRef.current?.open(),
+    shortcuts: openShortcuts,
     settings: openSettings,
     navbar: toggleSidebar,
     theme: toggleTheme,
@@ -1651,6 +1652,10 @@ export default function App() {
               activePlanPath={activePlanPath}
               onSelectPlan={selectPlan}
               onOpenSettings={openSettings}
+              onOpenShortcuts={openShortcuts}
+              identity={identity}
+              dark={dark}
+              onToggleTheme={toggleTheme}
               windowControls={windowControls}
             />
           </div>
@@ -1703,8 +1708,6 @@ export default function App() {
           canEdit={canEnterEdit}
           dirty={dirty}
           onToggleView={toggleEdit}
-          dark={dark}
-          onToggleTheme={toggleTheme}
           contentWidth={contentWidth}
           onContentWidthChange={setContentWidth}
           fontSize={fontSize}

@@ -5,11 +5,9 @@ import {
   Eye,
   ListTodo,
   MessageSquareText,
-  Moon,
   Search,
   Send,
   SquarePen,
-  Sun,
   TableOfContents,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -75,8 +73,6 @@ interface HeaderProps {
   canEdit: boolean;
   dirty: boolean;
   onToggleView: () => void;
-  dark: boolean;
-  onToggleTheme: () => void;
   contentWidth: ContentWidth;
   onContentWidthChange: (width: ContentWidth) => void;
   fontSize: FontSize;
@@ -127,8 +123,6 @@ export function Header({
   canEdit,
   dirty,
   onToggleView,
-  dark,
-  onToggleTheme,
   contentWidth,
   onContentWidthChange,
   fontSize,
@@ -148,7 +142,6 @@ export function Header({
   onExpandNavbar,
 }: HeaderProps) {
   const toggleViewLabel = view === "preview" ? "Edit" : "Preview";
-  const toggleThemeLabel = dark ? "Switch to light theme" : "Switch to dark theme";
   const inPreview = view === "preview";
   const onPlan = mainView === "plan";
   const showDocTools = onPlan && doc != null;
@@ -407,21 +400,6 @@ export function Header({
         </TooltipButton>
       )}
 
-      <TooltipButton
-        variant="ghost"
-        size="icon-sm"
-        onClick={onToggleTheme}
-        shortcut="theme"
-        tooltip={toggleThemeLabel}
-        tooltipSide="bottom" tooltipAlign="end"
-        aria-label="Toggle theme"
-        className="relative"
-      >
-        {/* Both suns and moons are always mounted so the swap can be a turn
-            rather than a cut; only transforms and opacity move. */}
-        <Sun className="rotate-0 scale-100 opacity-100 transition-[transform,opacity] duration-300 ease-in-out dark:-rotate-90 dark:scale-0 dark:opacity-0" />
-        <Moon className="absolute rotate-90 scale-0 opacity-0 transition-[transform,opacity] duration-300 ease-in-out dark:rotate-0 dark:scale-100 dark:opacity-100" />
-      </TooltipButton>
     </header>
   );
 }

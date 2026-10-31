@@ -10,12 +10,12 @@ import {
   MoreHorizontal,
   Plus,
   Search,
-  Settings,
 } from "lucide-react";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { cn } from "../lib/utils";
 import type { MainView } from "../lib/types";
 import { folderName, type FolderFilter } from "../lib/folders";
+import type { Identity } from "../lib/comments";
 import {
   loadCollapsedSections,
   markStart,
@@ -28,6 +28,7 @@ import type { PlanSummary } from "@/lib/planBase";
 import { shortcut as registryEntry, type ActionId } from "@/lib/shortcuts";
 import { BrandMark } from "./BrandMark";
 import { MarqueeText } from "./MarqueeText";
+import { ProfileMenu } from "./ProfileMenu";
 import { ShortcutLabel } from "./ShortcutKeys";
 import { StatusGlyph } from "./StatusGlyph";
 import { TooltipButton } from "./TooltipButton";
@@ -66,6 +67,11 @@ interface SidebarProps {
   activePlanPath: string | null;
   onSelectPlan: (plan: PlanSummary) => void;
   onOpenSettings: () => void;
+  onOpenShortcuts: () => void;
+  /** The person this machine's changes belong to. */
+  identity: Identity | null;
+  dark: boolean;
+  onToggleTheme: () => void;
   /** The macOS traffic lights are drawn over the top row. */
   windowControls: boolean;
 }
@@ -89,6 +95,10 @@ export const Sidebar = memo(function Sidebar({
   activePlanPath,
   onSelectPlan,
   onOpenSettings,
+  onOpenShortcuts,
+  identity,
+  dark,
+  onToggleTheme,
   windowControls,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<SectionId[]>(loadCollapsedSections);
@@ -240,12 +250,13 @@ export const Sidebar = memo(function Sidebar({
       </nav>
 
       <div className="shrink-0 border-t border-sidebar-border p-2">
-        <NavRow
+        <ProfileMenu
+          identity={identity}
           minimized={minimized}
-          icon={<Settings className={ICON} />}
-          label="Settings"
-          shortcut="settings"
-          onClick={onOpenSettings}
+          dark={dark}
+          onToggleTheme={onToggleTheme}
+          onOpenSettings={onOpenSettings}
+          onOpenShortcuts={onOpenShortcuts}
         />
       </div>
     </aside>

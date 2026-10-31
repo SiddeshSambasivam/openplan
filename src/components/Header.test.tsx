@@ -31,8 +31,6 @@ function bar(overrides: Partial<ComponentProps<typeof Header>> = {}): string {
         canEdit={false}
         dirty={false}
         onToggleView={noop}
-        dark={false}
-        onToggleTheme={noop}
         contentWidth="spaced"
         onContentWidthChange={noop}
         fontSize="normal"
@@ -61,6 +59,10 @@ function expandMark(html: string): string {
 }
 
 describe("Header", () => {
+  it("has no theme control, which lives in the profile menu", () => {
+    expect(bar()).not.toMatch(/theme/i);
+  });
+
   it("keeps the expand mark out of reach beside the expanded navbar", () => {
     const mark = expandMark(bar());
     expect(mark).toContain('tabindex="-1"');
