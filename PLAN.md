@@ -536,7 +536,23 @@ what a file-at-a-time importer cannot do:
   (`**Status:** PLANNING (2026-07-29)`, `documented, not yet fixed`).
 - One slug truncated mid-word at 60 characters (`…coerce-to-date`).
 
-**A plan can be a folder.** The contract (§6.1) assumes one plan is one file,
+**A plan can be a folder — now implemented.** A directory whose entry point is
+`README.md`, or failing that a `00-*.md`, is one plan; `scan` lists it once and
+reports how many documents it holds, and `openplan add <dir>` copies the whole
+set in. Re-running the import over the same corpus gives 9 plans instead of 11,
+with `pdb-projects-overhaul` no longer arriving twice as its README and its PLAN.
+
+**Importing copies.** The original stays where it is; nothing is moved out of
+the folder someone already keeps. Under test and verified against the real
+corpus, which still holds all 109 documents afterwards.
+
+**Open: the CLI hangs resolving the real base.** `openplan help` against the
+real `$HOME` blocks before dispatch; the same binary against a *copy* of that
+same base under a different `$HOME` returns instantly, as do all 66 tests. So
+it is in `settings::resolve_default_base`, environment-dependent, and not the
+base's contents. Unexplained — needs a proper look before the CLI ships.
+
+The contract (§6.1) previously assumed one plan is one file,
 but the standards tell people to use a directory for anything large, and Sid's
 own corpus is six sets and four loose files. Import must treat a directory with
 a `README.md` as one plan with many documents, and `library::scan` must list it

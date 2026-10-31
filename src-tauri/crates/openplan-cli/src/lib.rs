@@ -81,9 +81,78 @@ fn list(ctx: &Context, status_filter: Option<&str>) -> Result<String, String> {
         .join("\n"))
 }
 
+/// Copies a whole set in, keeping the documents and their order. The source
+/// is never touched — importing takes a copy, so what someone already has
+/// stays where they keep it.
+fn copy_tree(from: &Path, to: &Path) -> Result<usize, String> {
+    std::fs::create_dir_all(to).map_err(|e| format!("Couldn't create {}: {e}", to.display()))?;
+    let entries = std::fs::read_dir(from)
+        .map_err(|e| format!("Couldn't read {}: {e}", from.display()))?;
+    let mut copied = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        if name.to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let (src, dst) = (entry.path(), to.join(&name));
+        match entry.file_type() {
+            Ok(t) if t.is_dir() => copied += copy_tree(&src, &dst)?,
+            Ok(t) if t.is_file() => {
+                std::fs::copy(&src, &dst)
+                    .map_err(|e| format!("Couldn't copy {}: {e}", src.display()))?;
+                copied += 1;
+            }
+            _ => {}
+        }
+    }
+    Ok(copied)
+}
+
+/// Files an existing plan set — a folder with a `README.md` — as one plan.
+fn add_set(ctx: &Context, source_dir: &Path, entry_name: &Path) -> Result<String, String> {
+    let text = fs::read_to_string(entry_name)?;
+    let title = plan::parse(&text, entry_name).meta.title;
+    let id = plan::slugify(&title);
+    let destination = ctx.base.plans_dir().join(&id);
+    if destination.exists() {
+        return Err(format!(
+            "There is already a plan called {id}. Rename it, or edit that one."
+        ));
+    }
+    let copied = copy_tree(source_dir, &destination)?;
+
+    // The set is named by its entry point, so that is what carries the metadata.
+    let filed_readme = destination.join(entry_name.file_name().unwrap());
+    let parsed = plan::parse(&fs::read_to_string(&filed_readme)?, &filed_readme);
+    let filed = Plan {
+        meta: PlanMeta {
+            id: id.clone(),
+            source: if parsed.derived { "import".to_string() } else { parsed.meta.source.clone() },
+            created: parsed.meta.created.clone().or_else(|| Some(ctx.now.clone())),
+            updated: Some(ctx.now.clone()),
+            ..parsed.meta.clone()
+        },
+        ..parsed
+    };
+    fs::atomic_write(&filed_readme, &plan::serialize(&filed))?;
+    repo::commit_all(&ctx.base.root, &ctx.author, &format!("add: {id}"))?;
+    Ok(format!("Filed {copied} documents as {}", destination.display()))
+}
+
 /// Files an existing document as a plan: copied in, given the frontmatter the
-/// app reads, and recorded. The body is left exactly as written.
+/// app reads, and recorded. The body is left exactly as written, and the
+/// original stays where it is.
 fn add(ctx: &Context, source_path: &Path) -> Result<String, String> {
+    if source_path.is_dir() {
+        return match library::set_entry(source_path) {
+            Some(entry) => add_set(ctx, source_path, &entry),
+            None => Err(format!(
+                "{} has no README.md and nothing numbered 00-, so there is no way \
+                 to tell what the plan is called.",
+                source_path.display()
+            )),
+        };
+    }
     let text = fs::read_to_string(source_path)?;
     let parsed = plan::parse(&text, source_path);
     let id = plan::slugify(&parsed.meta.title);
@@ -231,6 +300,57 @@ mod tests {
         assert_eq!(revisions.len(), 1);
         assert_eq!(revisions[0].message, "add: auth-refactor");
         let _ = std::fs::remove_file(&loose);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_folder_of_documents_is_filed_as_one_plan_keeping_its_documents() {
+        let base = temp_base("openplan-cli-add-set");
+        let src = base.root.parent().unwrap().join("openplan-cli-set-source");
+        let _ = std::fs::remove_dir_all(&src);
+        std::fs::create_dir_all(src.join("archive")).unwrap();
+        std::fs::write(src.join("README.md"), "# React 17 to 19\n\nthe strategy\n").unwrap();
+        std::fs::write(src.join("01-current-state.md"), "# Current state\n").unwrap();
+        std::fs::write(src.join("archive/old.md"), "# Superseded\n").unwrap();
+
+        let out = run_str(&["add", src.to_str().unwrap()], &ctx(&base)).unwrap();
+
+        assert!(out.contains("3 documents"), "{out}");
+        let filed = base.plans_dir().join("react-17-to-19");
+        assert!(filed.join("01-current-state.md").is_file());
+        assert!(filed.join("archive/old.md").is_file(), "the archive came too");
+        // Listed once, not three times.
+        assert_eq!(library::scan(&base).len(), 1);
+        let _ = std::fs::remove_dir_all(&src);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn importing_copies_and_leaves_the_original_where_it_was() {
+        let base = temp_base("openplan-cli-add-copies");
+        let loose = base.root.parent().unwrap().join("openplan-cli-copy-source.md");
+        std::fs::write(&loose, "# Auth refactor\n\nbody\n").unwrap();
+
+        run_str(&["add", loose.to_str().unwrap()], &ctx(&base)).unwrap();
+
+        assert!(loose.is_file(), "the original was moved rather than copied");
+        assert_eq!(std::fs::read_to_string(&loose).unwrap(), "# Auth refactor\n\nbody\n");
+        let _ = std::fs::remove_file(&loose);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_folder_with_no_entry_point_says_what_is_missing() {
+        let base = temp_base("openplan-cli-add-no-readme");
+        let src = base.root.parent().unwrap().join("openplan-cli-noreadme-source");
+        let _ = std::fs::remove_dir_all(&src);
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("a.md"), "# A\n").unwrap();
+
+        let err = run_str(&["add", src.to_str().unwrap()], &ctx(&base)).unwrap_err();
+
+        assert!(err.contains("README.md"), "{err}");
+        let _ = std::fs::remove_dir_all(&src);
         let _ = std::fs::remove_dir_all(&base.root);
     }
 

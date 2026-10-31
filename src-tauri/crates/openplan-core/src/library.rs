@@ -11,9 +11,40 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlanEntry {
     pub meta: PlanMeta,
+    /// The document to open: the plan itself, or a set's `README.md`.
     pub path: PathBuf,
     /// Path within the base — what history is recorded against.
     pub relative_path: PathBuf,
+    /// 1 for a plan that is one file; for a set, every document in it.
+    pub documents: usize,
+}
+
+/// The entry point of a plan set. A large change is written as a folder — see
+/// the standards — so a folder holding one of these is one plan, not thirty.
+pub const SET_ENTRY: &str = "README.md";
+
+/// A set's entry point: its README, or failing that the first of its numbered
+/// documents, which is how plan sets that lead with `00-overview.md` are
+/// written. `None` means the folder is somewhere plans are kept, not a plan.
+pub fn set_entry(dir: &Path) -> Option<PathBuf> {
+    let readme = dir.join(SET_ENTRY);
+    if readme.is_file() {
+        return Some(readme);
+    }
+    let mut numbered: Vec<PathBuf> = std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.is_file()
+                && is_markdown(p)
+                && p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("00-"))
+        })
+        .collect();
+    numbered.sort();
+    numbered.into_iter().next()
 }
 
 /// One line of one plan that matched a search.
@@ -38,9 +69,28 @@ fn is_markdown(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Every markdown file under the base, hidden entries skipped — that is where
-/// the sidecars and git live.
-fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+fn count_markdown(dir: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+        .map(|e| {
+            let path = e.path();
+            match e.file_type() {
+                Ok(t) if t.is_dir() => count_markdown(&path),
+                Ok(t) if t.is_file() && is_markdown(&path) => 1,
+                _ => 0,
+            }
+        })
+        .sum()
+}
+
+/// Walks the base, treating a folder with a `README.md` as one plan rather
+/// than descending into its documents. Hidden entries are skipped — that is
+/// where git and the sidecars live.
+fn walk(dir: &Path, out: &mut Vec<(PathBuf, usize)>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -52,30 +102,61 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
         }
         let path = entry.path();
         match entry.file_type() {
-            Ok(t) if t.is_dir() => walk(&path, out),
-            Ok(t) if t.is_file() && is_markdown(&path) => out.push(path),
+            Ok(t) if t.is_dir() => match set_entry(&path) {
+                Some(entry) => out.push((entry, count_markdown(&path))),
+                None => walk(&path, out),
+            },
+            Ok(t) if t.is_file() && is_markdown(&path) => out.push((path, 1)),
             _ => {}
         }
     }
 }
 
+/// Every document a search should read, sets included.
 pub fn plan_paths(base: &Base) -> Vec<PathBuf> {
+    fn every(dir: &Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with('.') {
+                continue;
+            }
+            let path = entry.path();
+            match entry.file_type() {
+                Ok(t) if t.is_dir() => every(&path, out),
+                Ok(t) if t.is_file() && is_markdown(&path) => out.push(path),
+                _ => {}
+            }
+        }
+    }
     let mut paths = Vec::new();
-    walk(&base.root, &mut paths);
+    every(&base.root, &mut paths);
+    paths.sort();
     paths
 }
 
 /// Every plan in the base, with the metadata needed to list it.
 pub fn scan(base: &Base) -> Vec<PlanEntry> {
-    plan_paths(base)
+    let mut found = Vec::new();
+    walk(&base.root, &mut found);
+    found
         .into_iter()
-        .filter_map(|path| {
+        .filter_map(|(path, documents)| {
             let text = std::fs::read_to_string(&path).ok()?;
             let relative_path = path.strip_prefix(&base.root).ok()?.to_path_buf();
+            let mut meta = plan::parse(&text, &path).meta;
+            // A set is named by its folder, not by the README inside it.
+            if documents > 1 {
+                if let Some(folder) = path.parent().and_then(|p| p.file_name()) {
+                    meta.id = folder.to_string_lossy().into_owned();
+                }
+            }
             Some(PlanEntry {
-                meta: plan::parse(&text, &path).meta,
+                meta,
                 path,
                 relative_path,
+                documents,
             })
         })
         .collect()
@@ -148,6 +229,7 @@ mod tests {
         assert!(titles.contains(&"Beta"), "got {titles:?}");
         let alpha = entries.iter().find(|e| e.meta.title == "Alpha").unwrap();
         assert_eq!(alpha.relative_path, Path::new("plans/a.md"));
+        assert_eq!(alpha.documents, 1);
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
@@ -161,6 +243,62 @@ mod tests {
         let titles: Vec<String> = scan(&base).into_iter().map(|e| e.meta.title).collect();
 
         assert_eq!(titles, vec!["Real"]);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_folder_of_documents_is_one_plan_not_thirty() {
+        let base = temp_base("openplan-core-library-set");
+        write(&base, "plans/react-migration/README.md", "# React 17 to 19\n");
+        write(&base, "plans/react-migration/01-current-state.md", "# Current state\n");
+        write(&base, "plans/react-migration/02-phase-one.md", "# Phase one\n");
+        write(&base, "plans/react-migration/archive/old.md", "# Superseded\n");
+
+        let entries = scan(&base);
+
+        assert_eq!(entries.len(), 1, "{entries:?}");
+        assert_eq!(entries[0].meta.title, "React 17 to 19");
+        assert_eq!(entries[0].meta.id, "react-migration", "named by its folder");
+        assert_eq!(entries[0].documents, 4, "counts everything in the set");
+        assert!(entries[0].path.ends_with("README.md"), "opens at its entry point");
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_set_that_leads_with_a_numbered_overview_is_still_one_plan() {
+        let base = temp_base("openplan-core-library-numbered-entry");
+        write(&base, "plans/pdb-search/00-overview.md", "# PDB Search v1\n");
+        write(&base, "plans/pdb-search/01-architecture.md", "# Architecture\n");
+
+        let entries = scan(&base);
+
+        assert_eq!(entries.len(), 1, "{entries:?}");
+        assert_eq!(entries[0].meta.title, "PDB Search v1");
+        assert_eq!(entries[0].documents, 2);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_folder_without_an_entry_point_is_just_where_plans_are_kept() {
+        let base = temp_base("openplan-core-library-no-readme");
+        write(&base, "plans/a.md", "# Alpha\n");
+        write(&base, "plans/nested/b.md", "# Beta\n");
+
+        assert_eq!(scan(&base).len(), 2);
+
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_search_still_reads_every_document_inside_a_set() {
+        let base = temp_base("openplan-core-library-search-set");
+        write(&base, "plans/set/README.md", "# The set\n");
+        write(&base, "plans/set/03-detail.md", "# Detail\n\nthe cache is warm\n");
+
+        let hits = search(&base, "cache is warm");
+
+        assert_eq!(hits.len(), 1, "{hits:?}");
+        assert!(hits[0].path.ends_with("03-detail.md"));
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
