@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AgentMark } from "@/features/onboarding/Onboarding";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { TooltipButton } from "@/components/TooltipButton";
 import { cn } from "@/lib/utils";
 import {
   importSources,
@@ -138,15 +138,17 @@ export function ImportPlans() {
           )}
         </button>
       ))}
-      <Button
+      <TooltipButton
         size="sm"
         onClick={() => void runImport()}
         disabled={importing || selected.size === 0}
+        tooltip="Copies the plans into OpenPlan. Your files stay where they are."
+        tooltipAlign="start"
         className="mt-2 self-start"
       >
         {importing && <Loader2 className="animate-spin" />}
         {importing ? "Importing" : "Import selected"}
-      </Button>
+      </TooltipButton>
     </div>
   );
 }

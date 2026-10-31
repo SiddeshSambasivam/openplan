@@ -10,7 +10,6 @@ import {
   Sun,
   TableOfContents,
 } from "lucide-react";
-import { isMac } from "../lib/platform";
 import type { FontSize } from "../lib/fontSize";
 import type { DocFile, MainView, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
@@ -24,7 +23,6 @@ import { FontSizeMenu } from "./FontSizeMenu";
 import { MarqueeText } from "./MarqueeText";
 import { StatusPicker } from "./StatusPicker";
 import { WidthMenu } from "./WidthMenu";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +49,9 @@ interface HeaderProps {
   /** The open plan, for the status picker. */
   plan: PlanSummary | null;
   onStatusChange: (status: Status) => void;
+  /** The status picker's menu, which its key opens too. */
+  statusOpen: boolean;
+  onStatusOpenChange: (open: boolean) => void;
   /** Every recorded PR reads merged on a plan in review. */
   offerCompletion: boolean;
   /** Opens what the crumb sits under: the plan of a document. */
@@ -99,6 +100,8 @@ export function Header({
   crumb,
   plan,
   onStatusChange,
+  statusOpen,
+  onStatusOpenChange,
   offerCompletion,
   onOpenLead,
   folders,
@@ -130,13 +133,10 @@ export function Header({
   onOpenFind,
   trafficLightGap,
 }: HeaderProps) {
-  const mod = isMac ? "⌘" : "Ctrl+";
-  const modShift = isMac ? "⇧⌘" : "Ctrl+Shift+";
   const navbarShown = navbar !== "hidden";
-  const toggleSidebarLabel = `${navbarShown ? "Hide" : "Show"} sidebar (${mod}B)`;
-  const toggleViewLabel =
-    view === "preview" ? `Edit (${mod}E)` : `Preview (${mod}E)`;
-  const toggleThemeLabel = `${dark ? "Switch to light theme" : "Switch to dark theme"} (${modShift}L)`;
+  const toggleSidebarLabel = `${navbarShown ? "Hide" : "Show"} sidebar`;
+  const toggleViewLabel = view === "preview" ? "Edit" : "Preview";
+  const toggleThemeLabel = dark ? "Switch to light theme" : "Switch to dark theme";
   const inPreview = view === "preview";
   const onPlan = mainView === "plan";
   const showDocTools = onPlan && doc != null;
@@ -159,6 +159,7 @@ export function Header({
         variant="ghost"
         size="icon-sm"
         onClick={onToggleSidebar}
+        shortcut="navbar"
         tooltip={toggleSidebarLabel}
         tooltipSide="bottom" tooltipAlign="start"
         aria-label={toggleSidebarLabel}
@@ -206,9 +207,11 @@ export function Header({
       {!onPlan && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
+            <TooltipButton
               variant="outline"
               size="xs"
+              tooltip="Show the plans in one folder"
+              tooltipAlign="end"
               className={cn(
                 "max-w-48 gap-1.5 font-normal text-muted-foreground",
                 folder != null && "bg-accent text-accent-foreground",
@@ -216,7 +219,7 @@ export function Header({
             >
               <span className="truncate">{folder ?? "All plans"}</span>
               <ChevronDown className="text-muted-foreground" />
-            </Button>
+            </TooltipButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuRadioGroup
@@ -246,7 +249,13 @@ export function Header({
       {onPlan && plan && (
         // Keyed to the plan: opening another one is not a change of status,
         // and the glyph must not beat as though it were.
-        <StatusPicker key={plan.id} status={plan.status} onChange={onStatusChange} />
+        <StatusPicker
+          key={plan.id}
+          status={plan.status}
+          onChange={onStatusChange}
+          open={statusOpen}
+          onOpenChange={onStatusOpenChange}
+        />
       )}
 
       {onPlan && offerCompletion && (
@@ -254,9 +263,14 @@ export function Header({
           <span className="truncate pl-1 text-xs text-muted-foreground">
             All pull requests are merged.
           </span>
-          <Button size="xs" variant="outline" onClick={() => onStatusChange("completed")}>
+          <TooltipButton
+            size="xs"
+            variant="outline"
+            onClick={() => onStatusChange("completed")}
+            tooltip="Move this plan to Completed"
+          >
             Mark completed
-          </Button>
+          </TooltipButton>
         </>
       )}
 
@@ -271,7 +285,7 @@ export function Header({
           variant="ghost"
           size="icon-sm"
           onClick={onOpenFind}
-          tooltip={`Find (${mod}F)`}
+          shortcut="find"
           aria-label="Find in document"
         >
           <Search className="size-4" />
@@ -291,7 +305,7 @@ export function Header({
           variant="ghost"
           size="icon-sm"
           onClick={onToggleOutline}
-          tooltip={`Outline (${modShift}T)`}
+          shortcut="outline"
           tooltipSide="bottom" tooltipAlign="end"
           aria-label="Outline"
           aria-expanded={outlineOpen}
@@ -311,10 +325,18 @@ export function Header({
       )}
 
       {showDocTools && inPreview && canComment && pendingCommentCount > 0 && (
-        <Button size="xs" onClick={onSendReview} className="gap-1.5">
+        <TooltipButton
+          size="xs"
+          onClick={onSendReview}
+          // The key sends from the comments panel, where the review is in view.
+          shortcut={commentsOpen ? "sendReview" : undefined}
+          tooltip="Send your comments to the agent on this plan"
+          tooltipAlign="end"
+          className="gap-1.5"
+        >
           <Send />
           Send review ({pendingCommentCount})
-        </Button>
+        </TooltipButton>
       )}
 
       {showDocTools && inPreview && canComment && (
@@ -322,7 +344,7 @@ export function Header({
           variant="ghost"
           size="icon-sm"
           onClick={onToggleComments}
-          tooltip="Comments"
+          shortcut="comments"
           tooltipSide="bottom" tooltipAlign="end"
           aria-label="Comments"
           aria-expanded={commentsOpen}
@@ -342,6 +364,7 @@ export function Header({
           variant="ghost"
           size="icon-sm"
           onClick={onToggleView}
+          shortcut="edit"
           tooltip={toggleViewLabel}
           tooltipSide="bottom" tooltipAlign="end"
           aria-label={toggleViewLabel}
@@ -358,6 +381,7 @@ export function Header({
         variant="ghost"
         size="icon-sm"
         onClick={onToggleTheme}
+        shortcut="theme"
         tooltip={toggleThemeLabel}
         tooltipSide="bottom" tooltipAlign="end"
         aria-label="Toggle theme"

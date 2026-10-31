@@ -8,6 +8,8 @@ import {
   shortDate,
   sortPlans,
   statusGroups,
+  steppedPlan,
+  viewOrder,
 } from "./board";
 import { STATUS_FLOW, STATUS_ORDER, type PlanSummary, type Status } from "./planBase";
 
@@ -226,5 +228,51 @@ describe("relativeTime", () => {
 
   it("has nothing to show without a readable time", () => {
     expect(relativeTime("whenever", now)).toBe(null);
+  });
+});
+
+describe("viewOrder", () => {
+  const plans = [
+    plan({ id: "review", status: "in-review", updated: "2026-09-03" }),
+    plan({ id: "draft-new", updated: "2026-09-02" }),
+    plan({ id: "draft-old", updated: "2026-09-01" }),
+    plan({ id: "doing", status: "in-progress", updated: "2026-09-04" }),
+  ];
+  const summaries = [{ path: "/base/doing.md", open: 1, answered: true }];
+
+  it("reads the board column by column", () => {
+    expect(viewOrder("board", plans, summaries).map((p) => p.id)).toEqual(
+      boardColumns(plans).flatMap((group) => group.plans.map((p) => p.id)),
+    );
+  });
+
+  it("reads the list group by group", () => {
+    expect(viewOrder("list", plans, summaries).map((p) => p.id)).toEqual(
+      statusGroups(plans).flatMap((group) => group.plans.map((p) => p.id)),
+    );
+  });
+
+  it("reads For you as reviews, then answered threads", () => {
+    expect(viewOrder("for-you", plans, summaries).map((p) => p.id)).toEqual(["review", "doing"]);
+  });
+});
+
+describe("steppedPlan", () => {
+  const order = [plan({ id: "a" }), plan({ id: "b" }), plan({ id: "c" })];
+
+  it("moves one plan along", () => {
+    expect(steppedPlan(order, "/base/b.md", 1)?.id).toBe("c");
+    expect(steppedPlan(order, "/base/b.md", -1)?.id).toBe("a");
+  });
+
+  it("stops at either end", () => {
+    expect(steppedPlan(order, "/base/c.md", 1)).toBeNull();
+    expect(steppedPlan(order, "/base/a.md", -1)).toBeNull();
+  });
+
+  it("starts at the near end when the open plan is not in the order", () => {
+    expect(steppedPlan(order, null, 1)?.id).toBe("a");
+    expect(steppedPlan(order, "/elsewhere.md", -1)?.id).toBe("c");
+    expect(steppedPlan([], null, 1)).toBeNull();
   });
 });

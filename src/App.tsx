@@ -8,12 +8,14 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { CommandPalette, type OverlayHandle } from "./components/CommandPalette";
 import { DropOverlay } from "./components/DropOverlay";
 import type { EditorApi } from "./components/Editor";
 import { Loader2 } from "lucide-react";
 import { EmptyState } from "./components/EmptyState";
 import { FindBar } from "./components/FindBar";
 import { Header } from "./components/Header";
+import { ShortcutSheet } from "./components/ShortcutSheet";
 import { Sidebar } from "./components/Sidebar";
 import { PlanMetaBar } from "./components/PlanMetaBar";
 import { HistoryPanel } from "./features/history/HistoryPanel";
@@ -100,7 +102,8 @@ import {
   SOURCE_LABELS,
   type PlanSummary,
 } from "./lib/planBase";
-import { forYou, planCrumb, type ReviewSummary } from "./lib/board";
+import { forYou, planCrumb, steppedPlan, viewOrder, type ReviewSummary } from "./lib/board";
+import { useShortcuts, type ShortcutHandlers } from "./lib/shortcuts";
 import { listWorkProgress, offersCompletion, type TodoCount } from "./lib/work";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
 import { filterByFolder, type FolderFilter } from "./lib/folders";
@@ -264,6 +267,12 @@ export default function App() {
   const [focusThreadId, setFocusThreadId] = useState<string | null>(null);
   const [anchorStates, setAnchorStates] = useState<Record<string, AnchorState>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const paletteRef = useRef<OverlayHandle>(null);
+  const sheetRef = useRef<OverlayHandle>(null);
+  // The two pickers their keys open; the header and the plan page own the
+  // menus themselves.
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [foldersOpen, setFoldersOpen] = useState(false);
   // null until the answer is known, so the wizard neither flashes for people
   // who have been here before nor gets skipped for people who haven't.
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
@@ -868,10 +877,6 @@ export default function App() {
     [narrow],
   );
   const toggleSidebar = useCallback(() => pressNavbar("toggle"), [pressNavbar]);
-  const openNavbar = useCallback(
-    () => setNavbar((state) => ({ ...state, mode: "open" })),
-    [],
-  );
   const revealNavbar = useCallback(
     () => setNavbar((state) => movePointer(state, "edge", narrow)),
     [narrow],
@@ -1191,59 +1196,6 @@ export default function App() {
     };
   }, [flushSave]);
 
-  /* ---------- keyboard shortcuts ---------- */
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Exactly the platform's own modifier: holding the other one too means
-      // the chord belongs to the system (⌃⌘F full-screens on macOS), not here.
-      const ours = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-      if (!ours || e.altKey) return;
-      const key = e.key.toLowerCase();
-      if (key === "o") {
-        e.preventDefault();
-        if (e.shiftKey) void openFolderDialog();
-        else void openFileDialog();
-      } else if (key === "b") {
-        e.preventDefault();
-        pressNavbar(e.shiftKey ? "rail" : "toggle");
-      } else if (key === "s" && !e.shiftKey) {
-        e.preventDefault();
-        void flushSave();
-      } else if (key === "e" && !e.shiftKey) {
-        e.preventDefault();
-        toggleEdit();
-      } else if (key === "l" && e.shiftKey) {
-        e.preventDefault();
-        toggleTheme();
-      } else if (key === "t" && e.shiftKey) {
-        e.preventDefault();
-        toggleOutline();
-      } else if (key === ",") {
-        e.preventDefault();
-        setSettingsOpen(true);
-      } else if (key === "f" && !e.shiftKey) {
-        // Editing has its own find (CodeMirror's built-in panel, bound via
-        // searchKeymap on the editor itself) — don't intercept there.
-        if (viewRef.current === "preview") {
-          e.preventDefault();
-          setFindOpen(true);
-          setFindFocusSeq((s) => s + 1);
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [
-    openFileDialog,
-    openFolderDialog,
-    pressNavbar,
-    flushSave,
-    toggleEdit,
-    toggleTheme,
-    toggleOutline,
-  ]);
-
   useEffect(() => {
     return () => {
       if (noticeTimer.current) clearTimeout(noticeTimer.current);
@@ -1304,6 +1256,17 @@ export default function App() {
     const timer = setTimeout(() => setSendNotice(null), 4000);
     return () => clearTimeout(timer);
   }, [sendNotice]);
+
+  const toggleComments = useCallback(() => setCommentsOpen((open) => !open), []);
+  const closeComments = useCallback(() => {
+    setCommentsOpen(false);
+    setFocusThreadId(null);
+  }, []);
+  const toggleHistory = useCallback(() => setHistoryOpen((open) => !open), []);
+  const openFind = useCallback(() => {
+    setFindOpen(true);
+    setFindFocusSeq((s) => s + 1);
+  }, []);
 
   const openThread = useCallback((threadId: string) => {
     setCommentsOpen(true);
@@ -1420,6 +1383,78 @@ export default function App() {
 
   const showOutline = view === "preview" && activeDoc != null && content != null;
 
+  /* ---------- keyboard shortcuts ---------- */
+
+  const onPlan = mainView === "plan";
+  // `[` and `]` step through the plans in the order of the view the person
+  // came from, since the plan page has no order of its own.
+  const listViewRef = useRef<Exclude<MainView, "plan">>("board");
+  if (mainView !== "plan") listViewRef.current = mainView;
+  // Stable, for the memoized navbar's search button.
+  const openPalette = useCallback(() => paletteRef.current?.open(), []);
+  const stepPlan = useCallback(
+    (step: 1 | -1) => {
+      const order = viewOrder(listViewRef.current, shownPlans, summaries);
+      const next = steppedPlan(order, activePlanPath, step);
+      if (next) selectPlan(next);
+    },
+    [shownPlans, summaries, activePlanPath, selectPlan],
+  );
+  const lastPlan = sections.recent[0];
+
+  // Topmost first. Menus and dialogs close themselves; these are the app's
+  // own panels.
+  const closeTopOverlay = findOpen
+    ? () => setFindOpen(false)
+    : onPlan && activePlan && historyOpen
+      ? () => setHistoryOpen(false)
+      : onPlan && canComment && commentsOpen
+        ? closeComments
+        : onPlan && showOutline && outlineOverlays && floatingOutlineOpen
+          ? closeOutline
+          : navbar.revealed
+            ? concealNavbar
+            : undefined;
+
+  // One handler per action, shared by the keys, the palette and the
+  // buttons. An action that cannot run here has none.
+  const shortcutHandlers: ShortcutHandlers = {
+    palette: openPalette,
+    shortcuts: () => sheetRef.current?.open(),
+    settings: openSettings,
+    navbar: toggleSidebar,
+    rail: () => pressNavbar("rail"),
+    theme: toggleTheme,
+    openFile: () => void openFileDialog(),
+    openFolder: () => void openFolderDialog(),
+    escape: closeTopOverlay,
+    board: () => showView("board"),
+    list: () => showView("list"),
+    forYou: () => showView("for-you"),
+    plan: activeDoc
+      ? () => showView("plan")
+      : lastPlan
+        ? () => selectPlan(lastPlan)
+        : undefined,
+    previousPlan: shownPlans.length > 0 ? () => stepPlan(-1) : undefined,
+    nextPlan: shownPlans.length > 0 ? () => stepPlan(1) : undefined,
+    edit: onPlan && (view === "edit" || canEnterEdit) ? toggleEdit : undefined,
+    save: onPlan && view === "edit" ? () => void flushSave() : undefined,
+    find: onPlan && showOutline ? openFind : undefined,
+    outline: onPlan && showOutline ? toggleOutline : undefined,
+    history: onPlan && activePlan ? toggleHistory : undefined,
+    status: onPlan && activePlan ? () => setStatusOpen(true) : undefined,
+    folders: onPlan && activePlan && view === "preview" ? () => setFoldersOpen(true) : undefined,
+    archive:
+      onPlan && activePlan && activePlan.status !== "archived"
+        ? () => changeStatus("archived")
+        : undefined,
+    comments: onPlan && canComment ? toggleComments : undefined,
+    sendReview:
+      onPlan && canComment && commentsOpen && pendingCommentCount > 0 ? onSendReview : undefined,
+  };
+  useShortcuts(shortcutHandlers);
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
       {/* The column holds the navbar's place in the layout. Hidden, it holds
@@ -1442,10 +1477,10 @@ export default function App() {
           >
             <Sidebar
               rail={layout === "rail"}
-              onRequestOpen={openNavbar}
+              onOpenPalette={openPalette}
               name={personName ?? identity?.name ?? null}
               baseName={base ? basename(base.root) : null}
-              plans={plans}
+              planCount={plans.length}
               folders={knownFolders}
               folder={folder}
               onSelectFolder={chooseFolder}
@@ -1496,6 +1531,8 @@ export default function App() {
           crumb={crumb}
           plan={activePlan}
           onStatusChange={changeStatus}
+          statusOpen={statusOpen}
+          onStatusOpenChange={setStatusOpen}
           offerCompletion={offerCompletion}
           onOpenLead={openCrumbLead}
           folders={knownFolders}
@@ -1519,15 +1556,12 @@ export default function App() {
           onToggleOutline={toggleOutline}
           canComment={canComment}
           commentsOpen={commentsOpen}
-          onToggleComments={() => setCommentsOpen((o) => !o)}
+          onToggleComments={toggleComments}
           openCommentCount={openCommentCount}
           pendingCommentCount={pendingCommentCount}
           onSendReview={onSendReview}
           sendNotice={sendNotice}
-          onOpenFind={() => {
-            setFindOpen(true);
-            setFindFocusSeq((s) => s + 1);
-          }}
+          onOpenFind={openFind}
           trafficLightGap={isTauri && isMac && !fullscreen}
         />
         {mainView === "board" && (
@@ -1609,7 +1643,9 @@ export default function App() {
                   onStatusChange={changeStatus}
                   folders={knownFolders}
                   onFoldersChange={(next) => changeFolders(activePlan, next)}
-                  onOpenHistory={() => setHistoryOpen(true)}
+                  foldersOpen={foldersOpen}
+                  onFoldersOpenChange={setFoldersOpen}
+                  onOpenHistory={toggleHistory}
                 />
               </div>
             )}
@@ -1668,10 +1704,7 @@ export default function App() {
               anchorStates={anchorStates}
               docLabel={activePlan?.relativePath ?? activeDoc?.name ?? ""}
               focusThreadId={focusThreadId}
-              onClose={() => {
-                setCommentsOpen(false);
-                setFocusThreadId(null);
-              }}
+              onClose={closeComments}
               onReply={replyToThread}
               onSetResolved={setThreadResolved}
               onRemoveThread={removeThread}
@@ -1725,6 +1758,16 @@ export default function App() {
         focusSeq={findFocusSeq}
         onClose={() => setFindOpen(false)}
       />
+
+      <CommandPalette
+        ref={paletteRef}
+        handlers={shortcutHandlers}
+        plans={plans}
+        recent={sections.recent}
+        onOpenPlan={selectPlan}
+      />
+
+      <ShortcutSheet ref={sheetRef} />
 
       {dragging && <DropOverlay />}
 

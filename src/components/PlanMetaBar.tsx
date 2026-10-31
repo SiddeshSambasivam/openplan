@@ -6,9 +6,9 @@ import {
 } from "@/components/AgentIcons";
 import { FolderBadges, LiveMark } from "@/components/PlanFacts";
 import { SOURCE_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
-import { Button } from "@/components/ui/button";
 import { FolderPicker } from "./FolderPicker";
 import { StatusPicker } from "./StatusPicker";
+import { TooltipButton } from "./TooltipButton";
 
 /** Absolute dates: a plan is a record, and "3 days ago" stops being useful the
  * moment you compare two of them. */
@@ -31,6 +31,9 @@ interface PlanMetaBarProps {
   /** Every folder in the base, to choose from. */
   folders: string[];
   onFoldersChange: (folders: string[]) => void;
+  /** The folder picker's popover, which its key opens too. */
+  foldersOpen: boolean;
+  onFoldersOpenChange: (open: boolean) => void;
   onOpenHistory: () => void;
 }
 
@@ -42,6 +45,8 @@ export function PlanMetaBar({
   onStatusChange,
   folders,
   onFoldersChange,
+  foldersOpen,
+  onFoldersOpenChange,
   onOpenHistory,
 }: PlanMetaBarProps) {
   const updated = formatDate(plan.updated ?? plan.created);
@@ -94,17 +99,33 @@ export function PlanMetaBar({
           folders={plan.folders}
           known={folders}
           onChange={onFoldersChange}
+          open={foldersOpen}
+          onOpenChange={onFoldersOpenChange}
           trigger={
-            <Button variant="ghost" size="xs" className="gap-1.5">
+            <TooltipButton
+              variant="ghost"
+              size="xs"
+              shortcut="folders"
+              tooltip="Put this plan in folders"
+              className="gap-1.5"
+            >
               <Folder />
               Folders
-            </Button>
+            </TooltipButton>
           }
         />
-        <Button variant="ghost" size="xs" onClick={onOpenHistory} className="gap-1.5">
+        <TooltipButton
+          variant="ghost"
+          size="xs"
+          onClick={onOpenHistory}
+          shortcut="history"
+          tooltip="Every change to this plan, and who made it"
+          tooltipAlign="end"
+          className="gap-1.5"
+        >
           <History />
           History
-        </Button>
+        </TooltipButton>
       </span>
     </div>
   );
