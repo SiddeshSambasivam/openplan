@@ -7,6 +7,7 @@ import { cn } from "../lib/utils";
 import { FolderTree } from "./FolderTree";
 import { PlanList } from "./PlanList";
 import { searchPlans, type PlanSummary, type SearchHit } from "@/lib/planBase";
+import { BrandMark } from "./BrandMark";
 import { MarqueeText } from "./MarqueeText";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,8 +141,9 @@ export function Sidebar({
 
       <div
         data-tauri-drag-region
-        className="flex shrink-0 items-center px-4 pt-4 pb-4"
+        className="flex shrink-0 items-center gap-2.5 px-4 pt-4 pb-4"
       >
+        <BrandMark className="pointer-events-none size-5 shrink-0 text-sidebar-foreground" />
         <span className="pointer-events-none font-serif text-xl tracking-[-0.01em] text-sidebar-foreground">
           OpenPlan
         </span>

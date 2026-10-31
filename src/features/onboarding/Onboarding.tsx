@@ -6,6 +6,7 @@ import {
 } from "@/components/AgentIcons";
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -218,9 +219,10 @@ export function Onboarding({ onDone }: OnboardingProps) {
         {stage === "hello" && (
           <div className="flex flex-col gap-6">
             <h1
-              className="animate-in font-serif text-5xl tracking-[-0.01em] fade-in slide-in-from-bottom-4 duration-700"
+              className="flex animate-in items-center gap-4 font-serif text-5xl tracking-[-0.01em] fade-in slide-in-from-bottom-4 duration-700"
               style={rise(0)}
             >
+              <BrandMark className="size-11 shrink-0" />
               OpenPlan
             </h1>
             <p
