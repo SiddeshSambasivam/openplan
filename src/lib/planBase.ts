@@ -50,6 +50,15 @@ export interface PlanSummary {
   documents: string[];
 }
 
+export interface ProjectInfo {
+  /** The normalised remote, or null for the plans that name no project. */
+  project: string | null;
+  name: string;
+  description: string | null;
+  avatarUrl: string | null;
+  plans: number;
+}
+
 export interface BaseInfo {
   root: string;
 }
@@ -108,6 +117,11 @@ export async function setStandardsOverrides(text: string): Promise<void> {
 export async function scanPlans(): Promise<PlanSummary[]> {
   if (!isTauri) return [];
   return invoke<PlanSummary[]>("scan_plans");
+}
+
+export async function listProjects(): Promise<ProjectInfo[]> {
+  if (!isTauri) return [];
+  return invoke<ProjectInfo[]>("list_projects");
 }
 
 export async function searchPlans(query: string): Promise<SearchHit[]> {
