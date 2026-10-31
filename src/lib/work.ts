@@ -72,13 +72,15 @@ export interface Todo {
   reason?: string;
 }
 
+export type PrState = "open" | "draft" | "merged" | "closed";
+
 /** What the agent last reported. The app never fetches PR state. */
 export interface Pr {
   url: string;
   repo?: string;
   branch?: string;
   todos: string[];
-  state: "open" | "merged" | "closed";
+  state: PrState;
   checks: "pending" | "passing" | "failing";
   review: "waiting" | "changes-requested" | "approved";
   reportedAt: string;
@@ -98,8 +100,11 @@ export interface TodoCount {
 }
 
 export interface PrSummary {
-  total: number;
-  merged: number;
+  /** In the order the agent first reported them. */
+  reported: { url: string; state: PrState }[];
+  /** The plan works in a repo with a remote, so a PR is to come while none
+   * is reported. */
+  expected: boolean;
 }
 
 /** What a card shows of one plan's work record, read for every card at
@@ -130,9 +135,31 @@ export function progressText({ done, total }: TodoCount): string {
   return `${done} of ${total} done`;
 }
 
-export function prSummaryText({ total, merged }: PrSummary): string {
-  return `${total} pull ${total === 1 ? "request" : "requests"}, ${merged} merged`;
+/** Each PR on its own line with its state. */
+export function prSummaryText({ reported }: PrSummary): string {
+  if (reported.length === 0) return PR_MARKS.none.label;
+  return reported
+    .map((pr) => `${prLabel(pr.url)} ${PR_MARKS[pr.state].label.toLowerCase()}`)
+    .join("\n");
 }
+
+/** The state that says most about how far the work got: merged over open
+ * over draft over closed. */
+export function mostAdvancedPr(states: PrState[]): PrState | null {
+  return PR_ORDER.find((state) => states.includes(state)) ?? null;
+}
+
+const PR_ORDER: PrState[] = ["merged", "open", "draft", "closed"];
+
+/** How each PR state reads, in GitHub's colours, and how a plan that works in
+ * a repo reads before its first PR. */
+export const PR_MARKS: Record<PrState | "none", { label: string; tone: string }> = {
+  open: { label: "Open", tone: "text-success" },
+  draft: { label: "Draft", tone: "text-muted-foreground" },
+  merged: { label: "Merged", tone: "text-merged" },
+  closed: { label: "Closed", tone: "text-destructive" },
+  none: { label: "No pull request yet", tone: "text-muted-foreground" },
+};
 
 /** `owner/repo` from the remote, whatever its URL shape, or the folder's
  * name for a repo without one. */
@@ -212,8 +239,9 @@ export interface PrBadge {
   variant: "default" | "outline" | "destructive";
 }
 
-const PR_STATES: Record<Pr["state"], PrBadge> = {
+const PR_STATES: Record<PrState, PrBadge> = {
   open: { label: "Open", variant: "outline" },
+  draft: { label: "Draft", variant: "outline" },
   merged: { label: "Merged", variant: "default" },
   closed: { label: "Closed", variant: "outline" },
 };

@@ -132,7 +132,7 @@ pub fn tools() -> Vec<Value> {
         }),
         json!({
             "name": "record_pr",
-            "description": "Record a pull request after you open it, and again with the same url whenever its state, checks or review change.",
+            "description": "Record a pull request after you open it, and again with the same url whenever its state, checks or review change. Its state is draft while the PR is a draft.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -144,7 +144,7 @@ pub fn tools() -> Vec<Value> {
                             "repo": { "type": "string" },
                             "branch": { "type": "string" },
                             "todos": { "type": "array", "items": { "type": "string" }, "description": "The ids of the todos it covers" },
-                            "state": { "type": "string", "enum": ["open", "merged", "closed"] },
+                            "state": { "type": "string", "enum": ["open", "draft", "merged", "closed"], "description": "draft while the PR is a draft" },
                             "checks": { "type": "string", "enum": ["pending", "passing", "failing"] },
                             "review": { "type": "string", "enum": ["waiting", "changes-requested", "approved"] }
                         },
@@ -626,6 +626,23 @@ mod tests {
     #[test]
     fn a_summary_section_stops_at_the_next_section() {
         assert_eq!(summary(BODY), "The server refuses moves the work has not earned.\n\n```sh\n# not a heading\n```");
+    }
+
+    fn schema_of(tool: &str) -> Value {
+        tools()
+            .into_iter()
+            .find(|t| t["name"] == tool)
+            .unwrap_or_else(|| panic!("no {tool}"))["inputSchema"]
+            .clone()
+    }
+
+    #[test]
+    fn record_pr_takes_a_draft_state() {
+        let tool = tools().into_iter().find(|t| t["name"] == "record_pr").unwrap();
+        let states = &schema_of("record_pr")["properties"]["pr"]["properties"]["state"]["enum"];
+
+        assert_eq!(states, &json!(["open", "draft", "merged", "closed"]));
+        assert!(tool["description"].as_str().unwrap().contains("draft while the PR is a draft"));
     }
 
     #[test]

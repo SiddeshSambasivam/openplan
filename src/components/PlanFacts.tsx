@@ -4,8 +4,12 @@ import {
   FolderGit2,
   GitMerge,
   GitPullRequest,
+  GitPullRequestClosed,
+  GitPullRequestCreate,
+  GitPullRequestDraft,
   MessageSquareText,
   User,
+  type LucideIcon,
 } from "lucide-react";
 import { Fragment } from "react";
 import { ClaudeCodeIcon, CodexIcon, CursorIcon } from "./AgentIcons";
@@ -16,10 +20,13 @@ import type { CardDisplay } from "@/lib/cardDisplay";
 import { SOURCE_LABELS, type PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import {
+  mostAdvancedPr,
+  PR_MARKS,
   progressText,
   prSummaryText,
   repoLabel,
   type PlanProgress,
+  type PrState,
   type PrSummary,
   type Repo,
   type TodoCount,
@@ -162,20 +169,43 @@ export function RepoLine({
   );
 }
 
-/** How many PRs the agent recorded. The icon turns to a merge once every
- * one reads merged. */
+/** The plan's PRs as the icon of the most advanced one, counted past one.
+ * A plan in a repo with no PR yet shows a muted icon, and a plan with no
+ * repo shows nothing. */
 export function PrCount({ prs }: { prs?: PrSummary }) {
-  if (!prs || prs.total <= 0) return null;
-  const Icon = prs.merged === prs.total ? GitMerge : GitPullRequest;
+  if (!prs) return null;
+  const state = mostAdvancedPr(prs.reported.map((pr) => pr.state));
+  if (!state && !prs.expected) return null;
+  const count = prs.reported.length;
   return (
     <span
       title={prSummaryText(prs)}
       className="flex shrink-0 items-center gap-1 tabular-nums"
     >
-      <Icon className="size-3" />
-      {prs.total}
+      <PrGlyph state={state ?? "none"} className="size-3" />
+      {count > 1 && count}
     </span>
   );
+}
+
+const PR_GLYPHS: Record<PrState | "none", LucideIcon> = {
+  open: GitPullRequest,
+  draft: GitPullRequestDraft,
+  merged: GitMerge,
+  closed: GitPullRequestClosed,
+  none: GitPullRequestCreate,
+};
+
+/** One PR state's icon in its colour. */
+export function PrGlyph({
+  state,
+  className,
+}: {
+  state: PrState | "none";
+  className?: string;
+}) {
+  const Icon = PR_GLYPHS[state];
+  return <Icon aria-hidden className={cn("shrink-0", PR_MARKS[state].tone, className)} />;
 }
 
 /** A plan filed in the last few minutes. */

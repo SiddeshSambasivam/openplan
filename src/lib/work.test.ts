@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   offersCompletion,
   answerOf,
+  mostAdvancedPr,
+  PR_MARKS,
   prBadges,
   prLabel,
   prSummaryText,
@@ -228,6 +230,10 @@ describe("prBadges", () => {
     ]);
   });
 
+  it("says a draft is a draft", () => {
+    expect(prBadges(pr({ state: "draft" }))[0]).toEqual({ label: "Draft", variant: "outline" });
+  });
+
   it("marks a merged PR", () => {
     const badges = prBadges(pr({ state: "merged", checks: "passing", review: "approved" }));
 
@@ -253,6 +259,12 @@ describe("offersCompletion", () => {
       offersCompletion("in-review", withPrs([pr({ state: "merged" }), pr({ state: "open" })])),
     ).toBe(false);
     expect(offersCompletion("in-review", withPrs([pr({ state: "closed" })]))).toBe(false);
+  });
+
+  it("waits while any PR is still a draft", () => {
+    expect(
+      offersCompletion("in-review", withPrs([pr({ state: "merged" }), pr({ state: "draft" })])),
+    ).toBe(false);
   });
 
   it("offers nothing for a plan with no PRs or no record", () => {
@@ -285,9 +297,53 @@ describe("repoLabel", () => {
   });
 });
 
+describe("mostAdvancedPr", () => {
+  it("picks merged over open over draft over closed", () => {
+    expect(mostAdvancedPr(["closed", "draft", "open", "merged"])).toBe("merged");
+    expect(mostAdvancedPr(["closed", "draft", "open"])).toBe("open");
+    expect(mostAdvancedPr(["closed", "draft"])).toBe("draft");
+    expect(mostAdvancedPr(["closed"])).toBe("closed");
+  });
+
+  it("has nothing to pick without a PR", () => {
+    expect(mostAdvancedPr([])).toBeNull();
+  });
+});
+
+describe("PR_MARKS", () => {
+  it("colours each state the way GitHub does, through the theme tokens", () => {
+    expect(PR_MARKS.open.tone).toBe("text-success");
+    expect(PR_MARKS.draft.tone).toBe("text-muted-foreground");
+    expect(PR_MARKS.merged.tone).toBe("text-merged");
+    expect(PR_MARKS.closed.tone).toBe("text-destructive");
+    expect(PR_MARKS.none.tone).toBe("text-muted-foreground");
+  });
+
+  it("names every state, and a plan still waiting for its first PR", () => {
+    expect(Object.values(PR_MARKS).map((mark) => mark.label)).toEqual([
+      "Open",
+      "Draft",
+      "Merged",
+      "Closed",
+      "No pull request yet",
+    ]);
+  });
+});
+
 describe("prSummaryText", () => {
-  it("says how many pull requests there are and how many are merged", () => {
-    expect(prSummaryText({ total: 2, merged: 1 })).toBe("2 pull requests, 1 merged");
-    expect(prSummaryText({ total: 1, merged: 0 })).toBe("1 pull request, 0 merged");
+  it("lists each pull request with its state", () => {
+    const text = prSummaryText({
+      reported: [
+        { url: "https://github.com/owner/repo/pull/1", state: "merged" },
+        { url: "https://github.com/owner/repo/pull/2", state: "draft" },
+      ],
+      expected: true,
+    });
+
+    expect(text).toBe("owner/repo#1 merged\nowner/repo#2 draft");
+  });
+
+  it("says no pull request is open yet when none is reported", () => {
+    expect(prSummaryText({ reported: [], expected: true })).toBe("No pull request yet");
   });
 });

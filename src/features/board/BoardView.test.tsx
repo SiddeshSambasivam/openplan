@@ -91,18 +91,18 @@ describe("BoardView card display", () => {
       done: 0,
       total: 0,
       repos: [{ path: "~/code/openplan", remote: "github.com/owner/openplan", branch: "feat/x" }],
-      prs: { total: 1, merged: 0 },
+      prs: { reported: [{ url: "https://github.com/owner/openplan/pull/3", state: "open" }], expected: true },
     };
     const progress = new Map([[long.path, work]]);
 
     const shown = board([long], CARD_DISPLAY_DEFAULTS, progress);
     expect(shown).toContain("owner/openplan");
     expect(shown).toContain("feat/x");
-    expect(shown).toContain("1 pull request, 0 merged");
+    expect(shown).toContain("owner/openplan#3 open");
 
     const hidden = board([long], { ...CARD_DISPLAY_DEFAULTS, repos: false, prs: false }, progress);
     expect(hidden).not.toContain("owner/openplan");
-    expect(hidden).not.toContain("0 merged");
+    expect(hidden).not.toContain("owner/openplan#3");
   });
 
   it("tags a plan filed in the last few minutes as New", () => {
