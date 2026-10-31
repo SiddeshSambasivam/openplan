@@ -9,22 +9,29 @@
 /// Ships with the app. Read by agents before they file a plan.
 pub const BUILT_IN: &str = include_str!("standards.md");
 
-/// What the body has to be, in the mode this machine is set to. It comes
-/// first, because it decides how everything below it is written.
-pub fn authoring_block(mode: &str) -> String {
+/// What the body has to be in the mode this machine is set to, and whether
+/// media is on. Both come first, because they decide how everything below
+/// them is written, and the Media section reads its rule off the second line.
+pub fn authoring_block(mode: &str, media: bool) -> String {
     let body = if mode == "html" {
         "Write the body as one self-contained HTML document: no scripts, no external \
          resources, headings that say what they are, and the same required sections."
     } else {
-        "Write the body as markdown. Keep it compact; the app renders it."
+        "Write the body as markdown. Keep it compact. The app renders it."
     };
-    format!("Authoring mode: {mode}\n\n{body}\n\n")
+    let media = if media { "on" } else { "off" };
+    format!("Authoring mode: {mode}\nMedia: {media}\n\n{body}\n\n")
 }
 
-/// What agents are told: the mode, the built-in standards, plus whatever the
-/// user added.
+/// What agents are told with media off.
 pub fn effective(mode: &str, overrides: Option<&str>) -> String {
-    let mut served = authoring_block(mode);
+    effective_with_media(mode, false, overrides)
+}
+
+/// What agents are told: the mode, the media line, the built-in standards,
+/// plus whatever the user added.
+pub fn effective_with_media(mode: &str, media: bool, overrides: Option<&str>) -> String {
+    let mut served = authoring_block(mode, media);
     served.push_str(BUILT_IN);
     if let Some(extra) = overrides.map(str::trim).filter(|s| !s.is_empty()) {
         served.push_str(&format!("\n## Also, for this person\n\n{extra}\n"));
@@ -209,6 +216,15 @@ mod tests {
         assert!(opening.contains("self-contained"), "{opening}");
         assert!(opening.contains("no scripts"), "{opening}");
         assert!(opening.contains("same required sections"), "{opening}");
+    }
+
+    #[test]
+    fn the_second_line_says_whether_media_is_on() {
+        let second_line = |served: String| served.lines().nth(1).unwrap_or_default().to_string();
+
+        assert_eq!(second_line(effective_with_media("markdown", true, None)), "Media: on");
+        assert_eq!(second_line(effective_with_media("html", false, None)), "Media: off");
+        assert_eq!(second_line(effective("markdown", None)), "Media: off");
     }
 
     #[test]
