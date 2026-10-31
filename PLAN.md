@@ -902,7 +902,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [x] P7.10 Onboarding without the import step; version 0.3.0
 - [ ] P7.11 Shortcut registry feeding keys, `kbd` tooltips and a command palette on
       shadcn `command`; the `?` shortcut sheet; measured on the 2MB plan **(T)**
-- [ ] P7.12 Shell: Linear-style navbar with open, minimized and hidden modes
+- [x] P7.12 Shell: Linear-style navbar with open, minimized and hidden modes
       (`cmd+b` open or hidden, `cmd+shift+b` minimized, edge hover reveals it when
       hidden); labelled sections (Views, Folders, Recent); a basic Folders section;
       an empty state instead of the welcome document; Inter as the body typeface,
@@ -1049,6 +1049,10 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 | 2026-10-29 | Our hook entries are identified by their exact command string; reinstall replaces them and nothing else in the person's settings is touched, with key order preserved (`serde_json` `preserve_order`) | A settings file other tools own is rewritten only inside our own entries, as the 2026-08-16 managed-block row requires |
 | 2026-10-29 | Auto-archive runs on launch and on entering the board, commits once as `openplan <openplan@openplan.local>`, and counts a pre-0.3.0 completed plan's age from `updated` | No timer (NFR-8). The app is a writer of its own here, not the person. Without the fallback every 0.2.0 completed plan would stay in Completed forever |
 | 2026-10-29 | The picker shows In progress and In review disabled with "The agent moves it here"; the person's moves are draft, alignment, completed and archived | The guards live in the server, and the person's path to in-progress is answering alignment, not the picker |
+| 2026-10-29 | Below 900px the open navbar floats over the main area and `cmd+b` shows or hides the panel without changing the stored mode; the rail still takes its 48px column | The §2 breakpoint, applied to the navbar. A wide-screen preference survives a small window |
+| 2026-10-29 | The welcome document is gone from the app and the browser demo alike (supersedes the "browser demo keeps an inline sample" note in the empty-state row); a stored welcome entry from an older build is dropped on load | `pnpm dev` works with the empty state and drag-drop, so a sample was code with no reader |
+| 2026-10-29 | Navbar section labels are small, muted, sentence case with a chevron; one accent on the current view row, a folder filter in force shows as medium weight with an open-folder icon | Matches the Linear reference, and a filtered board never shows two accents |
+| 2026-10-29 | The navbar column never animates `width`; mode changes land in one frame and only the floating panel moves, with transform. `BoardView` is memoized | Width is a layout property (NFR-2). Toggling the navbar re-rendered the board for about 16ms with 60 plans, 0 after memoizing |
 
 ---
 
