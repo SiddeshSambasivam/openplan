@@ -9,12 +9,21 @@ change anything that does not fit the work.
 | shape | when | layout |
 |---|---|---|
 | **Single file** | one focused change: a bug, an audit, a contained feature | `<slug>.md` |
-| **Plan set** | work that spans phases, or that several documents cover better than one | `<slug>/` with `README.md` as the index and `NN-topic.md` in reading order |
+| **Plan set** | anything large — work in phases, or work several documents cover better than one | `<slug>/` |
 
-A plan set's `README.md` is the entry point: what this is, the strategy in a
-paragraph, a table of the documents with one line each, and a status tracker.
-Superseded drafts move to `archive/` rather than being deleted — the index says
-what each archived document is still authoritative for.
+**A large change gets a folder.** Do not let one file grow until it has to be
+scrolled to be understood, and do not scatter its documents across the base.
+Everything about that change lives in `<slug>/`:
+
+- `README.md` — the entry point: what this is, the strategy in a paragraph, a
+  table of the documents with one line each, and a status tracker.
+- `NN-topic.md` — the documents, numbered in reading order.
+- `archive/` — superseded drafts, kept rather than deleted. The index says what
+  each archived document is still authoritative for.
+
+Start a folder when the work has phases, when more than one person or agent will
+work on it, or the second time you want to add a section that does not belong in
+what is already there.
 
 ## The header
 
