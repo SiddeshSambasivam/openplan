@@ -204,18 +204,34 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 
 ## 4. User flows
 
-### 4.1 First-run onboarding (designed with Sid, 2026-08-16 — P3.0; built; import moved out in 0.3.0)
+### 4.1 First-run onboarding (rebuilt with Sid, 2026-11-01, Phase 9)
 
-Two stages, both skippable. Detection runs during the hello, so the screen is
-answered before it is reached. A dev-only "Replay onboarding" button in Settings
-resets the flag for testing.
+Six screens, each skippable, then the board. Every main action has a key shown
+with `kbd`: `↵` continues, `Esc` goes back, number keys pick. The screens follow
+the app theme. A dev-only "Replay onboarding" button in Settings resets the flag.
 
-1. **Hello** — the wordmark rises in (staggered entrances), asks what to call
-   them, and shows the agent tools found on this machine (Claude Code / Codex /
-   Cursor) as Detected / Not found, pre-selected when installed.
-2. **Connect** — for each selected tool: register the `openplan` MCP server and
-   add the conventions block to its instruction file (managed block, its own
-   text untouched). Per-step results shown; then into the app.
+1. **Welcome**: the mark beside the EB Garamond wordmark over neutral rays.
+   Agent detection starts here.
+2. **Name**.
+3. **Role**: six roles (engineer, designer, product manager, engineering lead,
+   founder, something else). The person's role picks a panel of four reviewers
+   from nine personas, each asking in depth or in plain words; the screen shows
+   the panel as it changes. `get_standards` tells agents who sits on the panel.
+4. **Which agents do you use?**: Claude Code, Codex and Cursor by logo, detected
+   ones picked.
+5. **Setting up your agents**: installs the `openplan` MCP server and the
+   instruction note into each picked tool, one row per tool, with Retry on a
+   failed row while the rest carry on.
+6. **You're all set**: "Open my board" seeds five demo plans, one per stage, into
+   a Demo folder, opens the board on it, and starts the tour.
+
+The **tour** runs over the real app in 13 steps across the board, a plan, a
+review, the Alignment tab, Build and the work that follows. Three steps wait for
+the person to comment, send a review or answer, with Next always shown. Leaving
+the step's view pauses it into a "Resume tour" pill. Demo plans carry
+`demo: true`: agents never see them, the app never asks `gh` about them, and
+Build on one opens the next stage. Settings has Role, Agents and "Take the tour",
+which brings back any demo plan the person deleted.
 
 Importing existing plans lives in Settings > Import plans (0.3.0): it runs
 discovery each time the section opens, lists each agent's loose plans and folders
@@ -1144,20 +1160,45 @@ behaviours above; `iam create-open-id-connect-provider`, `create-role`,
 Specification and decisions D1 to D20: the filed plan "Ask the person's role during
 onboarding and let it decide which personas go deep". Started 2026-11-01 on Sid's
 recorded GATE 8 waiver (§9).
-- [ ] P9.1 Question role grows to nine values with an unknown-role fallback **(T)**
-- [ ] P9.2 `person_roles.json`, `PersonRole`, `role` and `demoSeeded` settings **(T)**
-- [ ] P9.3 "Who is answering" in `get_standards`; `ask_questions` checks the panel **(T)**
-- [ ] P9.4 Standards: question-bank rows for the five new personas
-- [ ] P9.5 Five new persona avatars and their colour tokens
-- [ ] P9.6 Five demo plans, `seed_demo`, `demo: true` skipped by MCP and `gh` **(T)**
-- [ ] P9.7 Onboarding: welcome, name, role and panel, agent picker, MCP setup, all
+- [x] P9.1 Question role grows to nine values with an unknown-role fallback **(T)**
+- [x] P9.2 `person_roles.json`, `PersonRole`, `role` and `demoSeeded` settings **(T)**
+- [x] P9.3 "Who is answering" in `get_standards`; `ask_questions` checks the panel **(T)**
+- [x] P9.4 Standards: question-bank rows for the five new personas
+- [x] P9.5 Five new persona avatars and their colour tokens
+- [x] P9.6 Five demo plans, `seed_demo`, `demo: true` skipped by MCP and `gh` **(T)**
+- [x] P9.7 Onboarding: welcome, name, role and panel, agent picker, MCP setup, all
       with `kbd` hints; ends on the board **(T)**
-- [ ] P9.8 In-app tour over the real screens, with try-it steps and a resume pill **(T)**
-- [ ] P9.9 Settings: Agents, Role, Take the tour; the Alignment tab role hint
+- [x] P9.8 In-app tour over the real screens, with try-it steps and a resume pill **(T)**
+- [x] P9.9 Settings: Agents, Role, Take the tour; the Alignment tab role hint
 - [ ] **GATE 9 — Sid manual QA & approval** (fresh onboarding as a designer and as
       an engineer; agent setup with one tool failing; the full tour at 720x480 and
       full screen, in both themes; a designer plan's questions come from Iris, Noor,
       Ada and Theo; idle CPU ~0% after the tour)
+
+#### GATE 9 QA script
+Run on a release build, or `pnpm tauri dev` with the dev profile.
+1. Settings > General > Replay onboarding, relaunch. Walk all six screens with keys
+   only: `↵`, `Esc`, `1` to `6`, `1` to `3`. At 720x480 nothing scrolls.
+2. Pick Designer: the panel shows Iris, Noor, Ada and Theo. Pick Engineer: Mila,
+   Theo, Iris and Kai. Switch theme in the app first and check both.
+3. Agents: lock `~/.codex/config.toml` (`chmod 400`) before Set up. Codex reads
+   "Couldn't set up Codex." with Retry while Claude Code reaches Ready. Restore the
+   file and Retry.
+4. "Open my board": the board shows the Demo folder with one card per column, each
+   tagged Demo, and the tour starts.
+5. Walk all 13 tour steps. Leave a comment on step 4, send the review on step 5,
+   answer a question on step 7. Open Settings mid-tour: the Resume pill shows,
+   and clicking it returns to the step.
+6. Build on a demo plan opens the In progress demo plan with "Demo plans don't
+   build. This is the next stage."
+7. In a Claude Code session, call `list_plans`: no demo plan is listed. File a plan
+   as a designer: its questions come only from Iris, Noor, Ada and Theo.
+8. Delete two demo plans, then Settings > General > Take the tour: both come back,
+   and the others keep what you changed.
+9. Settings > Profile: clear the role. The Alignment tab shows "Pick your role so
+   the right people ask."; its button opens the Role row.
+10. Idle cost (NFR-8): tour closed, app idle for a minute, CPU near 0% in Activity
+    Monitor.
 
 ---
 
@@ -1354,6 +1395,7 @@ recorded GATE 8 waiver (§9).
 | 2026-10-31 | Every question with options ends with "Write my own" | Sid (R5.3, q1): the composer already took free text, but nothing on the question said so |
 | 2026-10-31 | **GATE 7 waived and Phase 8 (0.6.0, S3 builds and in-app updates) starts** | Sid, 2026-10-31: "Gate waived", after the rule was pointed out. Recorded per §2 Process. GATE 7 QA remains owed |
 | 2026-11-01 | **GATE 8 waived and Phase 9 (onboarding by role, agent setup, in-app tour) starts** | Sid, 2026-11-01: "Gate waived", after the rule was pointed out on Build. Recorded per §2 Process. GATE 7 and GATE 8 QA remain owed |
+| 2026-11-01 | Phase 9 decisions D1 to D20, in full with their options in the filed plan "Ask the person's role during onboarding and let it decide which personas go deep": the role picks a panel of four from nine personas, each in depth or plain words (D1, D15); the role lives in the person's settings and reaches agents through `get_standards` (D2, D3); one `person_roles.json` feeds Rust and TypeScript (D4); six roles (D6); onboarding follows the app theme with the app's lockup (D7, D13); a hint on the Alignment tab for people with no role (D8); agents are picked, then set up with visible steps and Retry (D9, D10); five demo plans, one per stage, marked `demo: true` and hidden from agents (D11, D14); an in-app tour over the real screens instead of slides (D12), with three try-it steps, a Resume pill, and a replay that restores only missing demo plans (D18 to D20); questions outside the panel go to its closest member in plain words, one to three a round (D16, D17) | Sid, through the plan's alignment rounds and review, 2026-10-31 to 2026-11-01 |
 | 2026-10-31 | The license is Apache 2.0, not MIT | Sid's call. It allows the same use as MIT and adds an explicit patent grant and terms for contributions, which matter once pull requests are accepted. Rejected: GPL-3.0 (forces forks open, deters adoption) and the Functional Source License (not open source) |
 | 2026-10-31 | macOS builds are ad-hoc signed (`bundle.macOS.signingIdentity: "-"`) and not notarized | Sid has no Apple Developer ID. An unsigned download can fail with "is damaged and can't be opened", which only `xattr` gets past; an ad-hoc signed one gets Open Anyway in Privacy & Security. Revisit with a Developer ID, which adds signing and notarization secrets to CI and changes nothing else |
 | 2026-11-01 | The plan bar gives way by its own width (a size container), not the window's: below 896px the labelled actions keep only their icon, tooltip and key; below 1024px the word count and "All PRs merged." go; below 768px reading width and font size go and stay in Settings. The title keeps at least 10rem | At 720 the title shrank to nothing. The window width misleads here: at 900 the expanded navbar leaves the bar narrower than at 720 with the rail. Rejected: an overflow menu, which hides actions people use daily behind a click |
