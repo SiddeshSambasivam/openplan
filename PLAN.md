@@ -892,7 +892,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       days setting **(T)**
 - [ ] P7.7 Installers: Claude Code and Cursor Stop and UserPromptSubmit hooks,
       `openplan pending`, managed block text **(T)**
-- [ ] P7.8 Standards: question bank per type, alignment procedure, media rule,
+- [x] P7.8 Standards: question bank per type, alignment procedure, media rule,
       confirmation-on-merge rule
 - [ ] P7.9 Rendering: LaTeX, video, sandboxed `html` fences with the height message,
       the media setting **(T: fence extraction and CSP)**
