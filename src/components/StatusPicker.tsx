@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
+  personCanSet,
   STATUS_FLOW,
   STATUS_HINTS,
   STATUS_LABELS,
@@ -37,7 +38,7 @@ export function StatusPicker({ status, onChange }: StatusPickerProps) {
           <ChevronDown className="size-3 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-44">
+      <DropdownMenuContent align="start" className="w-72">
         <DropdownMenuRadioGroup
           value={status}
           onValueChange={(next) => onChange(next as Status)}
@@ -46,12 +47,18 @@ export function StatusPicker({ status, onChange }: StatusPickerProps) {
             <DropdownMenuRadioItem
               key={option}
               value={option}
+              disabled={!personCanSet(option)}
               // The choice is shown by highlighting the row, so the dot the
               // radio item would otherwise reserve space for is dropped.
-              className="gap-2 pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
+              className="items-start gap-2 pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
             >
-              <StatusGlyph status={option} />
-              {STATUS_LABELS[option]}
+              <StatusGlyph status={option} className="mt-0.5" />
+              <span className="min-w-0">
+                <span className="block">{STATUS_LABELS[option]}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {personCanSet(option) ? STATUS_HINTS[option] : "The agent moves it here."}
+                </span>
+              </span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

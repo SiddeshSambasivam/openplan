@@ -61,22 +61,29 @@ import type {
 import { splitFrontmatter } from "./lib/frontmatter";
 import { isHtmlPath } from "./lib/htmlDoc";
 import { useOutline } from "./lib/useOutline";
-import { useLiveSessions } from "./lib/liveSessions";
+import { deliveryLine, useLiveSessions } from "./lib/liveSessions";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
+  archiveStale,
   commitBase,
   getIdentity,
+  getPreferences,
   renamePlan,
   renameDocument,
   reviewSummaries,
+  sendAlign,
+  setArchiveAfterDays,
   setFolders,
+  setMedia,
   setPlanStatus,
+  type Preferences,
   type Status,
   SOURCE_LABELS,
   type PlanSummary,
 } from "./lib/planBase";
 import { forYou, planCrumb, type ReviewSummary } from "./lib/board";
-import { listWorkProgress, type TodoCount } from "./lib/work";
+import { listWorkProgress, offersCompletion, type TodoCount } from "./lib/work";
+import { useWorkRecord } from "./features/plan/useWorkRecord";
 import { allFolders, filterByFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
 import { BoardView } from "./features/board/BoardView";
@@ -205,6 +212,10 @@ export default function App() {
   const [view, setView] = useState<ViewMode>("preview");
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // One line under the top bar's buttons, gone a moment later: whether a
+  // review or an align event reached a session. Nothing else needs saying
+  // after an action, so there is no toast to build on.
+  const [sendNotice, setSendNotice] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [dark, setDark] = useState(() =>
     document.documentElement.classList.contains("dark"),
@@ -279,6 +290,36 @@ export default function App() {
 
   const { base, plans, refresh: refreshPlans, arrivals } = usePlanBase();
   const sessions = useLiveSessions();
+
+  const [preferences, setPreferences] = useState<Preferences>({
+    media: false,
+    archiveAfterDays: 7,
+  });
+  useEffect(() => {
+    void getPreferences()
+      .then(setPreferences)
+      .catch(() => {});
+  }, []);
+  const changeMedia = useCallback((media: boolean) => {
+    setPreferences((p) => ({ ...p, media }));
+    void setMedia(media);
+  }, []);
+  const changeArchiveAfterDays = useCallback((archiveAfterDays: number) => {
+    setPreferences((p) => ({ ...p, archiveAfterDays }));
+    void setArchiveAfterDays(archiveAfterDays);
+  }, []);
+
+  // Completed plans are put away on launch and each time the board comes
+  // into view. Never on a timer, and never on a watcher event.
+  const onBoard = mainView === "board";
+  const launched = useRef(false);
+  useEffect(() => {
+    if (launched.current && !onBoard) return;
+    launched.current = true;
+    void archiveStale()
+      .then((archived) => archived > 0 && refreshPlans())
+      .catch(() => {});
+  }, [onBoard, refreshPlans]);
 
   // The open threads are read with the plans, on the same base-changed
   // event: nothing polls, and a build without the command just shows none.
@@ -580,10 +621,22 @@ export default function App() {
   const changeStatus = useCallback(
     (status: Status) => {
       if (!activePlan) return;
-      void setPlanStatus(activePlan.path, status).then(refreshPlans);
+      const plan = activePlan;
+      void setPlanStatus(plan.path, status).then(async () => {
+        refreshPlans();
+        // Setting alignment is the person handing the plan back: the
+        // session on it starts asking its questions.
+        if (status === "alignment") setSendNotice(deliveryLine(await sendAlign(plan.id)));
+      });
     },
     [activePlan, refreshPlans],
   );
+
+  // Read only while it can matter: a plan in review waits on its PRs.
+  const reviewRecord = useWorkRecord(
+    activePlan?.status === "in-review" ? activePlan.path : null,
+  );
+  const offerCompletion = activePlan != null && offersCompletion(activePlan.status, reviewRecord);
 
   const changeFolders = useCallback(
     (plan: PlanSummary, folders: string[]) => {
@@ -1294,18 +1347,11 @@ export default function App() {
     (t) => !t.resolved && !t.pending,
   ).length;
 
-  // One line under the top bar's buttons, gone a moment later. Comments are
-  // the only thing that needs saying, so there is no toast to build on.
-  const [sendNotice, setSendNotice] = useState<string | null>(null);
   const onSendReview = useCallback(() => {
     void sendReview()
       .then(({ threads, sessions }) => {
         if (threads === 0) return;
-        setSendNotice(
-          sessions > 0
-            ? `Sent to ${sessions} ${sessions === 1 ? "session" : "sessions"}.`
-            : "Saved. Agents get it on their next call.",
-        );
+        setSendNotice(deliveryLine(sessions));
       })
       .catch(() => setSendNotice("Could not send. Your comments are saved."));
   }, [sendReview]);
@@ -1480,6 +1526,7 @@ export default function App() {
           crumb={crumb}
           plan={activePlan}
           onStatusChange={changeStatus}
+          offerCompletion={offerCompletion}
           onOpenLead={openCrumbLead}
           folders={knownFolders}
           folder={folder}
@@ -1628,6 +1675,7 @@ export default function App() {
                 editorRef={editorRef}
                 articleRef={articleRef}
                 dark={dark}
+                media={preferences.media}
                 onEditorChange={onEditorChange}
                 onEnterEdit={toggleEdit}
                 onRetry={() => setReloadKey((k) => k + 1)}
@@ -1698,6 +1746,9 @@ export default function App() {
         contentWidth={contentWidth}
         onContentWidthChange={setContentWidth}
         base={base}
+        preferences={preferences}
+        onMediaChange={changeMedia}
+        onArchiveAfterDaysChange={changeArchiveAfterDays}
       />
 
       <FindBar

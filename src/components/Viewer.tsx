@@ -49,6 +49,8 @@ interface ViewerProps {
   articleRef: RefObject<HTMLDivElement | null>;
   /** Re-renders mermaid diagrams with the matching neutral palette. */
   dark: boolean;
+  /** Whether videos and `html` fences play, from the media setting. */
+  media: boolean;
   onEditorChange: () => void;
   onEnterEdit: () => void;
   onRetry: () => void;
@@ -66,6 +68,7 @@ export function Viewer({
   editorRef,
   articleRef,
   dark,
+  media,
   onEditorChange,
   onEnterEdit,
   onRetry,
@@ -203,9 +206,10 @@ export function Viewer({
           work={doc.path === plan.path ? plan : null}
           docPath={doc.path}
           dark={dark}
+          media={media}
         />
       ) : (
-        <Markdown content={previewContent ?? ""} docPath={doc.path} dark={dark} media />
+        <Markdown content={previewContent ?? ""} docPath={doc.path} dark={dark} media={media} />
       )}
     </div>
   );

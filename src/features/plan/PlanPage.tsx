@@ -24,16 +24,18 @@ function Body({
   line,
   docPath,
   dark,
+  media,
 }: {
   content: string;
   line: number;
   docPath?: string;
   dark: boolean;
+  media: boolean;
 }) {
   // Each slice parses on its own, so the offset puts its stamps back into the
   // body's lines. Comments anchor to those stamps.
   return (
-    <Markdown content={content} lineOffset={line - 1} docPath={docPath} dark={dark} media />
+    <Markdown content={content} lineOffset={line - 1} docPath={docPath} dark={dark} media={media} />
   );
 }
 
@@ -41,10 +43,12 @@ function Decisions({
   section,
   docPath,
   dark,
+  media,
 }: {
   section: PlanSection;
   docPath?: string;
   dark: boolean;
+  media: boolean;
 }) {
   const slices = useMemo(
     () => splitDecisions(section.body, section.line),
@@ -55,7 +59,7 @@ function Decisions({
       {slices.map((slice) =>
         slice.card ? (
           <div key={slice.line} className="plan-decision">
-            <Body content={slice.body} line={slice.line} docPath={docPath} dark={dark} />
+            <Body content={slice.body} line={slice.line} docPath={docPath} dark={dark} media={media} />
           </div>
         ) : (
           <Body
@@ -64,6 +68,7 @@ function Decisions({
             line={slice.line}
             docPath={docPath}
             dark={dark}
+            media={media}
           />
         ),
       )}
@@ -81,6 +86,8 @@ interface PlanPageProps {
   work: PlanSummary | null;
   docPath?: string;
   dark: boolean;
+  /** Whether videos and `html` fences play, from the media setting. */
+  media: boolean;
 }
 
 /**
@@ -89,7 +96,7 @@ interface PlanPageProps {
  * markdown renderer, so the source-line stamps comments anchor to are
  * untouched.
  */
-export function PlanPage({ body, title, type, work, docPath, dark }: PlanPageProps) {
+export function PlanPage({ body, title, type, work, docPath, dark, media }: PlanPageProps) {
   const plan = useMemo(() => splitSections(body, title), [body, title]);
   const missing = useMemo(
     () => missingSections(type, plan.sections.map((section) => section.heading)),
@@ -107,6 +114,7 @@ export function PlanPage({ body, title, type, work, docPath, dark }: PlanPagePro
             line={plan.lead.line}
             docPath={docPath}
             dark={dark}
+            media={media}
           />
         </div>
       )}
@@ -116,13 +124,14 @@ export function PlanPage({ body, title, type, work, docPath, dark }: PlanPagePro
           <section key={section.line} className="plan-section" data-kind={section.kind}>
             {name && <p className="plan-section-kicker">{name}</p>}
             {section.kind === "decisions" ? (
-              <Decisions section={section} docPath={docPath} dark={dark} />
+              <Decisions section={section} docPath={docPath} dark={dark} media={media} />
             ) : (
               <Body
                 content={section.body}
                 line={section.line}
                 docPath={docPath}
                 dark={dark}
+                media={media}
               />
             )}
           </section>

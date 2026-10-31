@@ -11,6 +11,7 @@ import {
   setStandardsOverrides,
   type Authoring,
   type BaseInfo,
+  type Preferences,
   type Standards,
 } from "@/lib/planBase";
 import {
@@ -19,6 +20,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { BrandMark } from "@/components/BrandMark";
 import { isTauri } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -94,6 +97,49 @@ interface SettingsDialogProps {
   contentWidth: ContentWidth;
   onContentWidthChange: (value: ContentWidth) => void;
   base: BaseInfo | null;
+  preferences: Preferences;
+  onMediaChange: (on: boolean) => void;
+  onArchiveAfterDaysChange: (days: number) => void;
+}
+
+/** A whole number of days, or null while the field holds something else. */
+function parseDays(text: string): number | null {
+  return /^\d{1,4}$/.test(text.trim()) ? Number(text.trim()) : null;
+}
+
+function ArchiveDays({
+  days,
+  onChange,
+}: {
+  days: number;
+  onChange: (days: number) => void;
+}) {
+  // The field keeps what is typed, so clearing it to type a new number does
+  // not snap back. Only a whole number is saved.
+  const [text, setText] = useState(String(days));
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={9999}
+        value={text}
+        aria-label="Days before a completed plan is archived"
+        aria-invalid={parseDays(text) == null}
+        onChange={(e) => {
+          setText(e.target.value);
+          const next = parseDays(e.target.value);
+          if (next != null) onChange(next);
+        }}
+        onBlur={() => setText(String(days))}
+        className="h-7 w-16 text-right"
+      />
+      <span className="w-10 text-sm text-muted-foreground">
+        {days === 0 ? "Never" : days === 1 ? "day" : "days"}
+      </span>
+    </div>
+  );
 }
 
 export function SettingsDialog({
@@ -106,6 +152,9 @@ export function SettingsDialog({
   contentWidth,
   onContentWidthChange,
   base,
+  preferences,
+  onMediaChange,
+  onArchiveAfterDaysChange,
 }: SettingsDialogProps) {
   const [section, setSection] = useState<SectionId>("general");
   const [version, setVersion] = useState<string | null>(null);
@@ -216,6 +265,19 @@ export function SettingsDialog({
                     />
                   </Row>
                 </div>
+
+                <h2 className="pt-5 pb-1 text-sm font-semibold">Plans</h2>
+                <div className="divide-y divide-border">
+                  <Row
+                    label="Archive completed plans after"
+                    hint="Checked when you open the app or the board. Set 0 to never archive."
+                  >
+                    <ArchiveDays
+                      days={preferences.archiveAfterDays}
+                      onChange={onArchiveAfterDaysChange}
+                    />
+                  </Row>
+                </div>
               </>
             )}
 
@@ -237,6 +299,16 @@ export function SettingsDialog({
                         label: AUTHORING_LABELS[value],
                       }))}
                       onChange={chooseAuthoring}
+                    />
+                  </Row>
+                  <Row
+                    label="Media in plans"
+                    hint="Agents may add short videos and interactive pieces. They stay inside the plan folder."
+                  >
+                    <Switch
+                      checked={preferences.media}
+                      onCheckedChange={onMediaChange}
+                      aria-label="Media in plans"
                     />
                   </Row>
                 </div>

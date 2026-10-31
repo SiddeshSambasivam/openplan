@@ -50,6 +50,8 @@ interface HeaderProps {
   /** The open plan, for the status picker. */
   plan: PlanSummary | null;
   onStatusChange: (status: Status) => void;
+  /** Every recorded PR reads merged on a plan in review. */
+  offerCompletion: boolean;
   /** Opens what the crumb sits under: the plan of a document. */
   onOpenLead: () => void;
   /** Every folder in the base, for the filter. */
@@ -82,7 +84,8 @@ interface HeaderProps {
   /** Threads written but not sent. Zero hides the Send button. */
   pendingCommentCount: number;
   onSendReview: () => void;
-  /** What the last send did. Cleared by whoever set it. */
+  /** Whether the last review or align event reached a session. Cleared by
+   * whoever set it. */
   sendNotice: string | null;
   onOpenFind: () => void;
   /** Keep clear of the macOS traffic lights when the sidebar is hidden. */
@@ -94,6 +97,7 @@ export function Header({
   crumb,
   plan,
   onStatusChange,
+  offerCompletion,
   onOpenLead,
   folders,
   folder,
@@ -242,6 +246,17 @@ export function Header({
         <StatusPicker key={plan.id} status={plan.status} onChange={onStatusChange} />
       )}
 
+      {onPlan && offerCompletion && (
+        <>
+          <span className="truncate pl-1 text-xs text-muted-foreground">
+            All pull requests are merged.
+          </span>
+          <Button size="xs" variant="outline" onClick={() => onStatusChange("completed")}>
+            Mark completed
+          </Button>
+        </>
+      )}
+
       {showDocTools && wordCount != null && (
         <span className="pointer-events-none pr-1.5 text-xs tabular-nums text-muted-foreground">
           {wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"}
@@ -283,8 +298,11 @@ export function Header({
         </TooltipButton>
       )}
 
-      {showDocTools && inPreview && canComment && sendNotice && (
-        <span className="max-w-56 animate-in truncate pl-1 text-xs text-muted-foreground fade-in slide-in-from-right-2 duration-200">
+      {onPlan && sendNotice && (
+        <span
+          title={sendNotice}
+          className="max-w-80 animate-in truncate pl-1 text-xs text-muted-foreground fade-in slide-in-from-right-2 duration-200"
+        >
           {sendNotice}
         </span>
       )}
