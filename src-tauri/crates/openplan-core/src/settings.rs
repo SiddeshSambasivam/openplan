@@ -137,6 +137,11 @@ pub fn current_check_updates() -> bool {
     check_updates_on(saved().and_then(|s| s.check_updates))
 }
 
+/// What the person said they do, read the way the MCP server reads it.
+pub fn current_role() -> Option<PersonRole> {
+    saved().and_then(|s| s.role)
+}
+
 /// Sets the name and email the person typed. A blank field is stored as
 /// absent, so the git config answers for it again. Nothing changes when the
 /// email is refused.

@@ -12,6 +12,7 @@ use openplan_core::library::PlanEntry;
 use openplan_core::local::{self, Event};
 use openplan_core::plan::{self, slugify, Plan, PlanMeta, Status};
 use openplan_core::repo::{self, Author};
+use openplan_core::roles::{self, PersonRole};
 use openplan_core::work::{self, TodoState, WorkRecord};
 use openplan_core::{comments, fs, library, settings, standards};
 use serde_json::{json, Value};
@@ -491,19 +492,20 @@ fn resolve_comment(base: &Base, author: &str, args: &Value) -> Value {
     text_result("Resolved.", false)
 }
 
-fn get_standards() -> Value {
+fn get_standards(role: Option<PersonRole>) -> Value {
     let overrides = settings::settings_path()
         .ok()
         .and_then(|p| settings::read_settings(&p).ok().flatten())
         .and_then(|s| s.standards);
-    text_result(
-        standards::effective_with_media(
-            settings::current_authoring(),
-            settings::current_media(),
-            overrides.as_deref(),
-        ),
-        false,
-    )
+    let mut served = standards::effective_with_media(
+        settings::current_authoring(),
+        settings::current_media(),
+        overrides.as_deref(),
+    );
+    if let Some(role) = role {
+        served.push_str(&format!("\n{}", roles::who_is_answering(role)));
+    }
+    text_result(served, false)
 }
 
 /// What the app has sent this session, waiting for somewhere to put it.
@@ -655,8 +657,8 @@ fn call_tool(
         "get_comments" => get_comments(base, args),
         "reply_comment" => reply_comment(base, author, args),
         "resolve_comment" => resolve_comment(base, author, args),
-        "get_standards" => get_standards(),
-        "ask_questions" => work_tools::ask_questions(base, author, args),
+        "get_standards" => get_standards(settings::current_role()),
+        "ask_questions" => work_tools::ask_questions(base, author, settings::current_role(), args),
         "record_alignment" => work_tools::record_alignment(base, author, args),
         "add_decisions" => work_tools::add_decisions(base, author, args),
         "add_todos" => work_tools::add_todos(base, author, session.map(local::Client::id), args),
@@ -844,6 +846,17 @@ mod tests {
 
         assert!(describe(true).contains("Media is on"), "{}", describe(true));
         assert!(describe(false).contains("Media is off"), "{}", describe(false));
+    }
+
+    #[test]
+    fn the_standards_say_who_is_answering_only_once_the_person_picked_a_role() {
+        let served = |role| get_standards(role)["content"][0]["text"].as_str().unwrap().to_string();
+
+        let without = served(None);
+        let designer = served(Some(PersonRole::Designer));
+
+        assert!(!without.contains("Who is answering."), "{without}");
+        assert_eq!(designer, format!("{without}\n{}", roles::who_is_answering(PersonRole::Designer)));
     }
 
     #[test]

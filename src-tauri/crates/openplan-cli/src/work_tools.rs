@@ -6,7 +6,8 @@ use crate::mcp::{commit, find_entry, move_plan, text_result};
 use openplan_core::base::Base;
 use openplan_core::library::PlanEntry;
 use openplan_core::plan::{self, Status};
-use openplan_core::work::{self, Answer, Decision, NewTodo, Pr, Question, Repo, TodoState, WorkRecord};
+use openplan_core::roles::{self, PersonRole, PersonRolePanel};
+use openplan_core::work::{self, Answer, Decision, NewTodo, Pr, Question, Repo, Role, TodoState, WorkRecord};
 use openplan_core::fs;
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
@@ -152,8 +153,8 @@ fn questions_schema(answered: bool) -> Value {
             "aspect": { "type": "string", "description": "The question bank aspect, such as tests or edge cases" },
             "role": {
                 "type": "string",
-                "enum": ["product", "engineering", "design", "oncall"],
-                "description": "Who asks it: product is the product owner, engineering the tech lead, design the designer, and oncall the on-call engineer, the person paged when it breaks"
+                "enum": Role::KNOWN.iter().map(Role::as_str).collect::<Vec<_>>(),
+                "description": "Who asks it: product is the product owner, engineering the tech lead, design the designer, oncall the on-call engineer, the person paged when it breaks, research the researcher, accessibility the accessibility reviewer, data the data analyst, security the security reviewer, and support the support lead. When get_standards has a Who is answering section, ask only from the panel it names."
             },
             "question": { "type": "string" },
             "context": { "type": "string", "description": "Two to four sentences on why this question matters for this plan and what you found in the code or the plan that raised it. Name the files where they apply." },
@@ -222,6 +223,11 @@ pub fn record_alignment(base: &Base, author: &str, args: &Value) -> Value {
         Ok(_) => return text_result("record_alignment needs the questions you asked.", true),
         Err(e) => return text_result(e, true),
     };
+    // No panel check: an answer to a question posted before the person
+    // changed role still records.
+    if let Err(e) = check_roles(&questions, None) {
+        return text_result(e, true);
+    }
     let recorded = change_record(&entry, |record| {
         work::record_alignment(record, questions).map_err(|ids| {
             format!(
@@ -244,7 +250,8 @@ pub fn record_alignment(base: &Base, author: &str, args: &Value) -> Value {
     finish(base, author, "align", &entry, reply)
 }
 
-pub fn ask_questions(base: &Base, author: &str, args: &Value) -> Value {
+/// `role` is the person's, whose panel alone may ask.
+pub fn ask_questions(base: &Base, author: &str, role: Option<PersonRole>, args: &Value) -> Value {
     let entry = match find_entry(base, args) {
         Ok(entry) => entry,
         Err(reply) => return reply,
@@ -264,6 +271,9 @@ pub fn ask_questions(base: &Base, author: &str, args: &Value) -> Value {
         Ok(_) => return text_result("ask_questions needs the questions to post.", true),
         Err(e) => return text_result(e, true),
     };
+    if let Err(e) = check_roles(&questions, role.map(roles::panel_of)) {
+        return text_result(e, true);
+    }
     let ids: Vec<String> = questions.iter().map(|q| q.id.clone()).collect();
     if let Err(e) = change_record(&entry, |record| work::ask_questions(record, questions)) {
         return text_result(e, true);
@@ -611,6 +621,32 @@ fn parse_item<T: DeserializeOwned>(item: &Value, stamps: &[(&str, Value)]) -> Re
     serde_json::from_value(item)
 }
 
+/// Refuses the first question asked from a role this build does not know,
+/// or from outside the person's panel when they have one. A question with
+/// no role is from before roles and passes.
+fn check_roles(questions: &[Question], panel: Option<&PersonRolePanel>) -> Result<(), String> {
+    for question in questions {
+        let Some(role) = &question.role else { continue };
+        let (id, asks) = (&question.id, role.as_str());
+        if !Role::KNOWN.contains(role) {
+            let known: Vec<&str> = Role::KNOWN.iter().map(Role::as_str).collect();
+            return Err(format!("{id} asks as {asks}, which is not a role. Use one of these: {}.", known.join(", ")));
+        }
+        if let Some(panel) = panel.filter(|panel| !panel.panel.iter().any(|member| &member.role == role)) {
+            let members: Vec<String> = panel
+                .panel
+                .iter()
+                .filter_map(|member| roles::persona(&member.role).map(|p| format!("{} ({})", p.name, member.role.as_str())))
+                .collect();
+            return Err(format!(
+                "{id} asks as {asks}, who is not on the person's panel. Ask only from {}.",
+                listed(&members)
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// "t1", "t1 and t2", "t1, t2 and t3".
 fn listed(ids: &[String]) -> String {
     match ids {
@@ -780,14 +816,88 @@ mod tests {
     }
 
     #[test]
-    fn a_question_names_one_of_four_roles_and_says_what_each_is() {
+    fn a_question_names_one_of_nine_roles_and_says_what_each_is() {
         let role = &schema_of("record_alignment")["properties"]["questions"]["items"]["properties"]["role"];
 
-        assert_eq!(role["enum"], json!(["product", "engineering", "design", "oncall"]));
+        assert_eq!(
+            role["enum"],
+            json!([
+                "product", "engineering", "design", "oncall", "research",
+                "accessibility", "data", "security", "support"
+            ])
+        );
         let description = role["description"].as_str().unwrap();
-        for who in ["product owner", "tech lead", "designer", "the person paged when it breaks"] {
-            assert!(description.contains(who), "{description}");
+        for who in [
+            "product owner", "tech lead", "designer", "the person paged when it breaks", "researcher",
+            "accessibility reviewer", "data analyst", "security reviewer", "support lead", "Who is answering",
+        ] {
+            assert!(description.contains(who), "{who}: {description}");
         }
+    }
+
+    fn base_with_a_draft(name: &str) -> Base {
+        let dir = std::env::temp_dir().join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        let base = openplan_core::base::ensure_base(&dir).unwrap();
+        openplan_core::repo::init(&base.root).unwrap();
+        std::fs::write(base.plans_dir().join("p.md"), "---\nid: p\ntitle: P\nstatus: draft\n---\n# P\n").unwrap();
+        base
+    }
+
+    fn asked_by(role: &str) -> Value {
+        json!({ "id": "p", "questions": [
+            { "id": "q1", "aspect": "scope", "role": role, "question": "Who gets it first?", "options": [{ "id": "a", "label": "Everyone" }] }
+        ] })
+    }
+
+    fn reply_text(reply: &Value) -> &str {
+        reply["content"][0]["text"].as_str().unwrap()
+    }
+
+    #[test]
+    fn a_person_with_a_role_is_asked_only_by_their_panel() {
+        let base = base_with_a_draft("openplan-cli-panel-check");
+
+        let outside = ask_questions(&base, "claude-code", Some(PersonRole::Designer), &asked_by("security"));
+
+        assert_eq!(outside["isError"], true, "{outside}");
+        assert_eq!(
+            reply_text(&outside),
+            "q1 asks as security, who is not on the person's panel. Ask only from Iris (design), Noor (research), Ada (accessibility) and Theo (engineering)."
+        );
+        let inside = ask_questions(&base, "claude-code", Some(PersonRole::Designer), &asked_by("research"));
+        assert_eq!(inside["isError"], false, "{inside}");
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn without_a_role_any_of_the_nine_may_ask_but_not_a_role_this_build_does_not_know() {
+        let base = base_with_a_draft("openplan-cli-panel-none");
+
+        let research = ask_questions(&base, "claude-code", None, &asked_by("research"));
+        let unknown = ask_questions(&base, "claude-code", None, &asked_by("legal"));
+
+        assert_eq!(research["isError"], false, "{research}");
+        assert_eq!(unknown["isError"], true, "{unknown}");
+        assert!(reply_text(&unknown).starts_with("q1 asks as legal, which is not a role."), "{unknown}");
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn recording_an_answer_takes_any_of_the_nine_but_not_a_role_this_build_does_not_know() {
+        let base = base_with_a_draft("openplan-cli-record-roles");
+        let answered = |role: &str| {
+            let mut args = asked_by(role);
+            args["questions"][0]["answer"] = json!({ "kind": "agent" });
+            args
+        };
+
+        let unknown = record_alignment(&base, "claude-code", &answered("legal"));
+        let support = record_alignment(&base, "claude-code", &answered("support"));
+
+        assert_eq!(unknown["isError"], true, "{unknown}");
+        assert_eq!(support["isError"], false, "{support}");
+        let _ = std::fs::remove_dir_all(&base.root);
     }
 
     #[test]
