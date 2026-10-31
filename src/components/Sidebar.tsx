@@ -20,6 +20,7 @@ import {
   loadCollapsedSections,
   markStart,
   navbarToggleLabel,
+  rowHasTooltip,
   saveCollapsedSections,
   toggleSection,
   type SectionId,
@@ -331,11 +332,15 @@ function NavRow({
     </button>
   );
   // The tooltip stays mounted in both modes so a mode change only
-  // re-renders the rows rather than mounting a tooltip for each one.
+  // re-renders the rows rather than mounting a tooltip for each one. A row
+  // with nothing to say is held closed: Radix closes a hovered tooltip from
+  // its content, so one opened without content would stay open, unseen,
+  // until the rail minimized and every such row showed at once.
+  const hasTooltip = rowHasTooltip(minimized, shortcut);
   return (
-    <Tooltip>
+    <Tooltip open={hasTooltip ? undefined : false} disableHoverableContent>
       <TooltipTrigger asChild>{row}</TooltipTrigger>
-      {(minimized || shortcut) && (
+      {hasTooltip && (
         <TooltipContent side="right" sideOffset={6}>
           <ShortcutLabel label={label} keys={shortcut && registryEntry(shortcut).keys} />
         </TooltipContent>

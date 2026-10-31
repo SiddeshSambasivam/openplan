@@ -59,6 +59,13 @@ export function pressNavbarKey(state: NavbarState, narrow: boolean): NavbarState
   return { mode: state.mode === "expanded" ? "minimized" : "expanded", revealed: false };
 }
 
+/** Whether a navbar row has anything to say in a tooltip: its label when
+ * the rail hides it, or its key. A row with nothing to say must never open
+ * one, since an empty tooltip has no content to close it. */
+export function rowHasTooltip(minimized: boolean, shortcut: string | undefined): boolean {
+  return minimized || shortcut != null;
+}
+
 export function navbarToggleLabel(expanded: boolean): string {
   return expanded ? "Collapse navbar" : "Expand navbar";
 }

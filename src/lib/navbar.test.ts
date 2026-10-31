@@ -5,6 +5,7 @@ import {
   navbarLayout,
   navbarSections,
   navbarToggleLabel,
+  rowHasTooltip,
   parseNavbarMode,
   pressNavbarKey,
   markStart,
@@ -195,5 +196,13 @@ describe("toggleSection", () => {
   it("folds a section and unfolds it again", () => {
     expect(toggleSection([], "folders")).toEqual(["folders"]);
     expect(toggleSection(["folders", "recent"], "folders")).toEqual(["recent"]);
+  });
+});
+
+describe("rowHasTooltip", () => {
+  it("names a row only when the rail hides its label or it has a key", () => {
+    expect(rowHasTooltip(true, undefined)).toBe(true);
+    expect(rowHasTooltip(false, "board")).toBe(true);
+    expect(rowHasTooltip(false, undefined)).toBe(false);
   });
 });
