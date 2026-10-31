@@ -1,4 +1,12 @@
-import { Download, FileText, Folder, Info, SlidersHorizontal, UserRound } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Folder,
+  Info,
+  RefreshCw,
+  SlidersHorizontal,
+  UserRound,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { FONT_SIZE_LABELS, FONT_SIZE_ORDER, type FontSize } from "@/lib/fontSize";
 import { WIDTH_LABELS, WIDTH_ORDER, type ContentWidth } from "@/lib/width";
@@ -24,7 +32,10 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { BrandMark } from "@/components/BrandMark";
 import { Segmented } from "@/components/Segmented";
-import { isTauri } from "@/lib/platform";
+import { isTauri, isWindows, openExternal } from "@/lib/platform";
+import { installTooltip, updateMessage, type UpdateState } from "@/lib/updates";
+import { UPDATES_WORK } from "@/lib/useUpdates";
+import { TooltipButton } from "@/components/TooltipButton";
 import { cn } from "@/lib/utils";
 import type { Identity } from "@/lib/comments";
 import { ImportPlans } from "./ImportPlans";
@@ -36,6 +47,7 @@ const SECTIONS = [
   { id: "standards", label: "Standards", icon: FileText },
   { id: "base", label: "Plan base", icon: Folder },
   { id: "import", label: "Import plans", icon: Download },
+  { id: "updates", label: "Updates", icon: RefreshCw },
   { id: "about", label: "About", icon: Info },
 ] as const;
 
@@ -88,6 +100,11 @@ interface SettingsDialogProps {
   onWakeChange: (on: boolean) => void;
   onArchiveAfterDaysChange: (days: number) => void;
   onAlignmentTargetChange: (percent: number) => void;
+  onCheckUpdatesChange: (on: boolean) => void;
+  update: UpdateState;
+  onCheckForUpdates: () => void;
+  /** Installs the version a check found, saving unsaved edits first. */
+  onUpdate: () => void;
 }
 
 /** A whole number up to `max`, or null while the field holds something else. */
@@ -159,6 +176,10 @@ export function SettingsDialog({
   onWakeChange,
   onArchiveAfterDaysChange,
   onAlignmentTargetChange,
+  onCheckUpdatesChange,
+  update,
+  onCheckForUpdates,
+  onUpdate,
 }: SettingsDialogProps) {
   const [version, setVersion] = useState<string | null>(null);
   const [standards, setStandards] = useState<Standards | null>(null);
@@ -388,6 +409,41 @@ export function SettingsDialog({
               </>
             )}
 
+            {section === "updates" && (
+              <>
+                <h2 className="text-sm font-semibold">Updates</h2>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Nothing downloads until you click Update.
+                </p>
+                <div className="mt-4 divide-y divide-border border-t border-border">
+                  <Row
+                    label={`Version ${version ?? "…"}`}
+                    hint={
+                      UPDATES_WORK
+                        ? (updateMessage(update) ?? undefined)
+                        : "Updates work in the installed app."
+                    }
+                  >
+                    <UpdateAction
+                      state={update}
+                      onCheck={onCheckForUpdates}
+                      onUpdate={onUpdate}
+                    />
+                  </Row>
+                  <Row
+                    label="Check for updates automatically"
+                    hint="When OpenPlan opens, and once a day while it stays open."
+                  >
+                    <Switch
+                      checked={preferences.checkUpdates}
+                      onCheckedChange={onCheckUpdatesChange}
+                      aria-label="Check for updates automatically"
+                    />
+                  </Row>
+                </div>
+              </>
+            )}
+
             {section === "about" && (
               <>
                 <div className="flex items-center gap-2.5 pt-1">
@@ -466,6 +522,46 @@ export function SettingsDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The one thing to do next: check, install what a check found, or
+ * download it when this copy can't update itself. */
+function UpdateAction({
+  state,
+  onCheck,
+  onUpdate,
+}: {
+  state: UpdateState;
+  onCheck: () => void;
+  onUpdate: () => void;
+}) {
+  if (state.kind === "available" || state.kind === "installFailed") {
+    return (
+      <TooltipButton
+        size="sm"
+        onClick={onUpdate}
+        tooltip={installTooltip(isWindows)}
+        tooltipAlign="end"
+      >
+        {state.kind === "available" ? "Update" : "Try again"}
+      </TooltipButton>
+    );
+  }
+  if (state.kind === "packageInstall" && state.downloadUrl) {
+    const url = state.downloadUrl;
+    return (
+      <Button size="sm" variant="outline" onClick={() => void openExternal(url)}>
+        Download
+      </Button>
+    );
+  }
+  const busy =
+    state.kind === "checking" || state.kind === "downloading" || state.kind === "installing";
+  return (
+    <Button size="sm" variant="outline" disabled={!UPDATES_WORK || busy} onClick={onCheck}>
+      Check for updates
+    </Button>
   );
 }
 

@@ -108,6 +108,7 @@ import {
   setAlignmentTarget,
   setArchiveAfterDays,
   setBaseFolders,
+  setCheckUpdates,
   setFolders,
   setMedia,
   setPlanStatus,
@@ -146,6 +147,9 @@ import { usePrStateRefresh } from "./lib/usePrStateRefresh";
 import { ForYouView } from "./features/board/ForYouView";
 import { ListView } from "./features/board/ListView";
 import { DeletePlansDialog } from "./features/board/DeletePlansDialog";
+import { useUpdates } from "./lib/useUpdates";
+import { UpdateNotice } from "./components/UpdateNotice";
+import { SaveBeforeUpdateDialog } from "./components/SaveBeforeUpdateDialog";
 import { usePlanActions } from "./features/board/PlanActions";
 import { planPathsIn, SelectionArea } from "./features/board/SelectionArea";
 import { holdsDocument } from "./lib/planActions";
@@ -272,6 +276,8 @@ export default function App() {
     wake: true,
     archiveAfterDays: 7,
     alignmentTarget: 80,
+    // Off until the saved value arrives, so the launch check waits for it.
+    checkUpdates: false,
   });
   useEffect(() => {
     void getPreferences()
@@ -293,6 +299,10 @@ export default function App() {
   const changeAlignmentTarget = useCallback((alignmentTarget: number) => {
     setPreferences((p) => ({ ...p, alignmentTarget }));
     void setAlignmentTarget(alignmentTarget);
+  }, []);
+  const changeCheckUpdates = useCallback((checkUpdates: boolean) => {
+    setPreferences((p) => ({ ...p, checkUpdates }));
+    void setCheckUpdates(checkUpdates);
   }, []);
 
   // Completed plans are put away on launch and each time the board comes
@@ -545,6 +555,25 @@ export default function App() {
       void flushSave();
     }, 800);
   }, [flushSave]);
+
+  /* ---------- updates ---------- */
+
+  // True once nothing is left unsaved. A failed save has already said why.
+  const saveForUpdate = useCallback(async () => {
+    await flushSave();
+    return !dirtyRef.current;
+  }, [flushSave]);
+  const updates = useUpdates({ enabled: preferences.checkUpdates, save: saveForUpdate });
+  const [savingBeforeUpdate, setSavingBeforeUpdate] = useState(false);
+  const { install: installUpdate } = updates;
+  const requestUpdate = useCallback(() => {
+    if (dirtyRef.current) setSavingBeforeUpdate(true);
+    else installUpdate();
+  }, [installUpdate]);
+  const saveThenUpdate = useCallback(async () => {
+    setSavingBeforeUpdate(false);
+    if (await saveForUpdate()) installUpdate();
+  }, [saveForUpdate, installUpdate]);
 
   const canEdit =
     activeDoc != null &&
@@ -1825,6 +1854,15 @@ export default function App() {
           folders={knownFolders}
           folder={folder}
           onSelectFolder={setChosenFolder}
+          updateNotice={
+            updates.noticeShown && (
+              <UpdateNotice
+                state={updates.state}
+                onUpdate={requestUpdate}
+                onLater={updates.later}
+              />
+            )
+          }
           viewTools={
             mainView === "board" && (
               <>
@@ -2099,6 +2137,16 @@ export default function App() {
         onWakeChange={changeWake}
         onArchiveAfterDaysChange={changeArchiveAfterDays}
         onAlignmentTargetChange={changeAlignmentTarget}
+        onCheckUpdatesChange={changeCheckUpdates}
+        update={updates.state}
+        onCheckForUpdates={updates.check}
+        onUpdate={requestUpdate}
+      />
+
+      <SaveBeforeUpdateDialog
+        open={savingBeforeUpdate}
+        onCancel={() => setSavingBeforeUpdate(false)}
+        onSaveAndUpdate={() => void saveThenUpdate()}
       />
 
       <FindBar

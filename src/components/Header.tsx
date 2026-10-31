@@ -74,6 +74,8 @@ interface HeaderProps {
   onSelectFolder: (folder: FolderFilter) => void;
   /** The current view's own controls, beside the folder filter. */
   viewTools?: ReactNode;
+  /** Word of a new version, shown on every view. */
+  updateNotice?: ReactNode;
   doc: DocFile | null;
   wordCount: number | null;
   view: ViewMode;
@@ -128,6 +130,7 @@ export function Header({
   folder,
   onSelectFolder,
   viewTools,
+  updateNotice,
   doc,
   wordCount,
   view,
@@ -212,6 +215,8 @@ export function Header({
           </h1>
         )}
       </div>
+
+      {updateNotice}
 
       {!onPlan && (
         <DropdownMenu>
