@@ -1,0 +1,133 @@
+import { describe, expect, it } from "vitest";
+import {
+  formatKeys,
+  isTypingTarget,
+  keysLabel,
+  parseKeys,
+  SHORTCUTS,
+  shortcutFor,
+  type KeyPress,
+  type Platform,
+} from "./shortcuts";
+
+function press(key: string, mods: Partial<KeyPress> = {}): KeyPress {
+  return { key, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...mods };
+}
+
+/** The key event a person makes for a registry key string on a platform. */
+function pressFor(keys: string, platform: Platform): KeyPress {
+  const { mod, shift, key } = parseKeys(keys);
+  const name = key === "enter" ? "Enter" : key === "escape" ? "Escape" : key;
+  return press(shift ? name.toUpperCase() : name, {
+    metaKey: mod && platform === "mac",
+    ctrlKey: mod && platform === "other",
+    shiftKey: shift || key === "?",
+  });
+}
+
+describe("formatKeys", () => {
+  it("renders the macOS symbols, shift before command", () => {
+    expect(formatKeys("mod+b", "mac")).toEqual(["⌘", "B"]);
+    expect(formatKeys("mod+shift+a", "mac")).toEqual(["⇧", "⌘", "A"]);
+    expect(formatKeys("mod+enter", "mac")).toEqual(["⌘", "↩"]);
+    expect(formatKeys("mod+\\", "mac")).toEqual(["⌘", "\\"]);
+    expect(keysLabel("mod+b", "mac")).toBe("⌘B");
+  });
+
+  it("spells the modifiers out elsewhere", () => {
+    expect(formatKeys("mod+b", "other")).toEqual(["Ctrl", "B"]);
+    expect(formatKeys("mod+shift+a", "other")).toEqual(["Ctrl", "Shift", "A"]);
+    expect(formatKeys("mod+enter", "other")).toEqual(["Ctrl", "Enter"]);
+    expect(keysLabel("mod+shift+a", "other")).toBe("Ctrl+Shift+A");
+  });
+
+  it("shows a bare key as itself", () => {
+    expect(formatKeys("?", "mac")).toEqual(["?"]);
+    expect(formatKeys("[", "other")).toEqual(["["]);
+    expect(formatKeys("escape", "mac")).toEqual(["Esc"]);
+  });
+});
+
+describe("shortcutFor", () => {
+  it("needs exactly the platform's own modifier", () => {
+    expect(shortcutFor(press("b", { metaKey: true }), "mac", false)).toBe("navbar");
+    expect(shortcutFor(press("b", { ctrlKey: true }), "other", false)).toBe("navbar");
+    expect(shortcutFor(press("b", { ctrlKey: true }), "mac", false)).toBeNull();
+    expect(shortcutFor(press("b", { metaKey: true }), "other", false)).toBeNull();
+    // ⌃⌘F full-screens on macOS.
+    expect(shortcutFor(press("f", { metaKey: true, ctrlKey: true }), "mac", false)).toBeNull();
+    expect(shortcutFor(press("b", { metaKey: true, altKey: true }), "mac", false)).toBeNull();
+  });
+
+  it("tells a chord with shift from the one without", () => {
+    expect(shortcutFor(press("B", { metaKey: true, shiftKey: true }), "mac", false)).toBe("rail");
+    expect(shortcutFor(press("s", { metaKey: true }), "mac", false)).toBe("save");
+    expect(shortcutFor(press("S", { metaKey: true, shiftKey: true }), "mac", false)).toBe("status");
+  });
+
+  it("reads a bare key without its modifiers", () => {
+    expect(shortcutFor(press("["), "mac", false)).toBe("previousPlan");
+    expect(shortcutFor(press("?", { shiftKey: true }), "other", false)).toBe("shortcuts");
+    expect(shortcutFor(press("Escape"), "mac", false)).toBe("escape");
+    expect(shortcutFor(press("[", { metaKey: true }), "mac", false)).toBeNull();
+    expect(shortcutFor(press("x"), "mac", false)).toBeNull();
+  });
+
+  it("fires nothing while typing except Escape and the editor's own chords", () => {
+    expect(shortcutFor(press("["), "mac", true)).toBeNull();
+    expect(shortcutFor(press("?", { shiftKey: true }), "mac", true)).toBeNull();
+    expect(shortcutFor(press("b", { metaKey: true }), "mac", true)).toBeNull();
+    expect(shortcutFor(press("Escape"), "mac", true)).toBe("escape");
+    expect(shortcutFor(press("e", { metaKey: true }), "mac", true)).toBe("edit");
+    expect(shortcutFor(press("s", { metaKey: true }), "mac", true)).toBe("save");
+  });
+});
+
+describe("isTypingTarget", () => {
+  const el = (tagName: string, isContentEditable = false) =>
+    ({ tagName, isContentEditable }) as unknown as EventTarget;
+
+  it("is true for text fields and editable content", () => {
+    expect(isTypingTarget(el("INPUT"))).toBe(true);
+    expect(isTypingTarget(el("TEXTAREA"))).toBe(true);
+    expect(isTypingTarget(el("SELECT"))).toBe(true);
+    expect(isTypingTarget(el("DIV", true))).toBe(true);
+  });
+
+  it("is false for everything else", () => {
+    expect(isTypingTarget(el("BUTTON"))).toBe(false);
+    expect(isTypingTarget(el("BODY"))).toBe(false);
+    expect(isTypingTarget(null)).toBe(false);
+  });
+});
+
+describe("the registry", () => {
+  it("gives every action a label and a group", () => {
+    for (const action of SHORTCUTS) {
+      expect(action.label.trim(), action.id).not.toBe("");
+      expect(action.group.trim(), action.id).not.toBe("");
+    }
+  });
+
+  it("has unique ids and unique keys", () => {
+    const ids = SHORTCUTS.map((action) => action.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const keys = SHORTCUTS.map((action) => action.keys);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("only uses keys it can read back from a key press, on both platforms", () => {
+    for (const platform of ["mac", "other"] as const) {
+      for (const action of SHORTCUTS) {
+        expect(shortcutFor(pressFor(action.keys, platform), platform, false), action.keys).toBe(
+          action.id,
+        );
+      }
+    }
+  });
+
+  it("refuses a key string it does not know", () => {
+    expect(() => parseKeys("hyper+b")).toThrow();
+    expect(() => parseKeys("mod+")).toThrow();
+  });
+});
