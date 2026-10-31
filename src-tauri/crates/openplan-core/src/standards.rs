@@ -320,10 +320,25 @@ mod tests {
             "`consequence`",
             "`tradeoff`",
             "`recommended`",
+            "the score reaches 100",
+            "80 by default",
+            "The required areas are edge cases, error handling and scale.",
+            "Make the settled answer the recommended option.",
+            "ask the person to say why",
+            "reasons carry the last 20 points",
+            "Never pad a round",
+            "\"Write my own\"",
         ] {
             assert!(alignment.contains(rule), "the Alignment section is missing {rule}");
         }
-        for gone in ["Accept all", "Let the agent decide", "must-answer", "at most 12"] {
+        for gone in [
+            "Accept all",
+            "Let the agent decide",
+            "must-answer",
+            "at most 12",
+            "never gates",
+            "count for nothing",
+        ] {
             assert!(!alignment.contains(gone), "the Alignment section still says {gone}");
         }
         assert_eq!(writing_faults(&alignment), Vec::<String>::new());

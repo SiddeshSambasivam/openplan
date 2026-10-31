@@ -17,7 +17,7 @@ pub fn tools() -> Vec<Value> {
     vec![
         json!({
             "name": "ask_questions",
-            "description": "Post alignment questions for the person, with no answers yet. The person answers on the plan's Alignment tab, or in the session. An answer can pick an option and carry a note with the person's reasoning. After posting, end your turn with one line that points the person to the questions. Record answers given in the session with record_alignment. Questions posted together are one round, and earlier rounds stay. Works while the plan is a draft, in alignment or in progress, and never changes its status. Add an illustration wherever a question is easier to see than to read.",
+            "description": "Post alignment questions for the person, with no answers yet. The person answers on the plan's Alignment tab, or in the session. An answer can pick an option and carry a note with the person's reasoning. After posting, end your turn with one line that points the person to the questions. Record answers given in the session with record_alignment. Questions posted together are one round, and earlier rounds stay. Works while the plan is a draft, in alignment or in progress, and never changes its status. Add an illustration wherever a question is easier to see than to read. Aim for an alignment score of 100 and settle edge cases, error handling and scale, because Build stays off until the score reaches the person's target.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "id": id, "questions": questions_schema(false) },
@@ -269,7 +269,7 @@ pub fn ask_questions(base: &Base, author: &str, args: &Value) -> Value {
         return text_result(e, true);
     }
     let reply = format!(
-        "Posted {} on {id}. End your turn with one line that points the person to them.",
+        "Posted {} on {id}. End your turn with one line that points the person to them. Aim for an alignment score of 100 and settle edge cases, error handling and scale, because Build stays off until the score reaches the person's target.",
         listed(&ids)
     );
     finish(base, author, "ask", &entry, reply)

@@ -4,6 +4,9 @@
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 
+/// What `ask_questions` tells agents, in its description and in its reply.
+const AIM_FOR_FULL_ALIGNMENT: &str = "Aim for an alignment score of 100";
+
 #[test]
 fn an_agent_can_file_a_plan_and_read_it_back() {
     let home = std::env::temp_dir().join(format!("openplan-mcp-session-{}", std::process::id()));
@@ -58,6 +61,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     for status in ["draft", "alignment", "in-progress", "in-review", "completed", "archived"] {
         assert!(described.contains(status), "the tools name every status: {status}");
     }
+    assert!(described.contains(AIM_FOR_FULL_ALIGNMENT), "ask_questions tells agents to aim for 100");
 
     let standards = ask(r##"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_standards","arguments":{}}}"##);
     assert!(standards["result"]["content"][0]["text"]
@@ -141,7 +145,9 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         {"id":"q4","aspect":"edge cases","role":"oncall","question":"Who is told when refresh keeps failing?","illustration":"```mermaid\nflowchart LR\n  fail --> alert\n```","options":[{"id":"a","label":"Page on-call","illustration":"An alert after 5 failures in a minute."}],"recommended":"a"}
     ]}}}"##.replace('\n', ""));
     assert_eq!(posted["result"]["isError"], false, "{posted}");
-    assert!(posted["result"]["content"][0]["text"].as_str().unwrap().contains("q4"), "{posted}");
+    let posted_reply = posted["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(posted_reply.contains("q4"), "{posted}");
+    assert!(posted_reply.contains(AIM_FOR_FULL_ALIGNMENT), "{posted}");
     let answered_again = ask(&r##"{"jsonrpc":"2.0","id":47,"method":"tools/call","params":{"name":"ask_questions","arguments":{"id":"auth-refactor","questions":[
         {"id":"q1","aspect":"tests","question":"What has to be tested?","options":[{"id":"a","label":"Unit tests"}]}
     ]}}}"##.replace('\n', ""));

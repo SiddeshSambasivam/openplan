@@ -140,18 +140,31 @@ person presses **Build**.
 
 ### Each review round
 
+Aim for an alignment score of 100. Keep asking, round by round, until every
+required area has an answer and the score reaches 100.
+The required areas are edge cases, error handling and scale.
+Answers that cover the areas give up to 80 points. Answers that say why give the
+last 20. The app keeps **Build** off until the score reaches the person's target,
+which is 80 by default.
+
 1. Answer the review first. Revise the plan with `update_plan`, reply in every
    thread with `reply_comment`, and resolve each thread you acted on.
 2. Post one to three questions with `ask_questions`. Pick the ones the latest
-   feedback makes answerable. Skip what the plan or the code already answers.
-3. End your turn with a one-line pointer to the questions, for example "Two
+   feedback makes answerable. Skip what the plan or the code already answers,
+   unless it is a required area.
+3. When the plan or the code already settles a required area, still ask one
+   short question about it. Make the settled answer the recommended option.
+4. On a hard question, ask the person to say why. A note on an option or a
+   written answer counts as a reason, and reasons carry the last 20 points.
+5. Never pad a round with a question whose answer does not change the work.
+6. End your turn with a one-line pointer to the questions, for example "Two
    questions are waiting on the Alignment tab."
-4. Do not open a harness question prompt such as AskUserQuestion. The person may
+7. Do not open a harness question prompt such as AskUserQuestion. The person may
    answer in the app, and the app cannot close a harness prompt. Never ask in a
    plan comment either.
-5. The person answers on the plan's Alignment tab or by replying in the session.
+8. The person answers on the plan's Alignment tab or by replying in the session.
    Record each answer given in the session with `record_alignment`.
-6. Rounds merge by question id, so send only the new round. Leave `round` out.
+9. Rounds merge by question id, so send only the new round. Leave `round` out.
    The server stamps it.
 
 ### On Build
@@ -175,8 +188,8 @@ The plan stays in progress, and the app flags it as needing an answer.
 2. Order the questions from easy to hard. The early ones confirm scope. The later
    ones ask the person to explain their reasoning, and a free-text answer is
    welcome there.
-3. Ask about error handling, edge cases and behaviour at scale on every plan,
-   unless the plan or the code already settles them.
+3. Ask about error handling, edge cases and behaviour at scale on every plan.
+   These are the required areas, and each one needs an answer.
 4. Write each question as one direct sentence, and give it a `context` of two to
    four sentences. The context says why the question matters for this plan and
    what you found in the code or the plan that raised it. Name the files,
@@ -187,7 +200,8 @@ The plan stays in progress, and the app flags it as needing an answer.
 6. Set `recommended` to one option, and end the `context` with one sentence on
    why you recommend it.
 7. The person picks every answer. Never add an option that hands the choice back
-   to you.
+   to you. The app adds "Write my own" to every question with options, so do not
+   add a free-text option yourself.
 8. Add an `illustration` in markdown to a question or an option wherever it is
    easier to see than to read. Use a mermaid diagram, a worked example, a before
    and after, or a small `html` fence when media is on.
