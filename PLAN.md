@@ -880,7 +880,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       `folders` and `completed`, stops writing `project` and `pr`; legacy reads **(T)**
 - [x] P7.2 Work record: schema, atomic read-modify-write under the base lock,
       `pr` migrated on first write **(T)**
-- [ ] P7.3 MCP: `update_plan`, `record_alignment`, `add_decisions`, `add_todos`,
+- [x] P7.3 MCP: `update_plan`, `record_alignment`, `add_decisions`, `add_todos`,
       `update_todo`, `record_pr`, `pr_body`, `set_repos`; `create_plan` takes
       `repos`; guards on `set_status`; presence no longer sets status **(T)**
 - [x] P7.4 Delete projects: `project.rs`, `projects.json`, `describe_project`,
@@ -890,7 +890,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [ ] P7.6 Align event through the loopback server; the picker's Alignment entry;
       the delivery line after Send; auto-archive on launch and board show with the
       days setting **(T)**
-- [ ] P7.7 Installers: Claude Code and Cursor Stop and UserPromptSubmit hooks,
+- [x] P7.7 Installers: Claude Code and Cursor Stop and UserPromptSubmit hooks,
       `openplan pending`, managed block text **(T)**
 - [x] P7.8 Standards: question bank per type, alignment procedure, media rule,
       confirmation-on-merge rule
@@ -1040,6 +1040,10 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 | 2026-10-28 | The shell step runs after the align flow and before the shortcut pass | The tooltip and shortcut audit has to cover the final navbar, and both steps rewrite `App.tsx` |
 | 2026-10-29 | The import UI moved into Settings > Import plans rather than being deleted with the onboarding stage | PLAN.md said settings re-runs discovery, but settings never had it; without the move a release build had no way to import |
 | 2026-10-29 | The work record is re-read on every `base-changed`, like comments; record decisions render as plain text in the existing decision card | The event carries no paths, and markdown output would carry source stamps that misplace comment anchors |
+| 2026-10-29 | Every tool that takes a plan id registers the session on it, `create_plan` included (supersedes the 2026-09-22 "never `create_plan`" row) | Presence no longer sets status, so registering on filing costs nothing, and without it the align event and the review never reach the session that filed the plan |
+| 2026-10-29 | A session keeps the events its agent has not seen: `/pending` lists them without consuming, and the MCP server acknowledges with `/heard` once a tool result carried them | The MCP server holds a poll open, so a plain non-consuming route would almost always be empty by the time a hook asked |
+| 2026-10-29 | Hooks: Claude Code gets `Stop` (`{"decision":"block","reason"}`) and `UserPromptSubmit` (plain stdout as context); Cursor gets `stop` only (`followup_message`); `openplan pending --format stop` prints nothing when a stop hook already continued the turn | Read from the two vendors' hook documentation on 2026-10-29. Cursor's `beforeSubmitPrompt` can only block a prompt. The guard prevents a Stop hook loop |
+| 2026-10-29 | Our hook entries are identified by their exact command string; reinstall replaces them and nothing else in the person's settings is touched, with key order preserved (`serde_json` `preserve_order`) | A settings file other tools own is rewritten only inside our own entries, as the 2026-08-16 managed-block row requires |
 
 ---
 
