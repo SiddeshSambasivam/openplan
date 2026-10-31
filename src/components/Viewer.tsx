@@ -1,6 +1,10 @@
 import { FileWarning, Loader2, ScrollText } from "lucide-react";
 import { useEffect, useMemo, useState, type RefObject } from "react";
+import { HtmlDoc } from "../features/plan/HtmlDoc";
+import { isHtmlPath } from "../lib/htmlDoc";
 import { isMac } from "../lib/platform";
+import type { PlanSummary } from "../lib/planBase";
+import { PlanPage } from "../features/plan/PlanPage";
 import type { DocFile, ViewMode } from "../lib/types";
 import { TooltipButton } from "./TooltipButton";
 import { Editor, type EditorApi } from "./Editor";
@@ -33,6 +37,8 @@ function formatSize(chars: number): string {
 
 interface ViewerProps {
   doc: DocFile;
+  /** The plan this document belongs to, or null for a loose file. */
+  plan: PlanSummary | null;
   content: string | null;
   error: string | null;
   loading: boolean;
@@ -51,6 +57,7 @@ interface ViewerProps {
 
 export function Viewer({
   doc,
+  plan,
   content,
   error,
   loading,
@@ -64,6 +71,7 @@ export function Viewer({
   onRetry,
   onRemove,
 }: ViewerProps) {
+  const html = isHtmlPath(doc.path);
   const isLarge = content != null && content.length > LARGE_PREVIEW_CHARS;
   // Rendering a large preview is opt-in, and the choice resets per document.
   const [renderLarge, setRenderLarge] = useState(false);
@@ -126,12 +134,13 @@ export function Viewer({
         key={doc.id}
         ref={editorRef}
         initialDoc={content}
+        plainText={html}
         onDocChange={onEditorChange}
       />
     );
   }
 
-  if (isLarge && !renderLarge) {
+  if (isLarge && !renderLarge && !html) {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl border border-border bg-card p-8 text-center shadow-sm">
@@ -172,7 +181,7 @@ export function Viewer({
       className="mx-auto w-full px-10 py-10 transition-[max-width] duration-200 ease-in-out"
       style={{ maxWidth: "var(--content-max-width, 48rem)" }}
     >
-      {truncated && (
+      {truncated && !html && (
         <div className="mb-8 flex items-center gap-2.5 rounded-lg border border-border bg-muted/50 px-3.5 py-2.5 text-xs text-muted-foreground">
           <ScrollText className="size-4 shrink-0" />
           <span>
@@ -182,7 +191,21 @@ export function Viewer({
           </span>
         </div>
       )}
-      <Markdown content={previewContent ?? ""} docPath={doc.path} dark={dark} />
+      {html ? (
+        <HtmlDoc content={content} dark={dark} />
+      ) : plan ? (
+        // One document of a set is not the plan: it carries its own title and
+        // the type's required sections are not asked of it.
+        <PlanPage
+          body={previewContent ?? ""}
+          title={doc.path === plan.path ? plan.title : ""}
+          type={doc.path === plan.path ? plan.type : null}
+          docPath={doc.path}
+          dark={dark}
+        />
+      ) : (
+        <Markdown content={previewContent ?? ""} docPath={doc.path} dark={dark} />
+      )}
     </div>
   );
 }

@@ -68,6 +68,8 @@ interface HeaderProps {
   onFontSizeChange: (fontSize: FontSize) => void;
   outlineOpen: boolean;
   onToggleOutline: () => void;
+  /** False for a document comments cannot anchor in, such as an HTML plan. */
+  canComment: boolean;
   commentsOpen: boolean;
   onToggleComments: () => void;
   /** Open discussions on the current plan, shown on the icon. */
@@ -110,6 +112,7 @@ export function Header({
   onFontSizeChange,
   outlineOpen,
   onToggleOutline,
+  canComment,
   commentsOpen,
   onToggleComments,
   openCommentCount,
@@ -289,7 +292,7 @@ export function Header({
         </TooltipButton>
       )}
 
-      {showDocTools && inPreview && (
+      {showDocTools && inPreview && canComment && (
         <TooltipButton
           variant="ghost"
           size="icon-sm"

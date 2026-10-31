@@ -420,5 +420,120 @@
 }
 
 /* ---------------------------------- */
+/* Rendered plan page                  */
+/* ---------------------------------- */
+
+/* Each section is one block. Its markdown still renders through the shared
+   renderer, so every treatment here is styling over that output. Nothing
+   moves a block that carries a source-line stamp. */
+.plan-section {
+  margin-bottom: 2rem;
+}
+/* One scale inside a section, whatever heading level the author used, so a
+   subheading never outranks the section it sits in. */
+.plan-section .markdown-body :where(h1, h2, h3) {
+  font-size: 1.02em;
+}
+.plan-section .markdown-body :where(h4, h5, h6) {
+  font-size: 0.95em;
+}
+.plan-section .markdown-body :where(h1, h2, h3, h4):first-child {
+  font-size: 1.12em;
+  margin-top: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.plan-section-kicker {
+  margin: 0 0 0.15rem;
+  font-family: var(--font-mono);
+  font-size: calc(var(--content-font-scale, 1) * 11px);
+  letter-spacing: 0.04em;
+  color: var(--color-muted-foreground);
+}
+
+/* Summary: the opening paragraph carries the whole plan, so it reads first. */
+.plan-section[data-kind="summary"] .markdown-body > p:first-of-type {
+  font-size: 1.08em;
+  line-height: 1.65;
+}
+
+/* Steps: the task list reads as rows, and the file names in it as chips. */
+.plan-section[data-kind="steps"] .markdown-body :where(li:has(> input[type="checkbox"])) {
+  margin-left: 0;
+  padding: 0.45rem 0 0.45rem 0.1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.plan-section[data-kind="steps"] .markdown-body :where(ul.contains-task-list) {
+  padding-left: 0;
+  margin-left: 0;
+}
+.plan-section[data-kind="steps"] .markdown-body :where(code):not(:where(pre code)) {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+/* Tables carry the plan's schedules and matrices; a border makes them read
+   as one object instead of loose rows. */
+.plan-section[data-kind="approach"] .markdown-body :where(table),
+.plan-section[data-kind="steps"] .markdown-body :where(table) {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0 0.9rem;
+}
+.plan-section[data-kind="approach"] .markdown-body :where(tr:last-child td),
+.plan-section[data-kind="steps"] .markdown-body :where(tr:last-child td) {
+  border-bottom: 0;
+}
+
+/* Decisions: one card per decision, with its labels quietened. */
+.plan-decision {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.plan-decision .markdown-body > :first-child {
+  margin-top: 0;
+}
+.plan-decision .markdown-body > :last-child {
+  margin-bottom: 0;
+}
+.plan-decision .markdown-body :where(p) > strong:first-child {
+  font-weight: 500;
+}
+/* The decision's name reads as the card's title, above what it says. */
+.plan-decision .markdown-body > p:first-child > strong:first-child {
+  display: block;
+}
+
+/* Risks and alternatives: each item is a cell you can read on its own. */
+.plan-section[data-kind="risks"] .markdown-body > ul,
+.plan-section[data-kind="alternatives"] .markdown-body > ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.5rem;
+  padding-left: 0;
+  list-style: none;
+}
+.plan-section[data-kind="risks"] .markdown-body > ul > li,
+.plan-section[data-kind="alternatives"] .markdown-body > ul > li {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-size: 0.95em;
+}
+.plan-section[data-kind="risks"] .markdown-body > ul > li::marker,
+.plan-section[data-kind="alternatives"] .markdown-body > ul > li::marker {
+  content: none;
+}
+
+/* An HTML plan cannot be measured through a sandbox this tight, so it fills
+   the reading area and scrolls inside it. */
+.plan-frame {
+  min-height: 70vh;
+}
+
+/* ---------------------------------- */
 /* Find in document (⌘F)               */
 /* ---------------------------------- */
