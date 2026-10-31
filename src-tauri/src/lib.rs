@@ -124,7 +124,7 @@ async fn read_markdown(path: String) -> Result<String, String> {
             "The file no longer exists at this location.".to_string()
         }
         std::io::ErrorKind::PermissionDenied => {
-            "OpenMarkdown doesn't have permission to read this file.".to_string()
+            "OpenPlan doesn't have permission to read this file.".to_string()
         }
         std::io::ErrorKind::InvalidData => {
             "This file isn't valid UTF-8 text.".to_string()
@@ -139,7 +139,7 @@ fn friendly_write_error(e: &std::io::Error) -> String {
             "The file's folder no longer exists at this location.".to_string()
         }
         std::io::ErrorKind::PermissionDenied => {
-            "OpenMarkdown doesn't have permission to write this file.".to_string()
+            "OpenPlan doesn't have permission to write this file.".to_string()
         }
         std::io::ErrorKind::StorageFull => "The disk is full.".to_string(),
         _ => e.to_string(),
@@ -158,7 +158,7 @@ fn atomic_write(target: &Path, contents: &str) -> Result<(), String> {
         .file_name()
         .and_then(|s| s.to_str())
         .ok_or_else(|| "Invalid file name.".to_string())?;
-    let tmp = dir.join(format!(".{file_name}.openmarkdown-tmp"));
+    let tmp = dir.join(format!(".{file_name}.openplan-tmp"));
 
     let result = (|| -> std::io::Result<()> {
         let mut f = std::fs::File::create(&tmp)?;
@@ -182,10 +182,9 @@ async fn write_markdown(path: String, contents: String) -> Result<(), String> {
     atomic_write(&std::path::PathBuf::from(&path), &contents)
 }
 
-/// Comments live in a hidden JSON sidecar next to the doc (never inside it —
-/// the app never rewrites content the user didn't ask it to touch), e.g.
-/// `notes.md` -> `.notes.md.omd-comments.json`. Hidden dotfiles are already
-/// skipped by `scan_folder`'s walk, so this never shows up in the sidebar.
+/// Comments live in a JSON sidecar beside the doc, never inside it — the app
+/// only rewrites content the user asked it to touch. The leading dot keeps the
+/// sidecar out of `scan_folder`'s walk, which skips hidden entries.
 fn sidecar_comments_path(doc_path: &Path) -> Result<std::path::PathBuf, String> {
     let dir = doc_path
         .parent()
@@ -238,7 +237,7 @@ async fn scan_folder(path: String) -> Result<ScanResult, String> {
             "The folder no longer exists at this location.".to_string()
         }
         std::io::ErrorKind::PermissionDenied => {
-            "OpenMarkdown doesn't have permission to read this folder.".to_string()
+            "OpenPlan doesn't have permission to read this folder.".to_string()
         }
         _ => e.to_string(),
     })?;
@@ -279,7 +278,7 @@ async fn classify_paths(paths: Vec<String>) -> Vec<PathInfo> {
 mod tests {
     #[test]
     fn write_read_roundtrip_and_overwrite() {
-        let dir = std::env::temp_dir().join("openmarkdown-write-test");
+        let dir = std::env::temp_dir().join("openplan-write-test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("doc.md").to_string_lossy().into_owned();
 
@@ -322,7 +321,7 @@ mod tests {
 
     #[test]
     fn comments_sidecar_roundtrip_hidden_and_deletable() {
-        let dir = std::env::temp_dir().join("openmarkdown-comments-test");
+        let dir = std::env::temp_dir().join("openplan-comments-test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("notes.md").to_string_lossy().into_owned();
 

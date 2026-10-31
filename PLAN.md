@@ -549,7 +549,7 @@ Decision-Log-recorded waiver (§2 Process).** When a GATE is reached, prepare a 
 QA script for Sid: what to click, what to look for, which requirements it exercises.
 
 ### Phase 0 — Rebrand & workspace scaffolding
-- [ ] P0.1 **Complete rebrand** OpenMarkdown → OpenPlan (§6.8): product config,
+- [x] P0.1 **Complete rebrand** OpenMarkdown → OpenPlan (§6.8): product config,
       docs, README, welcome doc, code comments, identifiers, CSS/event names,
       error strings — a repo-wide grep for `openmarkdown`/`OpenMarkdown`/`omd`
       must come back empty (legacy sidecar dual-read in P0.3 is the one exception);
@@ -558,8 +558,9 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       crate; move `atomic_write` + sidecar fs helpers into it **(T: ports existing tests)**
 - [ ] P0.3 Sidecar dual-read rename `.omd-` → `.oplan-` with v2 `author` field
       **(T: v1 parse compat, migration on write)**
-- [ ] P0.4 Set up Vitest + first tests for existing `src/lib/comments.ts`,
-      `tree.ts`, `platform.ts` pure helpers **(T)**
+- [ ] P0.4 Tests for the remaining pure helpers in `src/lib/` — `tree.ts`,
+      `platform.ts` (`comments.ts` is retired in Phase 4, so skip it) **(T)**
+      — Vitest itself was set up in P0.1, which needed it for its test
 - [ ] P0.5 Vendor shadcn/ui CLI + replace `Button.tsx`, `Tooltip.tsx` with shadcn
       equivalents (visual parity)
 - [ ] P0.6 Hide the existing (buggy) comments UI behind nothing — remove its entry

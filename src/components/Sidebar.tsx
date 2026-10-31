@@ -106,7 +106,7 @@ export function Sidebar({
           <FileText className="size-3.5 text-background" strokeWidth={2.25} />
         </div>
         <span className="pointer-events-none text-sm font-semibold tracking-tight text-sidebar-foreground">
-          OpenMarkdown
+          OpenPlan
         </span>
       </div>
 

@@ -3,12 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenMarkdown</title>
+    <title>OpenPlan</title>
     <script>
-      // Apply theme before first paint to avoid a flash.
+      // Apply theme before first paint to avoid a flash. This runs before the
+      // app can migrate the pre-rename key, so it reads both.
       (function () {
         try {
-          var stored = localStorage.getItem("openmarkdown:theme");
+          var stored =
+            localStorage.getItem("openplan:theme") ??
+            localStorage.getItem("openmarkdown:theme");
           var dark = stored
             ? stored === "dark"
             : window.matchMedia("(prefers-color-scheme: dark)").matches;

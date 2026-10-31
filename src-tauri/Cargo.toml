@@ -1,12 +1,12 @@
 [package]
-name = "openmarkdown"
+name = "openplan"
 version = "0.1.0"
-description = "A minimal, elegant cross-platform Markdown viewer"
+description = "One place to manage the plans you and your coding agents collaborate on"
 authors = ["Siddesh Sambasivam"]
 edition = "2021"
 
 [lib]
-name = "openmarkdown_lib"
+name = "openplan_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

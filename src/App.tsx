@@ -62,17 +62,17 @@ import {
   type ContentWidth,
 } from "./lib/width";
 
-const STORE_ITEMS = "openmarkdown:items";
-const STORE_ITEMS_V1 = "openmarkdown:files";
-const STORE_ACTIVE = "openmarkdown:active";
-const STORE_THEME = "openmarkdown:theme";
-const STORE_EXPANDED = "openmarkdown:expanded";
-const STORE_SIDEBAR = "openmarkdown:sidebar";
-const STORE_SIDEBAR_WIDTH = "openmarkdown:sidebar-width";
-const STORE_WIDTH = "openmarkdown:width";
-const STORE_FONT_SIZE = "openmarkdown:font-size";
-const STORE_TOC_VISIBILITY = "openmarkdown:toc-visibility";
-const STORE_TOC_SIDE = "openmarkdown:toc-side";
+const STORE_ITEMS = "openplan:items";
+const STORE_ITEMS_V1 = "openplan:files";
+const STORE_ACTIVE = "openplan:active";
+const STORE_THEME = "openplan:theme";
+const STORE_EXPANDED = "openplan:expanded";
+const STORE_SIDEBAR = "openplan:sidebar";
+const STORE_SIDEBAR_WIDTH = "openplan:sidebar-width";
+const STORE_WIDTH = "openplan:width";
+const STORE_FONT_SIZE = "openplan:font-size";
+const STORE_TOC_VISIBILITY = "openplan:toc-visibility";
+const STORE_TOC_SIDE = "openplan:toc-side";
 
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_DEFAULT_WIDTH = 256;
@@ -1097,9 +1097,9 @@ export default function App() {
       const tree = (e as CustomEvent<FolderNode>).detail;
       if (tree) addInlineFolderTree(tree);
     };
-    window.addEventListener("openmarkdown:add-folder", onAddFolder);
+    window.addEventListener("openplan:add-folder", onAddFolder);
     return () =>
-      window.removeEventListener("openmarkdown:add-folder", onAddFolder);
+      window.removeEventListener("openplan:add-folder", onAddFolder);
   }, [addInlineFolderTree]);
 
   /* ---------- refresh on window focus ---------- */

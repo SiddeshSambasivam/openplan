@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "openmarkdown-web",
+      "name": "openplan-web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "dev"],
       "port": 1420
