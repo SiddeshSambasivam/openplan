@@ -14,13 +14,15 @@ import {
   type ReplyDrafts,
 } from "@/lib/alignmentDrafts";
 import { alignmentScore } from "@/lib/alignmentScore";
+import { readPanel } from "@/lib/personRoles";
 import { PLATFORM, shortcutFor, useShortcuts } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import {
   answerQuestions,
-  PERSONAS,
+  DEFAULT_PANEL,
+  persona,
   questionsByRound,
-  ROLES,
+  railRoles,
   roundTitle,
   sendAnswers,
   unusedRoles,
@@ -87,8 +89,10 @@ export function AlignmentQuestions({
   const [written, setWritten] = useState<{ from: WorkRecord | null; record: WorkRecord } | null>(
     null,
   );
+  const [panel, setPanel] = useState(DEFAULT_PANEL);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const sendRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => void readPanel().then(setPanel), []);
   useEffect(() => saveReplyDrafts(plan.id, drafts), [plan.id, drafts]);
   useEffect(() => saveRailShown(railShown), [railShown]);
   const toggleRail = () => {
@@ -220,6 +224,7 @@ export function AlignmentQuestions({
               setTab(next);
               setChosen(undefined);
             }}
+            roles={railRoles(questions, panel)}
             waiting={waiting}
             leaving={!railShown}
             onLeft={() => setRailLeaving(false)}
@@ -232,7 +237,7 @@ export function AlignmentQuestions({
               <div key={group.round} className="flex flex-col gap-4">
                 <RoundDivider>{roundTitle(group.round, group.round === latestRound)}</RoundDivider>
                 {tab === "everyone" && group.round === latestRound && (
-                  <Note>{unusedRolesText(unusedRoles(group.questions), "this round")}</Note>
+                  <Note>{unusedRolesText(unusedRoles(group.questions, panel), "this round")}</Note>
                 )}
                 {group.questions.map((question) => (
                   <AlignmentMessage
@@ -375,25 +380,27 @@ function ScrollArrow({
   );
 }
 
-/** Everyone, then one tab per persona with the questions still waiting on
+/** Everyone, then one tab per role with the questions still waiting on
  * the person, in a column on the left. Narrow, each tab drops its title.
  * It slides in from the left, and out again before it unmounts. */
-function PeopleRail({
+export function PeopleRail({
   tab,
   onTab,
+  roles,
   waiting,
   leaving,
   onLeft,
 }: {
   tab: Tab;
   onTab: (tab: Tab) => void;
+  roles: Role[];
   waiting: Question[];
   leaving: boolean;
   onLeft: () => void;
 }) {
   const tabs: { id: Tab; name: string; title: string }[] = [
     { id: "everyone", name: "Everyone", title: "Group thread" },
-    ...ROLES.map((role) => ({ id: role, ...PERSONAS[role] })),
+    ...roles.map((role) => ({ id: role, ...persona(role) })),
   ];
   return (
     <nav
@@ -452,7 +459,7 @@ function ThreadHead({
   waiting: number;
   onToggleRail: () => void;
 }) {
-  const persona = tab === "everyone" ? null : PERSONAS[tab];
+  const asker = tab === "everyone" ? null : persona(tab);
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       <TooltipButton
@@ -470,7 +477,7 @@ function ThreadHead({
         {!railShown && waiting > 0 && <WaitingBadge count={waiting} />}
       </TooltipButton>
       <h2 className="truncate text-sm font-medium text-foreground">
-        {persona ? `${persona.name}, ${persona.title.toLowerCase()}` : "Everyone"}
+        {asker ? [asker.name, asker.title.toLowerCase()].filter(Boolean).join(", ") : "Everyone"}
       </h2>
     </div>
   );
@@ -501,7 +508,7 @@ function SentLine({ sent }: { sent: Sent }) {
       <Note>Sent. The agent has your answers.</Note>
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <PersonaAvatar role={reader} typing className="text-xl" />
-        <span>{PERSONAS[reader].name} is reading your answers</span>
+        <span>{persona(reader).name} is reading your answers</span>
         <span className="typing-dots" aria-hidden>
           <span />
           <span />
@@ -541,7 +548,7 @@ function offsetIn(root: HTMLElement, element: Element): number {
 }
 
 function rolesOf(questions: Question[]): Role[] {
-  return ROLES.filter((role) => questions.some((question) => question.role === role));
+  return railRoles(questions, []);
 }
 
 function withoutKeys<T>(record: Record<string, T>, keys: string[]): Record<string, T> {

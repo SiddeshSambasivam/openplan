@@ -1,5 +1,7 @@
+import { invoke } from "@tauri-apps/api/core";
 import table from "../../src-tauri/crates/openplan-core/src/person_roles.json";
-import { PERSONAS, spokenList, type Role } from "./work";
+import { isTauri } from "./platform";
+import { DEFAULT_PANEL, PERSONAS, spokenList, type Role } from "./work";
 
 /** What the person does, picked in onboarding. */
 export type PersonRoleId = "engineer" | "designer" | "product" | "lead" | "founder" | "other";
@@ -29,6 +31,20 @@ export const PERSON_ROLES = table.roles as PersonRole[];
 
 export function personRole(id: PersonRoleId): PersonRole {
   return PERSON_ROLES.find((role) => role.id === id)!;
+}
+
+/** The question roles that ask this person, in the panel's order. No role,
+ * or one from a newer version, gets the default panel. */
+export function panelFor(id: string | null | undefined): Role[] {
+  const role = PERSON_ROLES.find((known) => known.id === id);
+  return role ? role.panel.map((member) => member.role) : DEFAULT_PANEL;
+}
+
+/** The person's panel, from their settings. */
+export async function readPanel(): Promise<Role[]> {
+  if (!isTauri) return DEFAULT_PANEL;
+  const settings = await invoke<{ role?: string | null }>("app_settings").catch(() => null);
+  return panelFor(settings?.role);
 }
 
 /** One line under the panel that says who goes into depth. */

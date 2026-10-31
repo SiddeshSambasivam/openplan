@@ -22,6 +22,12 @@ describe("PersonaAvatar", () => {
     expect(html).toContain(`class="${prop}"`);
   });
 
+  it("draws a plain grey sphere for a role it does not know", () => {
+    const html = avatar("astronaut");
+    expect(html).toContain('data-role="agent"');
+    expect(html).not.toMatch(/persona-(pennant|glasses|beret|siren|lens|halo|bars|shield|speech)/);
+  });
+
   it("draws a plain grey sphere for a question from before roles", () => {
     const html = avatar();
     expect(html).toContain('data-role="agent"');

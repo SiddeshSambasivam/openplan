@@ -2,7 +2,7 @@ import { Markdown } from "@/components/Markdown";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { pickedChoice, WRITE_OWN, type ReplyDraft } from "@/lib/alignmentDrafts";
 import { cn } from "@/lib/utils";
-import { answerOf, PERSONAS, type Answer, type Choice, type Question } from "@/lib/work";
+import { answerOf, persona as personaOf, type Answer, type Choice, type Question } from "@/lib/work";
 import { PersonaAvatar } from "./PersonaAvatar";
 
 /** How the plan page renders illustrations. */
@@ -48,7 +48,7 @@ export function AlignmentMessage({
 }) {
   const recorded = question.answer;
   const words = recorded ? "" : (draft?.text.trim() ?? "");
-  const persona = question.role ? PERSONAS[question.role] : null;
+  const persona = question.role ? personaOf(question.role) : null;
   return (
     <div className="flex flex-col gap-3" data-question={question.id}>
       <div className="flex gap-2.5">
@@ -58,7 +58,7 @@ export function AlignmentMessage({
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
             <span className="font-semibold text-foreground">{persona?.name ?? "Agent"}</span>
-            {persona && <span className="text-muted-foreground">{persona.title}</span>}
+            {persona?.title && <span className="text-muted-foreground">{persona.title}</span>}
             <span className="rounded-full bg-muted px-1.75 py-px text-muted-foreground">
               {question.aspect}
             </span>

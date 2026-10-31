@@ -15,9 +15,11 @@ import {
   answerFromDraft,
   newQuestionIds,
   PERSONAS,
+  persona,
   pendingQuestions,
   pendingQuestionsLabel,
   questionsByRound,
+  railRoles,
   ROLES,
   roundTitle,
   showsWorkPanel,
@@ -28,6 +30,7 @@ import {
   type Pr,
   type PrSummary,
   type Question,
+  type Role,
   type Todo,
   type TodoState,
   type WorkRecord,
@@ -253,6 +256,33 @@ describe("PERSONAS", () => {
   });
 });
 
+describe("persona", () => {
+  it("is the persona of a role the app knows", () => {
+    expect(persona("design")).toBe(PERSONAS.design);
+  });
+
+  it("names a role the app does not know by its id", () => {
+    expect(persona("astronaut" as Role)).toEqual({ name: "astronaut", title: "", focus: "" });
+  });
+});
+
+describe("railRoles", () => {
+  it("is the panel in its order, then each role outside it in the order it asked", () => {
+    const roles = railRoles(
+      [
+        question("q1", "scope", { role: "security" }),
+        question("q2", "UX", { role: "design" }),
+        question("q3", "launch", { role: "astronaut" as Role }),
+        question("q4", "risk", { role: "security" }),
+        question("q5", "before roles"),
+      ],
+      ["design", "research", "accessibility", "engineering"],
+    );
+
+    expect(roles).toEqual(["design", "research", "accessibility", "engineering", "security", "astronaut"]);
+  });
+});
+
 describe("unusedRolesText", () => {
   it("names the personas that had nothing to ask", () => {
     expect(unusedRolesText(["design", "oncall"])).toBe(
@@ -262,6 +292,10 @@ describe("unusedRolesText", () => {
       "Mila, Theo and Iris had nothing to ask on this plan.",
     );
     expect(unusedRolesText(["oncall"], "this round")).toBe("Kai had nothing to ask this round.");
+  });
+
+  it("names a role the app does not know by its id", () => {
+    expect(unusedRolesText(["astronaut" as Role])).toBe("astronaut had nothing to ask on this plan.");
   });
 
   it("says nothing when every role asked", () => {

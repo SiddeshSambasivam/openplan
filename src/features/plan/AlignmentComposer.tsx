@@ -2,7 +2,7 @@ import { SendHorizontal } from "lucide-react";
 import type { KeyboardEvent, Ref } from "react";
 import { TooltipButton } from "@/components/TooltipButton";
 import { Textarea } from "@/components/ui/textarea";
-import { PERSONAS, type Question } from "@/lib/work";
+import { persona, type Question } from "@/lib/work";
 
 /** What the composer says beside Send: the count, or what a send did. */
 export interface ComposerLine {
@@ -48,7 +48,7 @@ export function AlignmentComposer({
   onReply: () => void;
   onSend: () => void;
 }) {
-  const name = question?.role ? PERSONAS[question.role].name : "the agent";
+  const name = question?.role ? persona(question.role).name : "the agent";
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Enter" || event.shiftKey || event.metaKey || event.ctrlKey) return;
     if (event.nativeEvent.isComposing) return;

@@ -301,8 +301,26 @@ export const PERSONAS: Record<Role, Persona> = personRoles.personas;
 
 export const ROLES = Object.keys(PERSONAS) as Role[];
 
+/** A role from a newer version arrives as its raw id. */
+export function isKnownRole(role: string): role is Role {
+  return ROLES.includes(role as Role);
+}
+
+/** The persona of a role, or one named by the role's id when the app does
+ * not know it. */
+export function persona(role: Role): Persona {
+  return isKnownRole(role) ? PERSONAS[role] : { name: role, title: "", focus: "" };
+}
+
 /** Who asks a person who has not picked a role. */
 export const DEFAULT_PANEL: Role[] = ["product", "engineering", "design", "oncall"];
+
+/** The panel in its order, then each other role that asked, in the order
+ * it first asked. */
+export function railRoles(questions: Question[], panel: Role[]): Role[] {
+  const asked = questions.flatMap((question) => (question.role ? [question.role] : []));
+  return [...new Set([...panel, ...asked])];
+}
 
 /** The panel's roles no question came from, in the panel's order. Questions
  * from before roles name none, so nothing counts as left out for them. */
@@ -317,7 +335,7 @@ export function unusedRolesText(
   when: "on this plan" | "this round" = "on this plan",
 ): string | null {
   if (roles.length === 0) return null;
-  return `${spokenList(roles.map((role) => PERSONAS[role].name))} had nothing to ask ${when}.`;
+  return `${spokenList(roles.map((role) => persona(role).name))} had nothing to ask ${when}.`;
 }
 
 /** "a", "a and b", "a, b and c". */

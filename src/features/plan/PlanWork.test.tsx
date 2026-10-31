@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { Decision, Question, Todo, TodoState, WorkRecord } from "@/lib/work";
+import { DEFAULT_PANEL, railRoles, type Decision, type Question, type Role, type Todo, type TodoState, type WorkRecord } from "@/lib/work";
 import { alignmentScore } from "@/lib/alignmentScore";
+import { PeopleRail } from "./AlignmentQuestions";
 import { AlignmentMessage } from "./AlignmentMessage";
 import { ScoreDetails } from "./AlignmentScoreCard";
 import { AlignmentTab, WorkPanel } from "./PlanWork";
@@ -438,5 +439,64 @@ describe("AlignmentTab", () => {
     expect(html).toContain("Everyone</h2>");
     expect(html).toContain('aria-label="1 waiting"');
     expect(html).not.toMatch(/>Build<\/button>/);
+  });
+
+  it("names a question from a role it does not know by the role, with a grey avatar", () => {
+    const html = alignmentTab(
+      record({
+        alignment: {
+          askedAt: "2026-10-28T09:00:00Z",
+          questions: [
+            {
+              id: "q1",
+              aspect: "launch",
+              role: "astronaut" as Role,
+              question: "Which orbit?",
+              options: [{ id: "a", label: "Low" }],
+              mustAnswer: false,
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(html).toContain(">astronaut</span>");
+    expect(html).toContain('data-role="agent"');
+    expect(html).toContain('placeholder="Reply to astronaut, or say why"');
+  });
+});
+
+describe("PeopleRail", () => {
+  const rail = (roles: Role[]) =>
+    renderToStaticMarkup(
+      <PeopleRail tab="everyone" onTab={() => {}} roles={roles} waiting={[]} leaving={false} onLeft={() => {}} />,
+    );
+  const names = (html: string) =>
+    [...html.matchAll(/<span class="font-medium text-foreground">([^<]*)<\/span>/g)].map((m) => m[1]);
+  const asked = (role: string): Question => ({
+    id: role,
+    aspect: "scope",
+    role: role as Role,
+    question: "Why?",
+    options: [],
+    mustAnswer: false,
+  });
+
+  it("shows the person's panel in its order", () => {
+    const html = rail(railRoles([asked("design")], ["design", "research", "accessibility", "engineering"]));
+
+    expect(names(html)).toEqual(["Everyone", "Iris", "Noor", "Ada", "Theo"]);
+  });
+
+  it("shows the default panel for a person with no role", () => {
+    expect(names(rail(railRoles([], DEFAULT_PANEL)))).toEqual(["Everyone", "Mila", "Theo", "Iris", "Kai"]);
+  });
+
+  it("shows a question from outside the panel after it, with its own avatar", () => {
+    const html = rail(railRoles([asked("security"), asked("astronaut")], DEFAULT_PANEL));
+
+    expect(names(html)).toEqual(["Everyone", "Mila", "Theo", "Iris", "Kai", "Sol", "astronaut"]);
+    expect(html).toContain('data-role="security"');
+    expect(html).toContain('data-role="agent"');
   });
 });

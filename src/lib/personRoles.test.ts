@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { panelCaption, PERSON_ROLES, personRole } from "./personRoles";
-import { ROLES } from "./work";
+import { panelCaption, panelFor, PERSON_ROLES, personRole } from "./personRoles";
+import { DEFAULT_PANEL, ROLES } from "./work";
 
 describe("PERSON_ROLES", () => {
   it("lists the six roles in the order the cards show", () => {
@@ -27,6 +27,18 @@ describe("PERSON_ROLES", () => {
         expect(["deep", "plain"]).toContain(member.voice);
       }
     }
+  });
+});
+
+describe("panelFor", () => {
+  it("is the question roles of the person's panel, in its order", () => {
+    expect(panelFor("designer")).toEqual(["design", "research", "accessibility", "engineering"]);
+  });
+
+  it("is the default panel for a person with no role, or one the app does not know", () => {
+    expect(panelFor(null)).toEqual(DEFAULT_PANEL);
+    expect(panelFor(undefined)).toEqual(DEFAULT_PANEL);
+    expect(panelFor("astronaut")).toEqual(DEFAULT_PANEL);
   });
 });
 

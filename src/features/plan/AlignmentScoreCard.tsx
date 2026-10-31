@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { belowTarget, type AlignmentArea, type AlignmentScore } from "@/lib/alignmentScore";
 import { cn } from "@/lib/utils";
-import { PERSONAS } from "@/lib/work";
+import { persona } from "@/lib/work";
 import { PersonaAvatar } from "./PersonaAvatar";
 
 const COUNT_MS = 600;
@@ -95,7 +95,7 @@ function AreaChip({ area }: { area: AlignmentArea }) {
       </Chip>
     );
   }
-  const asker = area.askedBy ? PERSONAS[area.askedBy].name : "The agent";
+  const asker = area.askedBy ? persona(area.askedBy).name : "The agent";
   return (
     <Chip tip={`${asker} is asking about this`}>
       <PersonaAvatar role={area.askedBy} className="text-base" />
