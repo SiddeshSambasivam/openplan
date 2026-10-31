@@ -527,6 +527,12 @@
   }
 }
 
+/* The tour's lit area. Its shadow is the dimmed window around it, so the
+   area itself shows the app at full strength. */
+.tour-hole {
+  box-shadow: 0 0 0 100vmax var(--tour-scrim);
+}
+
 /* The persona avatars: a matte sphere lit from the top left, two pill eyes
    and one prop per role, drawn in em so the font size sets the size. The
    motion clock sets `--turn`, `--nod`, `--tilt` and `--narrow` for a look,

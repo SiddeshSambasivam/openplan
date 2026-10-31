@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { PlanSummary, Status } from "./planBase";
 import {
+  clipBox,
   demoStages,
   emitTourEvent,
   litArea,
   nextStep,
   onTourEvent,
   placeCard,
+  restoreDemo,
   startTour,
   TOUR_STEPS,
   viewMatches,
@@ -223,6 +225,22 @@ describe("litArea", () => {
   });
 });
 
+describe("clipBox", () => {
+  it("keeps the part of a box inside another", () => {
+    expect(clipBox({ top: 50, left: 0, width: 300, height: 400 }, { top: 100, left: 20, width: 200, height: 100 })).toEqual({
+      top: 100,
+      left: 20,
+      width: 200,
+      height: 100,
+    });
+  });
+
+  it("leaves nothing of a box outside the other", () => {
+    const clipped = clipBox({ top: 0, left: 0, width: 50, height: 50 }, { top: 100, left: 100, width: 10, height: 10 });
+    expect(clipped.width * clipped.height).toBe(0);
+  });
+});
+
 describe("placeCard", () => {
   const window = { width: 720, height: 480 };
   const card = { width: 288, height: 160 };
@@ -264,5 +282,24 @@ describe("tour events", () => {
     stop();
     emitTourEvent("review-sent");
     expect(heard).toEqual(["comment-added"]);
+  });
+});
+
+describe("restoreDemo", () => {
+  it("writes back the missing demo plans", async () => {
+    const calls: string[] = [];
+    await restoreDemo(async (command) => {
+      calls.push(command);
+      return [];
+    });
+    expect(calls).toEqual(["restore_demo"]);
+  });
+
+  it("lets the tour start when the demo cannot be written", async () => {
+    await expect(
+      restoreDemo(async () => {
+        throw "Couldn't write the demo plans.";
+      }),
+    ).resolves.toBeUndefined();
   });
 });

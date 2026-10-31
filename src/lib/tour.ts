@@ -1,3 +1,4 @@
+import { DEMO_FOLDER, type Invoke } from "./onboarding";
 import type { PlanSummary, Status } from "./planBase";
 import type { PlanTab } from "./planTab";
 import { keysLabel, PLATFORM, shortcut } from "./shortcuts";
@@ -57,8 +58,6 @@ export interface Box {
 }
 
 export type Side = "top" | "right" | "bottom" | "left";
-
-export const DEMO_FOLDER = "Demo";
 
 const DRAFT = { id: "demo-add-dark-mode", stage: "draft" } as const;
 const ALIGNMENT = { id: "demo-export-notes-as-pdf", stage: "alignment" } as const;
@@ -236,6 +235,16 @@ export function litArea(anchor: Box, window: { width: number; height: number }):
   return { top, left, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
 }
 
+/** The part of `box` inside `clip`, such as the part of an anchor its
+ * scrolling container shows. */
+export function clipBox(box: Box, clip: Box): Box {
+  const top = Math.max(box.top, clip.top);
+  const left = Math.max(box.left, clip.left);
+  const bottom = Math.min(box.top + box.height, clip.top + clip.height);
+  const right = Math.min(box.left + box.width, clip.left + clip.width);
+  return { top, left, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+}
+
 /** Where the card goes beside `anchor`: the preferred side, its opposite,
  * then the other two, whichever first has room for the whole card. With no
  * room on any side, it lies inside the anchor at its lower right. */
@@ -288,6 +297,12 @@ export function placeCard(
       window.width - CARD_MARGIN - card.width,
     ),
   };
+}
+
+/** Writes back the demo plans that are missing, so a replay shows every
+ * stage it can. A failed write still lets the tour run on what is there. */
+export async function restoreDemo(call: Invoke): Promise<void> {
+  await call("restore_demo").catch(() => {});
 }
 
 /** Tells a running tour that the person did something a step asks for.
