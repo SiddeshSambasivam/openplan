@@ -1820,8 +1820,11 @@ export default function App() {
   };
   useShortcuts(shortcutHandlers);
 
+  // Clipped rather than hidden, so the window is never a scroll container: a
+  // view rising into place overflows it for a moment, and a scroll into
+  // view then would shift the whole window.
   const page = (
-    <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
+    <div className="flex h-full w-full overflow-clip bg-background text-foreground">
       {/* The column holds the navbar's place in the layout. In a narrow
           window it keeps the minimized width and the navbar grows over the
           main area, so nothing beside it reflows. The handle sits on the

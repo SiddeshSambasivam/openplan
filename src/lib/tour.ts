@@ -247,7 +247,9 @@ export function clipBox(box: Box, clip: Box): Box {
 
 /** Where the card goes beside `anchor`: the preferred side, its opposite,
  * then the other two, whichever first has room for the whole card. With no
- * room on any side, it lies inside the anchor at its lower right. */
+ * room on any side, the roomiest side still takes it when it is short by
+ * little, and the card covers the anchor's edge. Otherwise it lies inside
+ * the anchor at its lower right. */
 export function placeCard(
   anchor: Box,
   card: { width: number; height: number },
@@ -258,32 +260,40 @@ export function placeCard(
   const bottom = anchor.top + anchor.height;
   const across = (start: number, size: number, cardSize: number, windowSize: number) =>
     clamp(start + size / 2 - cardSize / 2, CARD_MARGIN, windowSize - CARD_MARGIN - cardSize);
-  const spots: Record<Side, { fits: boolean; top: number; left: number }> = {
+  const lastLeft = window.width - CARD_MARGIN - card.width;
+  const lastTop = window.height - CARD_MARGIN - card.height;
+  // Room is what a side has left once the card and its gap are in. Below
+  // zero, the card is clamped to the window: the gap shrinks first, then the
+  // card covers the anchor's edge.
+  const spots: Record<Side, { room: number; top: number; left: number }> = {
     right: {
-      fits: right + CARD_GAP + card.width <= window.width - CARD_MARGIN,
+      room: lastLeft - (right + CARD_GAP),
       top: across(anchor.top, anchor.height, card.height, window.height),
-      left: right + CARD_GAP,
+      left: Math.min(right + CARD_GAP, lastLeft),
     },
     left: {
-      fits: anchor.left - CARD_GAP - card.width >= CARD_MARGIN,
+      room: anchor.left - CARD_GAP - card.width - CARD_MARGIN,
       top: across(anchor.top, anchor.height, card.height, window.height),
-      left: anchor.left - CARD_GAP - card.width,
+      left: Math.max(anchor.left - CARD_GAP - card.width, CARD_MARGIN),
     },
     bottom: {
-      fits: bottom + CARD_GAP + card.height <= window.height - CARD_MARGIN,
-      top: bottom + CARD_GAP,
+      room: lastTop - (bottom + CARD_GAP),
+      top: Math.min(bottom + CARD_GAP, lastTop),
       left: across(anchor.left, anchor.width, card.width, window.width),
     },
     top: {
-      fits: anchor.top - CARD_GAP - card.height >= CARD_MARGIN,
-      top: anchor.top - CARD_GAP - card.height,
+      room: anchor.top - CARD_GAP - card.height - CARD_MARGIN,
+      top: Math.max(anchor.top - CARD_GAP - card.height, CARD_MARGIN),
       left: across(anchor.left, anchor.width, card.width, window.width),
     },
   };
-  for (const side of SIDE_ORDER[prefer]) {
-    const spot = spots[side];
-    if (spot.fits) return { side, top: spot.top, left: spot.left };
-  }
+  const order = SIDE_ORDER[prefer];
+  const roomiest = order.reduce((best, side) => (spots[side].room > spots[best].room ? side : best));
+  const depth = roomiest === "top" || roomiest === "bottom" ? card.height : card.width;
+  const side =
+    order.find((each) => spots[each].room >= 0) ??
+    (-spots[roomiest].room <= CARD_GAP + depth / 8 ? roomiest : null);
+  if (side) return { side, top: spots[side].top, left: spots[side].left };
   return {
     side: "inside",
     top: clamp(

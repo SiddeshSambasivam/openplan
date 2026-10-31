@@ -268,6 +268,17 @@ describe("placeCard", () => {
     expect(spot.side).toBe("right");
   });
 
+  it("takes the roomiest side when it is a little short, over the anchor's edge", () => {
+    const spot = placeCard({ top: 172, left: 20, width: 680, height: 300 }, card, window, "bottom");
+    expect(spot).toEqual({ side: "top", top: 8, left: 216 });
+  });
+
+  it("lies inside rather than cover much of the anchor from its roomiest side", () => {
+    const board = { top: 50, left: 236, width: 1044, height: 750 };
+    const spot = placeCard(board, card, { width: 1280, height: 800 }, "bottom");
+    expect(spot.side).toBe("inside");
+  });
+
   it("lies inside an anchor too big for any side, at its lower right", () => {
     const spot = placeCard({ top: 0, left: 0, width: 720, height: 480 }, card, window, "bottom");
     expect(spot).toEqual({ side: "inside", top: 480 - 16 - 160, left: 720 - 16 - 288 });

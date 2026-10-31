@@ -118,17 +118,21 @@ function TourStepView({
       };
 
   // The popover mounts its content a render after it opens, so the card is
-  // measured from its ref rather than from an effect.
+  // measured from its ref rather than from an effect. It is measured once as
+  // it attaches, which re-renders before the first paint, so the card never
+  // shows at the guessed size and then jumps. The observer covers later
+  // changes.
   const measureCard = useCallback((element: HTMLDivElement | null) => {
     cardRef.current = element;
     if (!element) return;
-    const observer = new ResizeObserver(() =>
+    const measure = () =>
       setCard((old) =>
         old.width === element.offsetWidth && old.height === element.offsetHeight
           ? old
           : { width: element.offsetWidth, height: element.offsetHeight },
-      ),
-    );
+      );
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -182,10 +186,16 @@ function TourStepView({
 
   return (
     <>
-      <div aria-hidden className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+      {/* The scrim fades in here rather than on the hole: the entrance
+          animation runs on transform, and would slide the hole in from the
+          window's corner. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-50 animate-in overflow-hidden fade-in-0 motion-reduce:animate-none"
+      >
         <div
           className={cn(
-            "tour-hole absolute top-0 left-0 rounded-lg outline-2 outline-ringtransition-opacity duration-200 animate-in fade-in-0",
+            "tour-hole absolute top-0 left-0 rounded-lg outline-2 outline-ring transition-opacity duration-200",
             lifted && "opacity-0",
           )}
           style={{
