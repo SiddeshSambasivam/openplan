@@ -1,11 +1,7 @@
 import { Bot } from "lucide-react";
-import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import type { Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import {
-  alignmentStartsOpen,
   answerOf,
   questionsByAspect,
   type Alignment,
@@ -15,15 +11,7 @@ import { WorkHeading } from "./WorkHeading";
 
 /** The questions the agent asked before starting, and what was chosen.
  * Read-only: the answers were given in the agent's session. */
-export function AlignmentAnswers({
-  alignment,
-  status,
-}: {
-  alignment: Alignment | undefined;
-  status: Status;
-}) {
-  const [open, setOpen] = useState(() => alignmentStartsOpen(status));
-
+export function AlignmentAnswers({ alignment }: { alignment: Alignment | undefined }) {
   if (!alignment) {
     return (
       <section>
@@ -33,41 +21,23 @@ export function AlignmentAnswers({
     );
   }
 
-  const count = alignment.questions.length;
   return (
     <section>
-      <WorkHeading
-        title="Alignment"
-        aside={
-          count > 0 && (
-            <Button
-              variant="ghost"
-              size="xs"
-              aria-expanded={open}
-              onClick={() => setOpen((shown) => !shown)}
-              className="-mr-2 font-normal text-muted-foreground"
-            >
-              {open ? "Hide answers" : `Show ${count} ${count === 1 ? "answer" : "answers"}`}
-            </Button>
-          )
-        }
-      />
-      {open && (
-        <div className="animate-in fade-in-0 space-y-3 duration-200">
-          {questionsByAspect(alignment.questions).map((group) => (
-            <div key={group.aspect}>
-              <Badge variant="secondary" className="font-normal">
-                {group.aspect}
-              </Badge>
-              <ul>
-                {group.questions.map((question) => (
-                  <QuestionRow key={question.id} question={question} />
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
+      <WorkHeading title="Alignment" />
+      <div className="space-y-3">
+        {questionsByAspect(alignment.questions).map((group) => (
+          <div key={group.aspect}>
+            <Badge variant="secondary" className="font-normal">
+              {group.aspect}
+            </Badge>
+            <ul>
+              {group.questions.map((question) => (
+                <QuestionRow key={question.id} question={question} />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

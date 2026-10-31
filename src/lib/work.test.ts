@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  alignmentStartsOpen,
   offersCompletion,
   answerOf,
   prBadges,
@@ -8,6 +7,7 @@ import {
   progress,
   progressText,
   questionsByAspect,
+  showsWorkPanel,
   TODO_MARKS,
   type Pr,
   type Question,
@@ -160,17 +160,36 @@ describe("answerOf", () => {
   });
 });
 
-describe("alignmentStartsOpen", () => {
-  it("is open up to and during the work", () => {
-    expect(alignmentStartsOpen("draft")).toBe(true);
-    expect(alignmentStartsOpen("alignment")).toBe(true);
-    expect(alignmentStartsOpen("in-progress")).toBe(true);
+describe("showsWorkPanel", () => {
+  it("shows the panel once the record has a todo, a repo or a PR", () => {
+    expect(showsWorkPanel(record([todo("t1", "open")]))).toBe(true);
+    expect(showsWorkPanel({ ...record([]), repos: [{ path: "~/code/app" }] })).toBe(true);
+    expect(
+      showsWorkPanel({
+        ...record([]),
+        prs: [
+          {
+            url: "https://github.com/owner/repo/pull/1",
+            todos: [],
+            state: "open",
+            checks: "pending",
+            review: "waiting",
+            reportedAt: "2026-10-28T10:00:00Z",
+            by: "claude-code",
+          },
+        ],
+      }),
+    ).toBe(true);
   });
 
-  it("is folded once the work is past in progress", () => {
-    expect(alignmentStartsOpen("in-review")).toBe(false);
-    expect(alignmentStartsOpen("completed")).toBe(false);
-    expect(alignmentStartsOpen("archived")).toBe(false);
+  it("has no panel for a missing record or one with only alignment and decisions", () => {
+    expect(showsWorkPanel(null)).toBe(false);
+    expect(
+      showsWorkPanel({
+        ...record([]),
+        alignment: { askedAt: "2026-10-28T09:00:00Z", questions: [] },
+      }),
+    ).toBe(false);
   });
 });
 

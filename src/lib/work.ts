@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { STATUS_FLOW, type Status } from "./planBase";
+import type { Status } from "./planBase";
 import { isTauri } from "./platform";
 
 /** The work record beside a plan: what the agents recorded about the work. */
@@ -163,10 +163,11 @@ export function answerOf(question: Question): {
   return { kind: "option", text: labels.join(", ") };
 }
 
-/** The answers matter while the work is being done. Once it is in review
- * they are history, and the todos and PRs are what a reader checks. */
-export function alignmentStartsOpen(status: Status): boolean {
-  return STATUS_FLOW.indexOf(status) <= STATUS_FLOW.indexOf("in-progress");
+/** The panel beside the plan holds the todos, repos and PRs, so it shows
+ * once any of them is recorded. */
+export function showsWorkPanel(record: WorkRecord | null): boolean {
+  if (!record) return false;
+  return record.todos.length + record.repos.length + record.prs.length > 0;
 }
 
 /** Completed stays the person's call. The app offers it once the agent has

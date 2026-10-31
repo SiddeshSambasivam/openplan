@@ -1,8 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { Status } from "@/lib/planBase";
-import type { Todo, TodoState, WorkRecord } from "@/lib/work";
-import { PlanWork } from "./PlanWork";
+import type { Decision, Todo, TodoState, WorkRecord } from "@/lib/work";
+import { AlignmentTab, WorkPanel } from "./PlanWork";
 
 const todo = (id: string, state: TodoState, extra: Partial<Todo> = {}): Todo => ({
   id,
@@ -22,13 +21,19 @@ const record = (extra: Partial<WorkRecord> = {}): WorkRecord => ({
   ...extra,
 });
 
-function render(work: WorkRecord | null, status: Status = "in-progress"): string {
-  return renderToStaticMarkup(<PlanWork record={work} status={status} />);
+function panel(work: WorkRecord | null): string {
+  return renderToStaticMarkup(
+    <WorkPanel record={work} overlay={false} open onClose={() => {}} />,
+  );
 }
 
-describe("PlanWork", () => {
+function alignmentTab(work: WorkRecord | null): string {
+  return renderToStaticMarkup(<AlignmentTab record={work} />);
+}
+
+describe("WorkPanel", () => {
   it("counts three todos, says who moved them, and why one was dropped", () => {
-    const html = render(
+    const html = panel(
       record({
         todos: [
           todo("t1", "done"),
@@ -45,27 +50,56 @@ describe("PlanWork", () => {
   });
 
   it("has no checkboxes, since agents move the todos", () => {
-    const html = render(record({ todos: [todo("t1", "open")] }));
+    const html = panel(record({ todos: [todo("t1", "open")] }));
 
     expect(html).not.toContain('type="checkbox"');
   });
 
-  it("shows nothing for a draft with no record", () => {
-    expect(render(null, "draft")).toBe("");
-  });
-
-  it("says alignment has not been recorded while the plan is in alignment", () => {
-    expect(render(null, "alignment")).toContain("No alignment yet.");
-  });
-
-  it("says todos come after alignment while none exist", () => {
-    expect(render(record(), "in-progress")).toContain(
-      "No todos yet. The agent adds them after alignment.",
+  it("shows nothing without todos, repos or PRs", () => {
+    expect(panel(null)).toBe("");
+    expect(panel(record({ alignment: { askedAt: "2026-10-28T09:00:00Z", questions: [] } }))).toBe(
+      "",
     );
   });
 
-  it("marks an answer left to the agent and a question that must be answered", () => {
-    const html = render(
+  it("lists repos with their branch and PRs with their badges", () => {
+    const html = panel(
+      record({
+        repos: [{ path: "~/Personal/openplan", branch: "feat/alignment" }],
+        prs: [
+          {
+            url: "https://github.com/owner/repo/pull/12",
+            todos: [],
+            state: "open",
+            checks: "failing",
+            review: "waiting",
+            reportedAt: "2026-10-28T10:00:00Z",
+            by: "claude-code",
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain("~/Personal/openplan");
+    expect(html).toContain("feat/alignment");
+    expect(html).toContain("owner/repo#12");
+    expect(html).toContain("Checks failing");
+  });
+});
+
+const decision: Decision = {
+  id: "D1",
+  context: "Where questions are asked.",
+  options: ["In the app", "In the harness"],
+  decision: "Ask in the harness",
+  why: "The person is already there.",
+  at: "2026-10-28T10:00:00Z",
+  by: "claude-code",
+};
+
+describe("AlignmentTab", () => {
+  it("lists the questions with their answers, then the decisions as cards", () => {
+    const html = alignmentTab(
       record({
         alignment: {
           askedAt: "2026-10-28T09:00:00Z",
@@ -88,57 +122,24 @@ describe("PlanWork", () => {
             },
           ],
         },
+        decisions: [decision],
       }),
-      "alignment",
     );
 
+    expect(html).toContain("Which tests?");
     expect(html).toContain("Unit tests");
+    expect(html).toContain("How big?");
     expect(html).toContain("Agent decides");
     expect(html).toContain("Must answer");
-  });
-
-  it("renders a recorded decision as a decision card", () => {
-    const html = render(
-      record({
-        decisions: [
-          {
-            id: "D1",
-            context: "Where questions are asked.",
-            options: ["In the app", "In the harness"],
-            decision: "Ask in the harness",
-            why: "The person is already there.",
-            at: "2026-10-28T10:00:00Z",
-            by: "claude-code",
-          },
-        ],
-      }),
-    );
-
     expect(html).toContain('class="plan-decision"');
     expect(html).toContain("D1. Ask in the harness");
+    expect(html.indexOf("Which tests?")).toBeLessThan(html.indexOf("D1. Ask in the harness"));
   });
 
-  it("lists repos with their branch and PRs with their badges", () => {
-    const html = render(
-      record({
-        repos: [{ path: "~/Personal/openplan", branch: "feat/alignment" }],
-        prs: [
-          {
-            url: "https://github.com/owner/repo/pull/12",
-            todos: [],
-            state: "open",
-            checks: "failing",
-            review: "waiting",
-            reportedAt: "2026-10-28T10:00:00Z",
-            by: "claude-code",
-          },
-        ],
-      }),
+  it("says alignment has not been recorded when the record has none", () => {
+    expect(alignmentTab(null)).toContain("No alignment yet.");
+    expect(alignmentTab(record({ decisions: [decision] }))).toContain(
+      "No alignment yet.",
     );
-
-    expect(html).toContain("~/Personal/openplan");
-    expect(html).toContain("feat/alignment");
-    expect(html).toContain("owner/repo#12");
-    expect(html).toContain("Checks failing");
   });
 });

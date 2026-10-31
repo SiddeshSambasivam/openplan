@@ -31,6 +31,7 @@ export const SHORTCUTS = [
     label: "Close the top panel",
     keys: "escape",
     group: "General",
+    when: "On a plan with nothing open, goes back to where you opened it",
     whileTyping: true,
   },
   { id: "board", label: "Board", keys: "mod+1", group: "Views" },

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -18,6 +19,7 @@ import { Header } from "./components/Header";
 import { ShortcutSheet } from "./components/ShortcutSheet";
 import { Sidebar } from "./components/Sidebar";
 import { PlanMetaBar } from "./components/PlanMetaBar";
+import { Segmented } from "./components/Segmented";
 import { HistoryPanel } from "./features/history/HistoryPanel";
 import { SettingsDialog } from "./features/settings/SettingsDialog";
 import { Onboarding } from "./features/onboarding/Onboarding";
@@ -102,10 +104,20 @@ import {
   SOURCE_LABELS,
   type PlanSummary,
 } from "./lib/planBase";
-import { forYou, planCrumb, steppedPlan, viewOrder, type ReviewSummary } from "./lib/board";
+import { forYou, pageTitle, steppedPlan, viewOrder, type ReviewSummary } from "./lib/board";
 import { useShortcuts, type ShortcutHandlers } from "./lib/shortcuts";
-import { listWorkProgress, offersCompletion, type TodoCount } from "./lib/work";
+import {
+  listWorkProgress,
+  offersCompletion,
+  progress,
+  showsWorkPanel,
+  type TodoCount,
+} from "./lib/work";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
+import { WORK_PANEL_PX, WorkPanel } from "./features/plan/PlanWork";
+import { originLabel, pushOrigin, type Origin } from "./lib/origin";
+import { PLAN_TABS, tabFor, withTab, type PlanTab, type PlanTabs } from "./lib/planTab";
+import { restoreScroll, scrollMarks, type ScrollMark } from "./lib/scroll";
 import { filterByFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
 import { BoardView } from "./features/board/BoardView";
@@ -138,6 +150,8 @@ function clampSidebarWidth(width: number): number {
 /** The main area needs at least this much room to give the outline a column
  * of its own and still leave a comfortable reading measure beside it. */
 const OUTLINE_COLUMN_MIN_WIDTH = 760;
+/** The same for the work panel's column, which is wider. */
+const WORK_COLUMN_MIN_WIDTH = 860;
 
 export default function App() {
   const initial = useMemo(() => loadLibrary(), []);
@@ -269,6 +283,17 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const paletteRef = useRef<OverlayHandle>(null);
   const sheetRef = useRef<OverlayHandle>(null);
+  // Where the plan page was entered from, last entry first to go back to.
+  // Only kept while the plan page is up.
+  const [trail, setTrail] = useState<Origin[]>([]);
+  // Where the person is now, read only at the moment they leave it.
+  const originRef = useRef<() => Origin | null>(() => null);
+  const viewAreaRef = useRef<HTMLDivElement>(null);
+  const scrollToRestore = useRef<ScrollMark[] | null>(null);
+  const [planTabs, setPlanTabs] = useState<PlanTabs>({});
+  // The plan whose floating work panel is open, so another plan opens with
+  // it closed.
+  const [workOpenFor, setWorkOpenFor] = useState<string | null>(null);
   // The two pickers their keys open; the header and the plan page own the
   // menus themselves.
   const [statusOpen, setStatusOpen] = useState(false);
@@ -539,20 +564,32 @@ export default function App() {
     return true;
   }, [flushSave]);
 
-  const selectPlan = useCallback(
-    (plan: PlanSummary) => {
-      openFilePaths([plan.path]);
+  /** Opens a page and remembers where from, for its back control. */
+  const enterPage = useCallback(
+    (path: string, from: Origin | null) => {
+      setTrail((trail) => pushOrigin(trail, from, path));
+      openFilePaths([path]);
     },
     [openFilePaths],
+  );
+
+  const selectPlan = useCallback(
+    (plan: PlanSummary) => enterPage(plan.path, originRef.current()),
+    [enterPage],
+  );
+
+  const openPlanFromSearch = useCallback(
+    (plan: PlanSummary, query: string) => enterPage(plan.path, { kind: "search", query }),
+    [enterPage],
   );
 
   /** Opens one document of a set. The set's folder is its entry point's. */
   const selectDocument = useCallback(
     (plan: PlanSummary, document: string) => {
       const folder = plan.path.slice(0, plan.path.lastIndexOf("/"));
-      openFilePaths([`${folder}/${document}`]);
+      enterPage(`${folder}/${document}`, originRef.current());
     },
-    [openFilePaths],
+    [enterPage],
   );
 
   const changeStatus = useCallback(
@@ -569,11 +606,8 @@ export default function App() {
     [activePlan, refreshPlans],
   );
 
-  // Read only while it can matter: a plan in review waits on its PRs.
-  const reviewRecord = useWorkRecord(
-    activePlan?.status === "in-review" ? activePlan.path : null,
-  );
-  const offerCompletion = activePlan != null && offersCompletion(activePlan.status, reviewRecord);
+  const workRecord = useWorkRecord(activePlan?.path ?? null);
+  const offerCompletion = activePlan != null && offersCompletion(activePlan.status, workRecord);
 
   const changeFolders = useCallback(
     (plan: PlanSummary, folders: string[]) => {
@@ -952,20 +986,47 @@ export default function App() {
     }
   }, [fontSize]);
 
+  // The work panel takes a column beside the plan where there is room, and
+  // floats from the top bar where there is not.
+  const mainWidth = viewportWidth - navbarWidth;
+  const workShown = activePlan != null && view === "preview" && showsWorkPanel(workRecord);
+  const workOverlays = mainWidth < WORK_COLUMN_MIN_WIDTH;
+  const workColumn = workShown && !workOverlays;
+  const workOpen = workShown && workOverlays && workOpenFor === activePlan?.path;
+  const toggleWork = useCallback(
+    () => setWorkOpenFor((open) => (open === activePlan?.path ? null : (activePlan?.path ?? null))),
+    [activePlan],
+  );
+  const closeWork = useCallback(() => setWorkOpenFor(null), []);
   // Whether there is room for the outline to have a column of its own; when
   // there isn't, it floats instead, and the two have separate open states.
   const outlineOverlays =
-    viewportWidth - navbarWidth < OUTLINE_COLUMN_MIN_WIDTH;
+    mainWidth - (workColumn ? WORK_PANEL_PX : 0) < OUTLINE_COLUMN_MIN_WIDTH;
   const outlineShown = outlineOverlays ? floatingOutlineOpen : outlineOpen;
   const toggleOutline = useCallback(() => {
     if (outlineOverlays) setFloatingOutlineOpen((o) => !o);
     else setOutlineOpen((o) => !o);
   }, [outlineOverlays]);
   const closeOutline = useCallback(() => setFloatingOutlineOpen(false), []);
+  // The tabs belong to a plan's own page in the preview. A document of a
+  // set, an HTML plan and the editor show the body alone.
+  const planHome =
+    activePlan != null &&
+    activeDoc?.path === activePlan.path &&
+    !isHtmlPath(activePlan.path) &&
+    view === "preview";
+  const planTab: PlanTab = planHome && activePlan ? tabFor(planTabs, activePlan.path) : "plan";
+  const choosePlanTab = useCallback(
+    (tab: PlanTab) => {
+      if (activePlan) setPlanTabs((tabs) => withTab(tabs, activePlan.path, tab));
+    },
+    [activePlan],
+  );
+  // The Alignment tab has no headings of its own, so its outline is empty.
   const { items: outlineItems, activeId: outlineActiveId } = useOutline(
     articleRef,
     scrollRef,
-    content,
+    planTab === "plan" ? content : planTab,
   );
 
   useEffect(() => {
@@ -1275,13 +1336,19 @@ export default function App() {
 
   const jumpToThread = useCallback(
     (thread: CommentThread) => {
-      const article = articleRef.current;
-      if (!article) return;
-      const [block] = blocksForRange(article, thread, commentLineOffset);
-      block?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const jump = () => {
+        const article = articleRef.current;
+        if (!article) return;
+        const [block] = blocksForRange(article, thread, commentLineOffset);
+        block?.scrollIntoView({ behavior: "smooth", block: "center" });
+      };
       setFocusThreadId(thread.id);
+      // Threads anchor in the body, which only the Plan tab renders.
+      if (planTab === "plan") return jump();
+      choosePlanTab("plan");
+      requestAnimationFrame(jump);
     },
-    [commentLineOffset],
+    [commentLineOffset, planTab, choosePlanTab],
   );
 
   const handleRename = useCallback(
@@ -1334,19 +1401,52 @@ export default function App() {
     return waiting.review.length + waiting.answered.length;
   }, [shownPlans, summaries]);
 
-  const crumb = useMemo(() => {
+  const title = useMemo(() => {
     if (!activeDoc) return null;
-    if (activePlan && activeDoc.path) return planCrumb(activePlan, activeDoc.path);
-    return { lead: null, title: activeDoc.name };
+    if (activePlan && activeDoc.path) return pageTitle(activePlan, activeDoc.path);
+    return activeDoc.name;
   }, [activeDoc, activePlan]);
+
+  originRef.current = () => {
+    if (mainView !== "plan") {
+      const scroll = viewAreaRef.current ? scrollMarks(viewAreaRef.current) : [];
+      return { kind: "view", view: mainView, scroll };
+    }
+    if (!activeDoc?.path || title == null) return null;
+    return { kind: "page", path: activeDoc.path, title };
+  };
 
   const showView = useCallback(
     (next: MainView) => {
       void flushSave();
+      // Coming back to the plan from a view goes back to that view; leaving
+      // the plan page drops the way back.
+      const from = next === "plan" ? originRef.current() : null;
+      const path = activeIdRef.current ?? "";
+      setTrail((trail) => (next === "plan" ? pushOrigin(trail, from, path) : []));
       setMainView(next);
     },
     [flushSave],
   );
+
+  const goBack = useCallback(() => {
+    const origin = trail[trail.length - 1];
+    if (!origin) return;
+    if (origin.kind === "search") return paletteRef.current?.open(origin.query);
+    if (origin.kind === "view") {
+      scrollToRestore.current = origin.scroll;
+      return showView(origin.view);
+    }
+    setTrail(trail.slice(0, -1));
+    openFilePaths([origin.path]);
+  }, [trail, showView, openFilePaths]);
+
+  // The view is back in the tree by now, but not yet on screen.
+  useLayoutEffect(() => {
+    const marks = scrollToRestore.current;
+    scrollToRestore.current = null;
+    if (marks && viewAreaRef.current) restoreScroll(viewAreaRef.current, marks);
+  }, [mainView]);
 
   /** A folder row filters the board and shows it. */
   const chooseFolder = useCallback(
@@ -1356,11 +1456,6 @@ export default function App() {
     },
     [showView],
   );
-
-  /** The breadcrumb's first part: the plan one of its documents belongs to. */
-  const openCrumbLead = useCallback(() => {
-    if (activePlan && crumb?.lead) selectPlan(activePlan);
-  }, [activePlan, crumb, selectPlan]);
 
   // Stable identity for the memoized sidebar: recompute only when the
   // library or the base changes, not on every render of the app.
@@ -1396,9 +1491,12 @@ export default function App() {
     (step: 1 | -1) => {
       const order = viewOrder(listViewRef.current, shownPlans, summaries);
       const next = steppedPlan(order, activePlanPath, step);
-      if (next) selectPlan(next);
+      if (!next) return;
+      // Stepping walks the view's order, so back still returns to the view.
+      if (mainView === "plan") openFilePaths([next.path]);
+      else selectPlan(next);
     },
-    [shownPlans, summaries, activePlanPath, selectPlan],
+    [shownPlans, summaries, activePlanPath, mainView, openFilePaths, selectPlan],
   );
   const lastPlan = sections.recent[0];
 
@@ -1412,9 +1510,13 @@ export default function App() {
         ? closeComments
         : onPlan && showOutline && outlineOverlays && floatingOutlineOpen
           ? closeOutline
-          : navbar.revealed
-            ? concealNavbar
-            : undefined;
+          : onPlan && workOpen
+            ? closeWork
+            : navbar.revealed
+              ? concealNavbar
+              : onPlan && view === "preview" && trail.length > 0
+                ? goBack
+                : undefined;
 
   // One handler per action, shared by the keys, the palette and the
   // buttons. An action that cannot run here has none.
@@ -1528,13 +1630,17 @@ export default function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         <Header
           mainView={mainView}
-          crumb={crumb}
+          title={title}
+          back={trail.length > 0 ? originLabel(trail[trail.length - 1]) : null}
+          onBack={goBack}
+          work={workShown && workOverlays && workRecord ? progress(workRecord) : null}
+          workOpen={workOpen}
+          onToggleWork={toggleWork}
           plan={activePlan}
           onStatusChange={changeStatus}
           statusOpen={statusOpen}
           onStatusOpenChange={setStatusOpen}
           offerCompletion={offerCompletion}
-          onOpenLead={openCrumbLead}
           folders={knownFolders}
           folder={folder}
           onSelectFolder={setChosenFolder}
@@ -1565,7 +1671,7 @@ export default function App() {
           trafficLightGap={isTauri && isMac && !fullscreen}
         />
         {mainView === "board" && (
-          <div className="motion-view min-h-0 flex-1">
+          <div ref={viewAreaRef} className="motion-view min-h-0 flex-1">
             <BoardView
               plans={shownPlans}
               summaries={summaries}
@@ -1579,7 +1685,7 @@ export default function App() {
         )}
 
         {mainView === "list" && (
-          <div className="motion-view min-h-0 flex-1">
+          <div ref={viewAreaRef} className="motion-view min-h-0 flex-1">
             <ListView
               plans={shownPlans}
               summaries={summaries}
@@ -1601,7 +1707,7 @@ export default function App() {
         )}
 
         {mainView === "for-you" && (
-          <div className="motion-view min-h-0 flex-1">
+          <div ref={viewAreaRef} className="motion-view min-h-0 flex-1">
             <ForYouView
               plans={shownPlans}
               summaries={summaries}
@@ -1647,9 +1753,12 @@ export default function App() {
                   onFoldersOpenChange={setFoldersOpen}
                   onOpenHistory={toggleHistory}
                 />
+                {planHome && (
+                  <Segmented value={planTab} options={PLAN_TABS} onChange={choosePlanTab} />
+                )}
               </div>
             )}
-            {canComment && (
+            {canComment && planTab === "plan" && (
               <>
                 <CommentsLayer
                   threads={commentThreads}
@@ -1673,6 +1782,8 @@ export default function App() {
               <Viewer
                 doc={activeDoc}
                 plan={activePlan}
+                tab={planTab}
+                record={workRecord}
                 content={content == null ? null : planBody}
                 error={error}
                 loading={loading}
@@ -1696,6 +1807,12 @@ export default function App() {
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
             </div>
           )}
+          <WorkPanel
+            record={workShown ? workRecord : null}
+            overlay={workOverlays}
+            open={workOpen}
+            onClose={closeWork}
+          />
           {canComment && (
             <CommentsPanel
               myEmail={identity?.email ?? null}
@@ -1764,7 +1881,7 @@ export default function App() {
         handlers={shortcutHandlers}
         plans={plans}
         recent={sections.recent}
-        onOpenPlan={selectPlan}
+        onOpenPlan={openPlanFromSearch}
       />
 
       <ShortcutSheet ref={sheetRef} />
