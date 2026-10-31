@@ -878,7 +878,7 @@ Entity model agreed with Sid 2026-10-28. Specification and decisions D1 to D13: 
 filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GATE 6 waiver (§9).
 - [ ] P7.1 Contract: `Status` gains alignment and archived; frontmatter gains
       `folders` and `completed`, stops writing `project` and `pr`; legacy reads **(T)**
-- [ ] P7.2 Work record: schema, atomic read-modify-write under the base lock,
+- [x] P7.2 Work record: schema, atomic read-modify-write under the base lock,
       `pr` migrated on first write **(T)**
 - [ ] P7.3 MCP: `update_plan`, `record_alignment`, `add_decisions`, `add_todos`,
       `update_todo`, `record_pr`, `pr_body`, `set_repos`; `create_plan` takes
