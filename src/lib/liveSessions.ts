@@ -14,11 +14,17 @@ export function sessionCounts(sessions: LiveSession[]): Map<string, number> {
   return counts;
 }
 
-/** What the top bar says after a review or an align event went out. With no
- * session on the plan, the hooks deliver it on the next prompt. */
+/** What the top bar says after a review or Build went out. With no session
+ * on the plan, the next session to take it hears it. */
 export function deliveryLine(sessions: number): string {
   if (sessions === 0) return "Waiting for the session. Type anything in it to deliver.";
   return `Delivered to ${sessions} ${sessions === 1 ? "session" : "sessions"}.`;
+}
+
+/** What the top bar says once a session tried to start its agent's turn.
+ * A failed wake still delivers, through the hooks. */
+export function wakeLine(ok: boolean): string {
+  return ok ? "Agent woken." : "Couldn't wake the session. It will hear on your next message.";
 }
 
 /**

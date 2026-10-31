@@ -94,7 +94,7 @@ import type {
 import { splitFrontmatter } from "./lib/frontmatter";
 import { isHtmlPath } from "./lib/htmlDoc";
 import { useOutline } from "./lib/useOutline";
-import { deliveryLine, useLiveSessions } from "./lib/liveSessions";
+import { deliveryLine, useLiveSessions, wakeLine } from "./lib/liveSessions";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
   archiveStale,
@@ -105,12 +105,13 @@ import {
   renamePlan,
   renameDocument,
   reviewSummaries,
-  sendAlign,
+  sendBuild,
   setArchiveAfterDays,
   setBaseFolders,
   setFolders,
   setMedia,
   setPlanStatus,
+  setWake,
   type Preferences,
   type Status,
   SOURCE_LABELS,
@@ -181,7 +182,7 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // One line under the top bar's buttons, gone a moment later: whether a
-  // review or an align event reached a session. Nothing else needs saying
+  // review or Build reached a session. Nothing else needs saying
   // after an action, so there is no toast to build on.
   const [sendNotice, setSendNotice] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -261,6 +262,7 @@ export default function App() {
 
   const [preferences, setPreferences] = useState<Preferences>({
     media: false,
+    wake: true,
     archiveAfterDays: 7,
   });
   useEffect(() => {
@@ -271,6 +273,10 @@ export default function App() {
   const changeMedia = useCallback((media: boolean) => {
     setPreferences((p) => ({ ...p, media }));
     void setMedia(media);
+  }, []);
+  const changeWake = useCallback((wake: boolean) => {
+    setPreferences((p) => ({ ...p, wake }));
+    void setWake(wake);
   }, []);
   const changeArchiveAfterDays = useCallback((archiveAfterDays: number) => {
     setPreferences((p) => ({ ...p, archiveAfterDays }));
@@ -621,15 +627,44 @@ export default function App() {
     (status: Status) => {
       if (!activePlan) return;
       const plan = activePlan;
-      void setPlanStatus(plan.path, status).then(async () => {
-        refreshPlans();
-        // Setting alignment is the person handing the plan back: the
-        // session on it starts asking its questions.
-        if (status === "alignment") setSendNotice(deliveryLine(await sendAlign(plan.id)));
-      });
+      void setPlanStatus(plan.path, status).then(refreshPlans);
     },
     [activePlan, refreshPlans],
   );
+
+  // Build is how the person tells the agent to start, so it goes once the
+  // work has.
+  const canBuild =
+    activePlan != null && (activePlan.status === "draft" || activePlan.status === "alignment");
+  const build = useCallback(() => {
+    if (!activePlan) return;
+    void sendBuild(activePlan.path)
+      .then((sessions) => setSendNotice(deliveryLine(sessions)))
+      .catch(() => setSendNotice("Could not send. Your comments are saved."));
+  }, [activePlan]);
+
+  // A session that got a send tries to start its agent's turn, and says how
+  // that went a moment after the delivery line.
+  const activePlanIdRef = useRef<string | null>(null);
+  activePlanIdRef.current = activePlan?.id ?? null;
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    void (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      const un = await listen<{ ok: boolean; plans: string[] }>("session-woke", ({ payload }) => {
+        const shown = activePlanIdRef.current;
+        if (shown != null && payload.plans.includes(shown)) setSendNotice(wakeLine(payload.ok));
+      });
+      if (cancelled) un();
+      else unlisten = un;
+    })();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
 
   const workRecord = useWorkRecord(activePlan?.path ?? null);
   const offerCompletion = activePlan != null && offersCompletion(activePlan.status, workRecord);
@@ -1643,6 +1678,7 @@ export default function App() {
     history: onPlan && activePlan ? toggleHistory : undefined,
     workPanel: workShown ? (workOverlays ? toggleWork : toggleWorkMode) : undefined,
     status: onPlan && activePlan ? () => setStatusOpen(true) : undefined,
+    build: onPlan && canBuild ? build : undefined,
     folders: onPlan && activePlan && view === "preview" ? () => setFoldersOpen(true) : undefined,
     archive:
       selection.length > 0
@@ -1745,6 +1781,7 @@ export default function App() {
           statusOpen={statusOpen}
           onStatusOpenChange={setStatusOpen}
           offerCompletion={offerCompletion}
+          onBuild={canBuild ? build : undefined}
           folders={knownFolders}
           folder={folder}
           onSelectFolder={setChosenFolder}
@@ -1996,6 +2033,7 @@ export default function App() {
         base={base}
         preferences={preferences}
         onMediaChange={changeMedia}
+        onWakeChange={changeWake}
         onArchiveAfterDaysChange={changeArchiveAfterDays}
       />
 

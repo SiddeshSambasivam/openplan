@@ -190,11 +190,13 @@ export async function setAuthoring(mode: Authoring): Promise<void> {
 export interface Preferences {
   /** Whether agents may add videos and interactive pieces. */
   media: boolean;
+  /** Whether a send starts the agent's turn in an idle session. */
+  wake: boolean;
   /** Days a completed plan waits before it is archived. 0 means never. */
   archiveAfterDays: number;
 }
 
-const BROWSER_PREFERENCES: Preferences = { media: true, archiveAfterDays: 7 };
+const BROWSER_PREFERENCES: Preferences = { media: true, wake: true, archiveAfterDays: 7 };
 
 export async function getPreferences(): Promise<Preferences> {
   if (!isTauri) return BROWSER_PREFERENCES;
@@ -217,10 +219,16 @@ export async function archiveStale(): Promise<number> {
   return invoke<number>("archive_stale");
 }
 
-/** Tells the sessions on a plan to start aligning. Returns how many heard. */
-export async function sendAlign(planId: string): Promise<number> {
+export async function setWake(on: boolean): Promise<void> {
+  if (!isTauri) return;
+  await invoke<void>("set_wake", { on });
+}
+
+/** Sends the plan's unsent comments and tells its sessions to start the
+ * work. Returns how many heard, which is zero when nobody is on the plan. */
+export async function sendBuild(path: string): Promise<number> {
   if (!isTauri) return 0;
-  return invoke<number>("send_align", { plan: planId });
+  return invoke<number>("send_build", { path });
 }
 
 export async function scanPlans(): Promise<PlanSummary[]> {

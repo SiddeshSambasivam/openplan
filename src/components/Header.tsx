@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronRight,
   Eye,
+  Hammer,
   ListTodo,
   MessageSquareText,
   Search,
@@ -60,6 +61,8 @@ interface HeaderProps {
   onStatusOpenChange: (open: boolean) => void;
   /** Every recorded PR reads merged on a plan in review. */
   offerCompletion: boolean;
+  /** Sends the agent on the plan to work. Absent once the work has started. */
+  onBuild?: () => void;
   /** Every folder in the base, for the filter. */
   folders: string[];
   folder: FolderFilter;
@@ -88,8 +91,8 @@ interface HeaderProps {
   /** Threads written but not sent. Zero hides the Send button. */
   pendingCommentCount: number;
   onSendReview: () => void;
-  /** Whether the last review or align event reached a session. Cleared by
-   * whoever set it. */
+  /** Whether the last review or Build reached a session, and whether its
+   * agent woke. Cleared by whoever set it. */
   sendNotice: string | null;
   onOpenFind: () => void;
   /** How far the bar reaches left over the navbar's column, and where its
@@ -113,6 +116,7 @@ export function Header({
   statusOpen,
   onStatusOpenChange,
   offerCompletion,
+  onBuild,
   folders,
   folder,
   onSelectFolder,
@@ -271,6 +275,20 @@ export function Header({
             Mark completed
           </TooltipButton>
         </>
+      )}
+
+      {onPlan && onBuild && (
+        <TooltipButton
+          size="xs"
+          variant="outline"
+          onClick={onBuild}
+          shortcut="build"
+          tooltip="Tell the agent to start the work, with any unsent comments"
+          className="gap-1.5"
+        >
+          <Hammer />
+          Build
+        </TooltipButton>
       )}
 
       {showDocTools && wordCount != null && (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deliveryLine, sessionCounts } from "./liveSessions";
+import { deliveryLine, sessionCounts, wakeLine } from "./liveSessions";
 
 const session = (id: string, plans: string[]) => ({
   id,
@@ -47,6 +47,18 @@ describe("deliveryLine", () => {
   it("tells the person how to deliver it when no session got it", () => {
     expect(deliveryLine(0)).toBe(
       "Waiting for the session. Type anything in it to deliver.",
+    );
+  });
+});
+
+describe("wakeLine", () => {
+  it("says the agent is working when the wake reached it", () => {
+    expect(wakeLine(true)).toBe("Agent woken.");
+  });
+
+  it("says when the agent will hear when the wake failed", () => {
+    expect(wakeLine(false)).toBe(
+      "Couldn't wake the session. It will hear on your next message.",
     );
   });
 });

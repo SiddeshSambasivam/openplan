@@ -85,6 +85,7 @@ interface SettingsDialogProps {
   base: BaseInfo | null;
   preferences: Preferences;
   onMediaChange: (on: boolean) => void;
+  onWakeChange: (on: boolean) => void;
   onArchiveAfterDaysChange: (days: number) => void;
 }
 
@@ -146,6 +147,7 @@ export function SettingsDialog({
   base,
   preferences,
   onMediaChange,
+  onWakeChange,
   onArchiveAfterDaysChange,
 }: SettingsDialogProps) {
   const [version, setVersion] = useState<string | null>(null);
@@ -277,6 +279,16 @@ export function SettingsDialog({
                     <ArchiveDays
                       days={preferences.archiveAfterDays}
                       onChange={onArchiveAfterDaysChange}
+                    />
+                  </Row>
+                  <Row
+                    label="Wake the agent when I send a review"
+                    hint="An idle Claude Code session starts working at once. Other agents hear on your next message."
+                  >
+                    <Switch
+                      checked={preferences.wake}
+                      onCheckedChange={onWakeChange}
+                      aria-label="Wake the agent when I send a review"
                     />
                   </Row>
                 </div>

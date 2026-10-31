@@ -90,6 +90,13 @@ export const SHORTCUTS = [
     when: "On a plan with todos, repos or PRs",
   },
   { id: "status", label: "Change status", keys: "mod+shift+s", group: "Plan" },
+  {
+    id: "build",
+    label: "Build",
+    keys: "mod+shift+enter",
+    group: "Plan",
+    when: "On a plan in draft or alignment",
+  },
   { id: "folders", label: "Folders", keys: "mod+shift+f", group: "Plan", when: "In the preview" },
   { id: "archive", label: "Archive plan", keys: "mod+shift+a", group: "Plan" },
   {

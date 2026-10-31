@@ -110,6 +110,13 @@ describe("shortcutFor", () => {
     expect(shortcutFor(press("Backspace", { metaKey: true }), "mac", false)).toBe("deletePlans");
     expect(shortcutFor(press("Backspace", { ctrlKey: true }), "other", false)).toBe("deletePlans");
   });
+
+  it("builds with shift added to the send review chord", () => {
+    expect(shortcutFor(press("Enter", { metaKey: true, shiftKey: true }), "mac", false)).toBe("build");
+    expect(shortcutFor(press("Enter", { ctrlKey: true, shiftKey: true }), "other", false)).toBe("build");
+    expect(shortcutFor(press("Enter", { metaKey: true }), "mac", false)).toBe("sendReview");
+    expect(shortcutFor(press("Enter", { metaKey: true, shiftKey: true }), "mac", true)).toBeNull();
+  });
 });
 
 describe("isTypingTarget", () => {
