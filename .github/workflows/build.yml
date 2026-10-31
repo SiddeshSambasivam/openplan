@@ -107,6 +107,12 @@ jobs:
           HOST: ${{ vars.UPDATES_HOST }}
         run: |
           VERSION="${TAG#v}"
+          # A tag that differs from the app's version would offer the same update forever.
+          APP_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          if [ "$VERSION" != "$APP_VERSION" ]; then
+            echo "Tag $TAG does not match the app version $APP_VERSION" >&2
+            exit 1
+          fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           # Checkout leaves a lightweight tag, so fetch the real one to read its message.
           git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
