@@ -22,7 +22,7 @@ interface EditorProps {
   initialDoc: string;
   /** Fires on every buffer change; keep it cheap (no React state per keystroke). */
   onDocChange: () => void;
-  /** No markdown grammar — an HTML plan is edited as text. */
+  /** No markdown grammar: an HTML plan is edited as text. */
   plainText?: boolean;
 }
 

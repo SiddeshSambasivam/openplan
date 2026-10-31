@@ -424,7 +424,7 @@
 /* ---------------------------------- */
 
 /* Each section is one block. Its markdown still renders through the shared
-   renderer, so every treatment here is styling over that output — nothing
+   renderer, so every treatment here is styling over that output. Nothing
    moves a block that carries a source-line stamp. */
 .plan-section {
   margin-bottom: 2rem;

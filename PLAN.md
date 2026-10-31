@@ -812,7 +812,7 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 - [x] P6.5 Shell: nav (Board, All plans, For you, Projects, Recent), top bar with
       the plan title and a status picker, spaced width 60rem
 - [x] P6.6 Board, list and For you views; project filter; repo marks
-- [ ] P6.7 Rendered plan page: section-aware layout by type for markdown; HTML plans
+- [x] P6.7 Rendered plan page: section-aware layout by type for markdown; HTML plans
       and HTML documents in a set rendered in a sandbox **(T: section parsing)**
 - [ ] P6.8 Comments as a review: threads accumulate as pending, one Send delivers
       them to the session; thread states open, answered, resolved; who resolved
@@ -901,6 +901,12 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 | 2026-09-22 | The main area is one of four surfaces (board, all plans, For you, plan page) chosen by a stored `view` in `App.tsx`; the sidebar's plan tree, the loose files and the folders move into All plans | No router (§5.4), and the nav has to be the only way around. Keeping the tree means nothing that worked before is lost, and the plan page keeps its breadcrumb back to the board |
 | 2026-09-22 | Open and answered threads for every plan come from one `review_summaries` command, not a `comment_threads` call per plan | "For you" needs a fact about every plan in the base. One read per base change stays event-driven (NFR-8); a call per plan is O(plans) round trips each time an agent writes |
 | 2026-09-22 | A project is shown as `owner/repo` everywhere, through one `projectName` helper over the stored remote | The stored key carries the host so tools can find the repo; people read the owner and the repo. One helper keeps the board, the list, the sidebar and the plan header saying the same thing |
+| 2026-09-22 | The plan page renders one markdown slice per section and offsets its source-line stamps back into body lines, rather than restyling one whole render | Section treatments need a wrapper per section, and a wrapper cannot be added to one render without moving stamped blocks. Slicing keeps every treatment as CSS over untouched markdown output, which is what §6.2b requires. Cost: link references and footnotes only resolve inside the section that defines them, and heading slugs are unique per section rather than per document |
+| 2026-09-22 | A section's level is the shallowest heading left once the title heading is gone, not the most common one | Measured against the base: counting levels picks H3 on plans that are written in numbered H1 sections. The shallowest level reads H1-sectioned and H2-sectioned plans the same way |
+| 2026-09-22 | The body's first H1 is the title when either title is the other's opening words, or when it is the only H1 in the body | Plans shorten the title in the file and extend it in the heading, both ways round. The lone-H1 rule catches the rest, where the alternative is a page of one section holding the whole plan |
+| 2026-09-22 | A decision card wraps the whole `D<n>` run, heading and all, instead of lifting the id and the labels into a grid | The card's own label column would have to rebuild the paragraph the comments anchor to. Real plans write the labels four different ways, so the grid would fit one of them and break the rest |
+| 2026-09-22 | An HTML plan's frame gets a viewport-height minimum and scrolls inside the article, rather than growing to its content | `sandbox=""` is what keeps scripts, network and forms out, and it also blocks `contentDocument`, so the height cannot be read. A fixed minimum is the honest version of the same page |
+| 2026-09-22 | Comments are hidden for HTML plans, and the editor opens them as plain text | Anchors are markdown source lines (§6.2b), which an HTML page does not have. The editor package ships no HTML grammar and one is not worth adding |
 
 ---
 
