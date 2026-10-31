@@ -293,7 +293,14 @@ fn reply_comment(base: &Base, author: &str, args: &Value) -> Value {
     ) else {
         return text_result("reply_comment needs thread_id and text.", true);
     };
-    if let Err(e) = comments::reply(&entry.path, thread_id, text, author, &now_iso()) {
+    if let Err(e) = comments::reply(
+        &entry.path,
+        thread_id,
+        text,
+        author,
+        Some(openplan_core::settings::current_identity().email.as_str()),
+        &now_iso(),
+    ) {
         return text_result(e, true);
     }
     let _ = repo::commit_all(

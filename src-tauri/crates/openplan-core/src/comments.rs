@@ -17,6 +17,21 @@ pub struct CommentEntry {
     /// Files written before authors existed were the user's own.
     #[serde(default = "default_author")]
     pub author: String,
+    /// The person who typed this, when a person did. Agents leave it unset:
+    /// their name is the tool's, already in `author`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author_name: Option<String>,
+    /// Whose base this was written against, agent entries included. This is
+    /// what tells two people apart once a base is shared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author_email: Option<String>,
+}
+
+impl CommentEntry {
+    /// What to call whoever wrote this: a person by name, an agent by tool.
+    pub fn label(&self) -> &str {
+        self.author_name.as_deref().unwrap_or(&self.author)
+    }
 }
 
 fn default_author() -> String {
@@ -83,6 +98,7 @@ pub fn reply(
     thread_id: &str,
     text: &str,
     author: &str,
+    author_email: Option<&str>,
     now: &str,
 ) -> Result<(), String> {
     let mut threads = read_threads(doc_path);
@@ -96,6 +112,8 @@ pub fn reply(
         created_at: now.to_string(),
         edited_at: None,
         author: author.to_string(),
+        author_name: None,
+        author_email: author_email.map(str::to_string),
     });
     write_threads(doc_path, &threads)
 }
@@ -140,10 +158,10 @@ pub fn format_for_agent(threads: &[CommentThread], file_label: &str) -> String {
         out.push(String::new());
         let mut comments = thread.comments.iter();
         if let Some(root) = comments.next() {
-            out.push(format!("- **Comment ({}):** {}", root.author, root.text));
+            out.push(format!("- **Comment ({}):** {}", root.label(), root.text));
         }
         for entry in comments {
-            out.push(format!("  - **Reply ({}):** {}", entry.author, entry.text));
+            out.push(format!("  - **Reply ({}):** {}", entry.label(), entry.text));
         }
         out.push(String::new());
     }
@@ -167,6 +185,8 @@ mod tests {
                 created_at: "2026-08-16T10:00:00Z".to_string(),
                 edited_at: None,
                 author: "user".to_string(),
+                author_name: Some("Sid".to_string()),
+                author_email: Some("sid@hypotenuse.ai".to_string()),
             }],
         }
     }
@@ -195,7 +215,14 @@ mod tests {
         let doc = temp_doc("openplan-core-comments-reply");
         write_threads(&doc, &[thread("t1", 3, false)]).unwrap();
 
-        reply(&doc, "t1", "done, see the new section", "claude-code", "2026-08-16T11:00:00Z")
+        reply(
+            &doc,
+            "t1",
+            "done, see the new section",
+            "claude-code",
+            Some("sid@hypotenuse.ai"),
+            "2026-08-16T11:00:00Z",
+        )
             .unwrap();
 
         let threads = read_threads(&doc);
@@ -212,7 +239,7 @@ mod tests {
         set_resolved(&doc, "t1", true).unwrap();
         assert!(read_threads(&doc)[0].resolved);
 
-        let err = reply(&doc, "missing", "x", "codex", "now").unwrap_err();
+        let err = reply(&doc, "missing", "x", "codex", None, "now").unwrap_err();
         assert!(err.contains("No thread missing"));
         let _ = std::fs::remove_dir_all(doc.parent().unwrap());
     }
@@ -238,6 +265,8 @@ mod tests {
             created_at: "2026-08-16T11:00:00Z".to_string(),
             edited_at: None,
             author: "claude-code".to_string(),
+            author_name: None,
+            author_email: Some("sid@hypotenuse.ai".to_string()),
         });
 
         let out = format_for_agent(&[t, thread("t2", 1, true)], "plans/auth.md");
@@ -245,7 +274,8 @@ mod tests {
         assert!(out.contains("Review comments on `plans/auth.md`"));
         assert!(out.contains("### Lines 3-5 (thread t1)"));
         assert!(out.contains("> the quoted text"));
-        assert!(out.contains("- **Comment (user):** please clarify"));
+        // A person is named; an agent is its tool, whoever it ran for.
+        assert!(out.contains("- **Comment (Sid):** please clarify"));
         assert!(out.contains("  - **Reply (claude-code):** because of X"));
         assert!(!out.contains("t2"), "resolved threads stay out");
     }

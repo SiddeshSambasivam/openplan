@@ -205,6 +205,24 @@ pub async fn rename_document(path: String, new_name: String) -> Result<PathBuf, 
     )
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdentityInfo {
+    name: String,
+    email: String,
+}
+
+/// Who this machine's changes and comments belong to, so the interface can
+/// say "You" for your own and name everyone else.
+#[tauri::command]
+pub async fn app_identity() -> Result<IdentityInfo, String> {
+    let id = settings::current_identity();
+    Ok(IdentityInfo {
+        name: id.name,
+        email: id.email,
+    })
+}
+
 #[tauri::command]
 pub async fn comment_threads(path: String) -> Result<Vec<comments::CommentThread>, String> {
     Ok(comments::read_threads(std::path::Path::new(&path)))

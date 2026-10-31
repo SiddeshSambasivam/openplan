@@ -87,7 +87,14 @@ describe("formatThreadsForAgent", () => {
           lineStart: 3,
           lineEnd: 5,
           comments: [
-            { id: "c1", text: "why this order?", createdAt: "x", author: "user" },
+            {
+              id: "c1",
+              text: "why this order?",
+              createdAt: "x",
+              author: "user",
+              authorName: "Sid",
+              authorEmail: "sid@hypotenuse.ai",
+            },
             { id: "c2", text: "because of X", createdAt: "y", author: "claude-code" },
           ],
         }),
@@ -97,7 +104,8 @@ describe("formatThreadsForAgent", () => {
 
     expect(output).toContain("plans/auth.md");
     expect(output).toContain("### Lines 3-5 (thread t1)");
-    expect(output).toContain("- **Comment (user):** why this order?");
+    // A person is named; an agent is its tool, whoever it ran for.
+    expect(output).toContain("- **Comment (Sid):** why this order?");
     expect(output).toContain("  - **Reply (claude-code):** because of X");
     expect(output).toContain("> the quoted text");
     expect(output).toContain("why this order?");

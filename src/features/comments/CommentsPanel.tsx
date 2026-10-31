@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { TooltipButton } from "@/components/TooltipButton";
 import {
   formatThreadsForAgent,
+  type CommentEntry,
   type CommentThread,
 } from "@/lib/comments";
 import { cn } from "@/lib/utils";
@@ -21,14 +22,19 @@ function AuthorMark({ author }: { author: string }) {
   return null;
 }
 
-function authorLabel(author: string): string {
-  const names: Record<string, string> = {
-    user: "You",
-    "claude-code": "Claude Code",
-    codex: "Codex",
-    cursor: "Cursor",
-  };
-  return names[author] ?? author;
+const TOOL_NAMES: Record<string, string> = {
+  "claude-code": "Claude Code",
+  codex: "Codex",
+  cursor: "Cursor",
+};
+
+/** Your own comments say "You"; a teammate's say their name. Comments from
+ * before anyone had a name were written by whoever is reading them. */
+function authorLabel(entry: CommentEntry, myEmail: string | null): string {
+  if (entry.author !== "user") return TOOL_NAMES[entry.author] ?? entry.author;
+  if (!entry.authorEmail) return "You";
+  if (myEmail && entry.authorEmail === myEmail) return "You";
+  return entry.authorName ?? "A teammate";
 }
 
 function Reply({ onReply }: { onReply: (text: string) => void }) {
@@ -67,6 +73,7 @@ export function CommentsPanel({
   threads,
   anchorStates,
   docLabel,
+  myEmail,
   focusThreadId,
   onClose,
   onReply,
@@ -78,6 +85,8 @@ export function CommentsPanel({
   threads: CommentThread[];
   anchorStates: Record<string, AnchorState>;
   docLabel: string;
+  /** Whose comments count as your own. Null before identity has loaded. */
+  myEmail: string | null;
   focusThreadId: string | null;
   onClose: () => void;
   onReply: (threadId: string, text: string) => void;
@@ -138,7 +147,7 @@ export function CommentsPanel({
           <div key={entry.id}>
             <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
               <AuthorMark author={entry.author} />
-              {authorLabel(entry.author)}
+              {authorLabel(entry, myEmail)}
             </p>
             <p className="mt-0.5 text-xs leading-5 text-foreground/90">
               {entry.text}

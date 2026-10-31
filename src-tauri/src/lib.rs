@@ -219,6 +219,7 @@ pub fn run() {
             plans::plan_diff,
             plans::rename_plan,
             plans::rename_document,
+            plans::app_identity,
             plans::comment_threads,
             plans::save_comment_threads,
             plans::plan_at_revision,

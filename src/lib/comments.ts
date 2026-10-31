@@ -1,3 +1,9 @@
+/** Who this machine's comments belong to. */
+export interface Identity {
+  name: string;
+  email: string;
+}
+
 /** Who wrote a comment: the person using OpenPlan, or the agent that did. */
 export type CommentAuthor = "user" | (string & {});
 
@@ -9,6 +15,18 @@ export interface CommentEntry {
    * drives an "(edited)" marker, Notion-style. Absent for never-edited entries. */
   editedAt?: string;
   author: CommentAuthor;
+  /** The person who typed this, when a person did. Agents leave it unset:
+   * their name is the tool's, already in `author`. */
+  authorName?: string;
+  /** Whose base this was written against, agent entries included. This is
+   * what tells two people apart once a base is shared. */
+  authorEmail?: string;
+}
+
+/** What to call whoever wrote a comment: a person by name, an agent by
+ * tool. Kept identical to the Rust side, which writes the same files. */
+export function commentLabel(entry: CommentEntry): string {
+  return entry.authorName ?? entry.author;
 }
 
 export interface CommentThread {
@@ -39,9 +57,16 @@ export function newCommentId(): string {
 
 export function newCommentEntry(
   text: string,
+  identity?: Identity | null,
   author: CommentAuthor = "user",
 ): CommentEntry {
-  return { id: newCommentId(), text, createdAt: new Date().toISOString(), author };
+  return {
+    id: newCommentId(),
+    text,
+    createdAt: new Date().toISOString(),
+    author,
+    ...(identity ? { authorName: identity.name, authorEmail: identity.email } : {}),
+  };
 }
 
 const SIDECAR_VERSION = 2;
@@ -128,9 +153,9 @@ export function formatThreadsForAgent(
     for (const quoteLine of thread.quote.split("\n")) out.push(`> ${quoteLine}`);
     out.push("");
     const [root, ...replies] = thread.comments;
-    if (root) out.push(`- **Comment (${root.author}):** ${root.text}`);
+    if (root) out.push(`- **Comment (${commentLabel(root)}):** ${root.text}`);
     for (const reply of replies)
-      out.push(`  - **Reply (${reply.author}):** ${reply.text}`);
+      out.push(`  - **Reply (${commentLabel(reply)}):** ${reply.text}`);
     out.push("");
   }
 

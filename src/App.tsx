@@ -24,7 +24,7 @@ import { CommentsLayer, type AnchorState } from "./features/comments/CommentsLay
 import { CommentsPanel } from "./features/comments/CommentsPanel";
 import { useComments } from "./features/comments/useComments";
 import { blocksForRange } from "./lib/anchors";
-import type { CommentThread } from "./lib/comments";
+import type { CommentThread, Identity } from "./lib/comments";
 import { Outline } from "./components/Outline";
 import { Viewer } from "./components/Viewer";
 import { directoryEntryToTree, fileListToTree } from "./lib/browserFs";
@@ -57,6 +57,7 @@ import { useOutline } from "./lib/useOutline";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
   commitBase,
+  getIdentity,
   renamePlan,
   renameDocument,
   setPlanTags,
@@ -1033,6 +1034,11 @@ export default function App() {
 
   // macOS hides the traffic lights in fullscreen; the room the sidebar and
   // header reserve for them goes with them.
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  useEffect(() => {
+    void getIdentity().then(setIdentity).catch(() => {});
+  }, []);
+
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     if (!isTauri) return;
@@ -1195,7 +1201,7 @@ export default function App() {
     reply: replyToThread,
     setResolved: setThreadResolved,
     removeThread,
-  } = useComments(commentsDoc);
+  } = useComments(commentsDoc, identity);
   const openCommentCount = commentThreads.filter((t) => !t.resolved).length;
 
   const openThread = useCallback((threadId: string) => {
@@ -1419,6 +1425,7 @@ export default function App() {
           )}
           {canComment && (
             <CommentsPanel
+              myEmail={identity?.email ?? null}
               open={commentsOpen}
               threads={commentThreads}
               anchorStates={anchorStates}

@@ -5,6 +5,7 @@ import {
   newCommentEntry,
   newCommentId,
   type CommentThread,
+  type Identity,
 } from "@/lib/comments";
 
 /**
@@ -12,7 +13,7 @@ import {
  * the same file through the MCP server, so a reload on base changes is what
  * makes their replies appear without anything being clicked.
  */
-export function useComments(path: string | null) {
+export function useComments(path: string | null, identity: Identity | null) {
   const [threads, setThreads] = useState<CommentThread[]>([]);
 
   const reload = useCallback(() => {
@@ -60,11 +61,11 @@ export function useComments(path: string | null) {
           lineStart,
           lineEnd,
           resolved: false,
-          comments: [newCommentEntry(text)],
+          comments: [newCommentEntry(text, identity)],
         },
       ]);
     },
-    [threads, save],
+    [threads, save, identity],
   );
 
   const reply = useCallback(
@@ -72,12 +73,12 @@ export function useComments(path: string | null) {
       save(
         threads.map((t) =>
           t.id === threadId
-            ? { ...t, comments: [...t.comments, newCommentEntry(text)] }
+            ? { ...t, comments: [...t.comments, newCommentEntry(text, identity)] }
             : t,
         ),
       );
     },
-    [threads, save],
+    [threads, save, identity],
   );
 
   const setResolved = useCallback(

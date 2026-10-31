@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { Identity } from "./comments";
 import { isTauri } from "./platform";
 
 /** Where a plan came from — an agent's name, or the person using OpenPlan. */
@@ -64,6 +65,12 @@ export interface SearchHit {
   title: string;
   line: number;
   text: string;
+}
+
+/** Who this machine's changes belong to. Null in the browser build. */
+export async function getIdentity(): Promise<Identity | null> {
+  if (!isTauri) return null;
+  return invoke<Identity>("app_identity");
 }
 
 export async function getBase(): Promise<BaseInfo | null> {

@@ -102,6 +102,8 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
                 created_at: "2026-08-16T12:00:00Z".to_string(),
                 edited_at: None,
                 author: "user".to_string(),
+                author_name: Some("Sid".to_string()),
+                author_email: Some("sid@hypotenuse.ai".to_string()),
             }],
         }],
     )
@@ -112,6 +114,8 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let review_text = review["result"]["content"][0]["text"].as_str().unwrap();
     assert!(review_text.contains("thread t1"), "{review_text}");
     assert!(review_text.contains("explain this choice"));
+    // The agent is told who is asking, by name rather than by role.
+    assert!(review_text.contains("**Comment (Sid):**"), "{review_text}");
 
     let replied = ask(r##"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"reply_comment","arguments":{"id":"auth-refactor","thread_id":"t1","text":"Because the schema owns the wire shape."}}}"##);
     assert_eq!(replied["result"]["isError"], false, "{replied}");
@@ -122,6 +126,9 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let threads = openplan_core::comments::read_threads(&plan_path);
     assert!(threads[0].resolved);
     assert_eq!(threads[0].comments[1].author, "claude-code");
+    // The tool signs its own name, against the person whose base it ran on.
+    assert!(threads[0].comments[1].author_name.is_none());
+    assert!(threads[0].comments[1].author_email.is_some());
 
     drop(stdin);
     server.wait().unwrap();
