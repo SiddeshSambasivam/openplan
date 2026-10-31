@@ -35,5 +35,5 @@ Package manager is **pnpm** (never npm/yarn — `packageManager` field is pinned
 
 - `pnpm dev` — UI only in a browser (in-memory file fallback)
 - `pnpm tauri dev` — full desktop app
-- `pnpm vitest` — TS tests · `cargo test` (in `src-tauri/`) — Rust tests
+- `pnpm test` — TS tests · `cargo test --workspace` (in `src-tauri/`) — Rust tests
 - `pnpm build` — typecheck + bundle frontend

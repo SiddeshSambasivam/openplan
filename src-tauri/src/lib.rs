@@ -119,113 +119,28 @@ fn walk(dir: &Path, depth: usize, count: &mut usize, truncated: &mut bool) -> Op
 /// write access.
 #[tauri::command]
 async fn read_markdown(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => {
-            "The file no longer exists at this location.".to_string()
-        }
-        std::io::ErrorKind::PermissionDenied => {
-            "OpenPlan doesn't have permission to read this file.".to_string()
-        }
-        std::io::ErrorKind::InvalidData => {
-            "This file isn't valid UTF-8 text.".to_string()
-        }
-        _ => e.to_string(),
-    })
-}
-
-fn friendly_write_error(e: &std::io::Error) -> String {
-    match e.kind() {
-        std::io::ErrorKind::NotFound => {
-            "The file's folder no longer exists at this location.".to_string()
-        }
-        std::io::ErrorKind::PermissionDenied => {
-            "OpenPlan doesn't have permission to write this file.".to_string()
-        }
-        std::io::ErrorKind::StorageFull => "The disk is full.".to_string(),
-        _ => e.to_string(),
-    }
-}
-
-/// Write `contents` to `target` via a temp file in the same directory,
-/// renamed over the target — so a crash mid-write can't corrupt it.
-fn atomic_write(target: &Path, contents: &str) -> Result<(), String> {
-    use std::io::Write;
-    let dir = target
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .ok_or_else(|| "Invalid file path.".to_string())?;
-    let file_name = target
-        .file_name()
-        .and_then(|s| s.to_str())
-        .ok_or_else(|| "Invalid file name.".to_string())?;
-    let tmp = dir.join(format!(".{file_name}.openplan-tmp"));
-
-    let result = (|| -> std::io::Result<()> {
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(contents.as_bytes())?;
-        f.sync_all()?;
-        Ok(())
-    })();
-    if let Err(e) = result {
-        let _ = std::fs::remove_file(&tmp);
-        return Err(friendly_write_error(&e));
-    }
-    std::fs::rename(&tmp, target).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
-        friendly_write_error(&e)
-    })
+    openplan_core::fs::read_to_string(Path::new(&path))
 }
 
 /// Save edited markdown, atomically.
 #[tauri::command]
 async fn write_markdown(path: String, contents: String) -> Result<(), String> {
-    atomic_write(&std::path::PathBuf::from(&path), &contents)
+    openplan_core::fs::atomic_write(Path::new(&path), &contents)
 }
 
-/// Comments live in a JSON sidecar beside the doc, never inside it — the app
-/// only rewrites content the user asked it to touch. The leading dot keeps the
-/// sidecar out of `scan_folder`'s walk, which skips hidden entries.
-fn sidecar_comments_path(doc_path: &Path) -> Result<std::path::PathBuf, String> {
-    let dir = doc_path
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .ok_or_else(|| "Invalid file path.".to_string())?;
-    let file_name = doc_path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .ok_or_else(|| "Invalid file name.".to_string())?;
-    Ok(dir.join(format!(".{file_name}.omd-comments.json")))
-}
-
-/// Read the comment sidecar for a markdown file. `None` (not an error) means
-/// no comments have ever been saved for this file.
 #[tauri::command]
 async fn read_comments(path: String) -> Result<Option<String>, String> {
-    let sidecar = sidecar_comments_path(&std::path::PathBuf::from(&path))?;
-    match std::fs::read_to_string(&sidecar) {
-        Ok(s) => Ok(Some(s)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
+    openplan_core::sidecar::read_comments(Path::new(&path))
 }
 
-/// Save the comment sidecar for a markdown file, atomically.
 #[tauri::command]
 async fn write_comments(path: String, contents: String) -> Result<(), String> {
-    let sidecar = sidecar_comments_path(&std::path::PathBuf::from(&path))?;
-    atomic_write(&sidecar, &contents)
+    openplan_core::sidecar::write_comments(Path::new(&path), &contents)
 }
 
-/// Remove the comment sidecar (called once the last thread on a doc is
-/// deleted, so an empty file doesn't linger). Missing is not an error.
 #[tauri::command]
 async fn delete_comments(path: String) -> Result<(), String> {
-    let sidecar = sidecar_comments_path(&std::path::PathBuf::from(&path))?;
-    match std::fs::remove_file(&sidecar) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
+    openplan_core::sidecar::delete_comments(Path::new(&path))
 }
 
 /// Build the markdown tree of a folder for the sidebar's nested list view.
@@ -272,84 +187,6 @@ async fn classify_paths(paths: Vec<String>) -> Vec<PathInfo> {
             },
         })
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn write_read_roundtrip_and_overwrite() {
-        let dir = std::env::temp_dir().join("openplan-write-test");
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("doc.md").to_string_lossy().into_owned();
-
-        tauri::async_runtime::block_on(async {
-            // fresh write
-            super::write_markdown(path.clone(), "# hello\n\nworld".into())
-                .await
-                .unwrap();
-            assert_eq!(
-                super::read_markdown(path.clone()).await.unwrap(),
-                "# hello\n\nworld"
-            );
-            // atomic overwrite of an existing file (rename-over path)
-            super::write_markdown(path.clone(), "# v2 with unicode — ✓".into())
-                .await
-                .unwrap();
-            assert_eq!(
-                super::read_markdown(path.clone()).await.unwrap(),
-                "# v2 with unicode — ✓"
-            );
-            // no temp file left behind
-            let leftovers: Vec<_> = std::fs::read_dir(&dir)
-                .unwrap()
-                .flatten()
-                .filter(|e| e.file_name().to_string_lossy().contains("tmp"))
-                .collect();
-            assert!(leftovers.is_empty());
-            // write into a missing directory fails with a friendly error
-            let bad = dir
-                .join("no-such-dir")
-                .join("x.md")
-                .to_string_lossy()
-                .into_owned();
-            let err = super::write_markdown(bad, "x".into()).await.unwrap_err();
-            assert!(err.contains("folder no longer exists"), "got: {err}");
-        });
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn comments_sidecar_roundtrip_hidden_and_deletable() {
-        let dir = std::env::temp_dir().join("openplan-comments-test");
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("notes.md").to_string_lossy().into_owned();
-
-        tauri::async_runtime::block_on(async {
-            // no sidecar yet -> None, not an error
-            assert_eq!(super::read_comments(path.clone()).await.unwrap(), None);
-
-            super::write_comments(path.clone(), "[{\"id\":\"1\"}]".into())
-                .await
-                .unwrap();
-            assert_eq!(
-                super::read_comments(path.clone()).await.unwrap(),
-                Some("[{\"id\":\"1\"}]".to_string())
-            );
-
-            // sidecar is a hidden dotfile alongside the doc
-            let sidecar = dir.join(".notes.md.omd-comments.json");
-            assert!(sidecar.exists());
-
-            super::delete_comments(path.clone()).await.unwrap();
-            assert!(!sidecar.exists());
-            assert_eq!(super::read_comments(path.clone()).await.unwrap(), None);
-            // deleting again is a no-op, not an error
-            super::delete_comments(path.clone()).await.unwrap();
-        });
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

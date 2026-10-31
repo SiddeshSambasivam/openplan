@@ -2287,6 +2287,7 @@ dependencies = [
 name = "openplan"
 version = "0.1.0"
 dependencies = [
+ "openplan-core",
  "serde",
  "serde_json",
  "tauri",
@@ -2294,6 +2295,10 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
 ]
+
+[[package]]
+name = "openplan-core"
+version = "0.1.0"
 
 [[package]]
 name = "option-ext"

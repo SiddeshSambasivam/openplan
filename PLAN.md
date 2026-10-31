@@ -554,7 +554,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       error strings — a repo-wide grep for `openmarkdown`/`OpenMarkdown`/`omd`
       must come back empty (legacy sidecar dual-read in P0.3 is the one exception);
       migrate localStorage keys **(T: migration logic in `src/lib/`)**
-- [ ] P0.2 Convert `src-tauri` to a Cargo workspace; create empty `openplan-core`
+- [x] P0.2 Convert `src-tauri` to a Cargo workspace; create empty `openplan-core`
       crate; move `atomic_write` + sidecar fs helpers into it **(T: ports existing tests)**
 - [ ] P0.3 Sidecar dual-read rename `.omd-` → `.oplan-` with v2 `author` field
       **(T: v1 parse compat, migration on write)**
@@ -711,6 +711,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Settings page (FR-14) is the canonical preference surface; header keeps quick toggles only | Sid's request; Claude Code-style settings |
 | 2026-08-15 | Global search is on-demand scan, never indexed (FR-15) | NFR-8: no background indexing; base size makes cold scans instant |
 | 2026-08-15 | North star addition: OpenPlan is the interoperable *convention* for plans; the app is a convenience client | Sid's vision note |
+| 2026-08-15 | Marketing site is a standalone static page in `site/` (no build step, no deps), with positioning and copy owned by MARKETING.md | Sid: landing page + marketing content; keeps the app's toolchain untouched and "less code" intact. Site design is deliberately NOT the app's shadcn system — it is a separate marketing surface (§2 Design system governs the app only) |
 
 ---
 
