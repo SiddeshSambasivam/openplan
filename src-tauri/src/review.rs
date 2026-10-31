@@ -15,6 +15,14 @@ pub struct ReviewSummary {
     answered: bool,
 }
 
+/// Whether a write sends a review: a thread the person was still writing is
+/// no longer pending.
+pub fn sends_a_review(before: &[CommentThread], after: &[CommentThread]) -> bool {
+    after.iter().any(|thread| {
+        !thread.pending && before.iter().any(|old| old.id == thread.id && old.pending)
+    })
+}
+
 /// An open thread an agent spoke last in is one the person has not answered.
 /// A pending thread is nobody's business but the person writing it, so it is
 /// not counted as review work either.
@@ -117,6 +125,21 @@ mod tests {
         let threads = vec![unsent, thread(false, &["user"])];
 
         assert_eq!(summarise(&threads), (1, false));
+    }
+
+    #[test]
+    fn a_review_is_sent_when_a_pending_thread_stops_being_pending() {
+        let mut written = thread(false, &["user"]);
+        written.pending = true;
+        let mut sent = written.clone();
+        sent.pending = false;
+        let mut reply = sent.clone();
+        reply.comments.push(entry("user"));
+
+        assert!(sends_a_review(&[written.clone()], &[sent.clone()]));
+        assert!(!sends_a_review(&[written.clone()], &[written.clone()]), "still being written");
+        assert!(!sends_a_review(&[sent.clone()], &[reply]), "a reply to a thread already sent");
+        assert!(!sends_a_review(&[written], &[]), "a draft thread thrown away");
     }
 
     #[test]

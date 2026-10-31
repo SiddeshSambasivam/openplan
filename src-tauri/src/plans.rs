@@ -378,7 +378,13 @@ pub async fn save_comment_threads(
     commit: bool,
     state: tauri::State<'_, BaseState>,
 ) -> Result<(), String> {
-    comments::write_threads(std::path::Path::new(&path), &threads)?;
+    let before = comments::read_threads(Path::new(&path));
+    comments::write_threads(Path::new(&path), &threads)?;
+    if let (true, Ok(base)) = (crate::review::sends_a_review(&before, &threads), state.get()) {
+        // The review is on disk either way, and a plan left in draft is the
+        // person's to move.
+        let _ = align_draft(base, Path::new(&path));
+    }
     if !commit {
         return Ok(());
     }
@@ -535,6 +541,23 @@ pub fn setup(app: &tauri::App, base: Option<Base>) {
     watch_base(app.handle().clone(), base);
 }
 
+/// The first review sent on a draft opens alignment. `document` is the one
+/// the threads are on, which in a set is not the file that holds the status.
+fn align_draft(base: &Base, document: &Path) -> Result<(), String> {
+    let entry = library::scan(base).into_iter().find(|entry| {
+        entry.path == document
+            || entry
+                .path
+                .parent()
+                .is_some_and(|folder| !entry.documents.is_empty() && document.starts_with(folder))
+    });
+    let Some(entry) = entry.filter(|e| e.meta.status == plan::Status::Draft) else {
+        return Ok(());
+    };
+    let now = openplan_core::import::now_iso();
+    rewrite_meta(&entry.path, |meta| meta.set_status(plan::Status::Alignment, &now)).map(|_| ())
+}
+
 /// Changes a plan's header and writes it back, returning the plan's id.
 fn rewrite_meta(path: &Path, change: impl FnOnce(&mut plan::PlanMeta)) -> Result<String, String> {
     let text = openplan_core::fs::read_to_string(path)?;
@@ -643,6 +666,27 @@ mod tests {
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains("status: completed\n"), "{text}");
         assert!(text.contains("completed: 2026-10-28T10:00:00Z\n"), "{text}");
+    }
+
+    #[test]
+    fn the_first_review_on_a_draft_opens_alignment_and_later_ones_change_nothing() {
+        let root = std::env::temp_dir().join(format!("openplan-app-first-review-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("plans")).unwrap();
+        let base = Base { root: root.clone() };
+        let draft = root.join("plans/auth-refactor.md");
+        let started = root.join("plans/token-refresh.md");
+        std::fs::write(&draft, "---\ntitle: Auth refactor\nstatus: draft\n---\n# Body\n").unwrap();
+        std::fs::write(&started, "---\ntitle: Token refresh\nstatus: in-progress\n---\n# Body\n").unwrap();
+
+        align_draft(&base, &draft).unwrap();
+        align_draft(&base, &started).unwrap();
+        align_draft(&base, &draft).unwrap();
+
+        let status = |path: &Path| plan::parse(&std::fs::read_to_string(path).unwrap(), path).meta.status;
+        assert_eq!(status(&draft), plan::Status::Alignment);
+        assert_eq!(status(&started), plan::Status::InProgress);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
