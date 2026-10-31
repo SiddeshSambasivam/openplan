@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { ReviewSummary } from "./board";
 import type { Identity } from "./comments";
 import { isTauri } from "./platform";
 
@@ -48,6 +49,15 @@ export interface PlanSummary {
   relativePath: string;
   /** A set's documents, in reading order. Empty for a single-file plan. */
   documents: string[];
+}
+
+export interface ProjectInfo {
+  /** The normalised remote, or null for the plans that name no project. */
+  project: string | null;
+  name: string;
+  description: string | null;
+  avatarUrl: string | null;
+  plans: number;
 }
 
 export interface BaseInfo {
@@ -128,6 +138,17 @@ export async function setAuthoring(mode: Authoring): Promise<void> {
 export async function scanPlans(): Promise<PlanSummary[]> {
   if (!isTauri) return [];
   return invoke<PlanSummary[]>("scan_plans");
+}
+
+export async function listProjects(): Promise<ProjectInfo[]> {
+  if (!isTauri) return [];
+  return invoke<ProjectInfo[]>("list_projects");
+}
+
+/** What is open and what is waiting, per plan, in one read of the base. */
+export async function reviewSummaries(): Promise<ReviewSummary[]> {
+  if (!isTauri) return [];
+  return invoke<ReviewSummary[]>("review_summaries");
 }
 
 export async function searchPlans(query: string): Promise<SearchHit[]> {

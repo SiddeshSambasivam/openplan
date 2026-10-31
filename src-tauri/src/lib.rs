@@ -1,6 +1,7 @@
 mod onboarding;
 mod plans;
 mod projects;
+mod review;
 
 use std::path::Path;
 
@@ -228,6 +229,7 @@ pub fn run() {
             plans::plan_at_revision,
             plans::restore_plan_revision,
             projects::list_projects,
+            review::review_summaries,
             read_markdown,
             write_markdown,
             scan_folder,

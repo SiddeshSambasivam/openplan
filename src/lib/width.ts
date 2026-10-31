@@ -2,7 +2,7 @@ export type ContentWidth = "compact" | "spaced" | "full";
 
 export const WIDTH_VALUES: Record<ContentWidth, string> = {
   compact: "40rem",
-  spaced: "48rem",
+  spaced: "60rem",
   full: "100%",
 };
 

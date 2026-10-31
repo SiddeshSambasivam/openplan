@@ -1,107 +1,107 @@
-import { FileText, Search, Settings, X } from "lucide-react";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { filterLibraryItems } from "../lib/tree";
-import type { FileLibraryItem, LibraryItem } from "../lib/types";
+import {
+  ChevronRight,
+  Columns3,
+  Folder,
+  Inbox,
+  List,
+  Search,
+  Settings,
+  X,
+} from "lucide-react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "../lib/utils";
-import { FolderTree } from "./FolderTree";
-import { PlanList } from "./PlanList";
-import { searchPlans, type PlanSummary, type SearchHit } from "@/lib/planBase";
+import type { MainView } from "../lib/types";
+import type { ProjectFilter } from "@/lib/board";
+import {
+  searchPlans,
+  type PlanSummary,
+  type ProjectInfo,
+  type SearchHit,
+} from "@/lib/planBase";
+import { projectName } from "@/lib/projects";
 import { BrandMark } from "./BrandMark";
 import { MarqueeText } from "./MarqueeText";
+import { StatusGlyph } from "./StatusGlyph";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TooltipButton } from "./TooltipButton";
 
 interface SidebarProps {
-  items: LibraryItem[];
   plans: PlanSummary[];
+  projects: ProjectInfo[];
+  /** The plans last opened, newest first. */
+  recent: PlanSummary[];
+  view: MainView;
+  onSelectView: (view: MainView) => void;
+  project: ProjectFilter;
+  onSelectProject: (project: ProjectFilter) => void;
+  /** How many plans wait on the person, shown beside For you. */
+  forYouCount: number;
   activePlanPath: string | null;
   onSelectPlan: (plan: PlanSummary) => void;
-  onSelectDocument: (plan: PlanSummary, document: string) => void;
-  onRenamePlan: (plan: PlanSummary, newTitle: string) => void;
-  onRenameDocument: (plan: PlanSummary, document: string, newName: string) => void;
   onOpenSettings: () => void;
-  activeId: string | null;
-  expanded: Set<string>;
-  onToggleDir: (path: string) => void;
-  onSelect: (id: string) => void;
-  onRemove: (id: string) => void;
   /** Reserve space for the macOS traffic lights (overlay titlebar). */
   padTop: boolean;
 }
 
-function LooseFileRow({
-  file,
-  active,
-  inset,
-  onSelect,
-  onRemove,
+const rowClass =
+  "flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
+
+/** A group of rows that folds away. The header answers every click, and the
+ * rows grow and shrink with the grid row rather than a height. */
+function Group({
+  label,
+  children,
 }: {
-  file: FileLibraryItem;
-  active: boolean;
-  /** Align with folder rows (which have a chevron) when folders are present. */
-  inset: boolean;
-  onSelect: (id: string) => void;
-  onRemove: (id: string) => void;
+  label: string;
+  children: ReactNode;
 }) {
+  const [open, setOpen] = useState(true);
   return (
-    <li className="group relative">
+    <div className="pt-3">
       <button
-        onClick={() => onSelect(file.id)}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full cursor-default items-center gap-1.5 rounded-md px-2 pb-1 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
+      >
+        <ChevronRight
+          className={cn(
+            "size-3 shrink-0 transition-transform duration-200",
+            open && "rotate-90",
+          )}
+        />
+        {label}
+      </button>
+      <div
         className={cn(
-          "relative flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-          active &&
-            "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+          "grid transition-[grid-template-rows] duration-200 ease-in-out",
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         )}
       >
-        {inset && <span className="size-3.5 shrink-0" />}
-        <FileText className="size-4 shrink-0 text-muted-foreground" />
-        <MarqueeText text={file.name} className="flex-1 pr-3" />
-      </button>
-      <TooltipButton
-        variant="ghost"
-        size="icon-xs"
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove(file.id);
-        }}
-        aria-label={`Remove ${file.name} from list`}
-        tooltip="Remove from list (the file stays on disk)"
-        className="absolute top-1/2 right-1.5 hidden -translate-y-1/2 text-muted-foreground group-hover:flex"
-      >
-        <X />
-      </TooltipButton>
-    </li>
+        <div className="overflow-hidden">{children}</div>
+      </div>
+    </div>
   );
 }
 
-/** Memoized: the app re-renders on every keystroke of an edit, and this
- * tree can hold thousands of rows that none of that concerns. */
+/** Memoized: the app re-renders on every keystroke of an edit, and none of
+ * that concerns these rows. */
 export const Sidebar = memo(function Sidebar({
-  items,
   plans,
+  projects,
+  recent,
+  view,
+  onSelectView,
+  project,
+  onSelectProject,
+  forYouCount,
   activePlanPath,
   onSelectPlan,
-  onSelectDocument,
-  onRenamePlan,
-  onRenameDocument,
   onOpenSettings,
-  activeId,
-  expanded,
-  onToggleDir,
-  onSelect,
-  onRemove,
   padTop,
 }: SidebarProps) {
   const [query, setQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const trimmedQuery = query.trim();
-
-  const displayItems = useMemo(
-    () => (trimmedQuery ? filterLibraryItems(items, trimmedQuery) : items),
-    [items, trimmedQuery],
-  );
-  const hasFolders = displayItems.some((item) => item.kind === "folder");
 
   // Searching reads the base on demand; the pause keeps a fast typist from
   // starting a scan per keystroke.
@@ -132,13 +132,31 @@ export const Sidebar = memo(function Sidebar({
     }
     return [...grouped.entries()];
   }, [hits]);
-  const treeCtx = {
-    activeId,
-    expanded,
-    forceExpandAll: trimmedQuery.length > 0,
-    onToggleDir,
-    onSelect,
-  };
+
+  const navRow = (
+    target: MainView,
+    icon: ReactNode,
+    label: string,
+    count?: number,
+  ) => (
+    <button
+      onClick={() => onSelectView(target)}
+      aria-current={view === target}
+      className={cn(
+        rowClass,
+        view === target &&
+          "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+      )}
+    >
+      {icon}
+      <span className="flex-1 truncate">{label}</span>
+      {count != null && count > 0 && (
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+          {count}
+        </span>
+      )}
+    </button>
+  );
 
   return (
     <aside className="flex h-full w-full flex-col border-r border-sidebar-border bg-sidebar">
@@ -154,7 +172,7 @@ export const Sidebar = memo(function Sidebar({
         </span>
       </div>
 
-      <div className="shrink-0 px-3 pb-4">
+      <div className="shrink-0 px-3 pb-2">
         <div className="relative flex items-center">
           <Search className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground" />
           <Input
@@ -169,7 +187,7 @@ export const Sidebar = memo(function Sidebar({
               else searchInputRef.current?.blur();
             }}
             placeholder="Search"
-            aria-label="Search library"
+            aria-label="Search plans"
             className="h-8 pr-7 pl-8"
           />
           {query && (
@@ -190,17 +208,7 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-2">
-        {!trimmedQuery && (
-          <PlanList
-            plans={plans}
-            activePath={activePlanPath}
-            onSelect={onSelectPlan}
-            onSelectDocument={onSelectDocument}
-            onRename={onRenamePlan}
-            onRenameDocument={onRenameDocument}
-          />
-        )}
-        {trimmedQuery && (
+        {trimmedQuery ? (
           <div className="pb-2">
             <p className="px-2 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
               In plans
@@ -235,37 +243,92 @@ export const Sidebar = memo(function Sidebar({
               ))
             )}
           </div>
-        )}
-        {displayItems.length > 0 && (
-          <ul className="mt-1 flex flex-col gap-px">
-            {displayItems.map((item) =>
-              item.kind === "file" ? (
-                <LooseFileRow
-                  key={item.id}
-                  file={item}
-                  active={item.id === activeId}
-                  inset={hasFolders}
-                  onSelect={onSelect}
-                  onRemove={onRemove}
-                />
-              ) : (
-                <FolderTree
-                  key={item.id}
-                  item={item}
-                  ctx={treeCtx}
-                  onRemove={onRemove}
-                />
-              ),
+        ) : (
+          <>
+            <div className="flex flex-col gap-px">
+              {navRow(
+                "board",
+                <Columns3 className="size-4 shrink-0 text-muted-foreground" />,
+                "Board",
+              )}
+              {navRow(
+                "list",
+                <List className="size-4 shrink-0 text-muted-foreground" />,
+                "All plans",
+                plans.length,
+              )}
+              {navRow(
+                "for-you",
+                <Inbox className="size-4 shrink-0 text-muted-foreground" />,
+                "For you",
+                forYouCount,
+              )}
+            </div>
+
+            {projects.length > 0 && (
+              <Group label="Projects">
+                <div className="flex flex-col gap-px">
+                  {projects.map((info) => {
+                    const key = info.project ?? "";
+                    const name = projectName(info.project) ?? info.name;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => onSelectProject(key)}
+                        title={info.description ?? undefined}
+                        className={cn(
+                          rowClass,
+                          project === key &&
+                            "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+                        )}
+                      >
+                        {info.avatarUrl ? (
+                          <img
+                            src={info.avatarUrl}
+                            alt=""
+                            className="size-3.5 shrink-0 rounded-sm object-cover"
+                          />
+                        ) : (
+                          <Folder className="size-3.5 shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="flex-1 truncate">{name}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {info.plans}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Group>
             )}
-          </ul>
+
+            {recent.length > 0 && (
+              <Group label="Recent">
+                <div className="flex flex-col gap-px">
+                  {recent.map((plan) => (
+                    <button
+                      key={plan.path}
+                      onClick={() => onSelectPlan(plan)}
+                      className={cn(
+                        rowClass,
+                        plan.path === activePlanPath &&
+                          view === "plan" &&
+                          "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+                      )}
+                    >
+                      <StatusGlyph status={plan.status} />
+                      <MarqueeText text={plan.title} className="flex-1" />
+                    </button>
+                  ))}
+                </div>
+              </Group>
+            )}
+          </>
         )}
       </nav>
 
       <div className="shrink-0 border-t border-sidebar-border p-2">
-        <button
-          onClick={onOpenSettings}
-          className="flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
-        >
+        <button onClick={onOpenSettings} className={rowClass}>
           <Settings className="size-4 shrink-0 text-muted-foreground" />
           <span className="flex-1">Settings</span>
         </button>

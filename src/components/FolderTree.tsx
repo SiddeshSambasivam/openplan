@@ -14,9 +14,6 @@ import { TooltipButton } from "./TooltipButton";
 interface TreeContext {
   activeId: string | null;
   expanded: Set<string>;
-  /** While searching, every matching folder shows expanded regardless of
-   * the user's own expand/collapse state, so results are never hidden. */
-  forceExpandAll: boolean;
   onToggleDir: (path: string) => void;
   onSelect: (id: string) => void;
 }
@@ -141,7 +138,7 @@ function TreeDir({
   depth: number;
   ctx: TreeContext;
 }) {
-  const open = ctx.forceExpandAll || ctx.expanded.has(node.path);
+  const open = ctx.expanded.has(node.path);
   return (
     <li>
       <DirRow
@@ -168,7 +165,7 @@ interface FolderTreeProps {
 
 /** A top-level folder in the sidebar: collapsible root with a remove button. */
 export function FolderTree({ item, ctx, onRemove }: FolderTreeProps) {
-  const open = ctx.forceExpandAll || ctx.expanded.has(item.path);
+  const open = ctx.expanded.has(item.path);
   return (
     <li>
       <div className="group relative">

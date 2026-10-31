@@ -51,20 +51,40 @@ import {
   updateInlineDoc,
 } from "./lib/tree";
 import { isFontSize, FONT_SIZE_SCALES, type FontSize } from "./lib/fontSize";
-import type { DocFile, FolderNode, LibraryItem, ViewMode } from "./lib/types";
+import type {
+  DocFile,
+  FolderNode,
+  LibraryItem,
+  MainView,
+  ViewMode,
+} from "./lib/types";
 import { splitFrontmatter } from "./lib/frontmatter";
 import { useOutline } from "./lib/useOutline";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
   commitBase,
   getIdentity,
+  listProjects,
   renamePlan,
   renameDocument,
+  reviewSummaries,
   setPlanStatus,
+  type ProjectInfo,
   type Status,
   SOURCE_LABELS,
   type PlanSummary,
 } from "./lib/planBase";
+import {
+  filterByProject,
+  forYou,
+  planCrumb,
+  type ProjectFilter,
+  type ReviewSummary,
+} from "./lib/board";
+import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
+import { BoardView } from "./features/board/BoardView";
+import { ForYouView } from "./features/board/ForYouView";
+import { ListView } from "./features/board/ListView";
 import { cn } from "./lib/utils";
 import { WELCOME_DOC_ID, WELCOME_MARKDOWN } from "./lib/welcome";
 import {
@@ -83,6 +103,15 @@ const STORE_SIDEBAR_WIDTH = "openplan:sidebar-width";
 const STORE_WIDTH = "openplan:width";
 const STORE_FONT_SIZE = "openplan:font-size";
 const STORE_OUTLINE = "openplan:outline";
+const STORE_MAIN_VIEW = "openplan:main-view";
+const STORE_PROJECT = "openplan:project";
+const STORE_HIDE_COMPLETED = "openplan:hide-completed";
+
+const MAIN_VIEWS: MainView[] = ["board", "list", "for-you", "plan"];
+
+function isMainView(value: string): value is MainView {
+  return (MAIN_VIEWS as string[]).includes(value);
+}
 
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_DEFAULT_WIDTH = 256;
@@ -231,7 +260,48 @@ export default function App() {
   // purpose, and never carries over from a wider window.
   const [floatingOutlineOpen, setFloatingOutlineOpen] = useState(false);
 
+  // Which surface is on screen. There is no router: the app is one window
+  // with one main area, and the last one open is where you come back to.
+  const [mainView, setMainView] = useState<MainView>(() => {
+    try {
+      const stored = localStorage.getItem(STORE_MAIN_VIEW);
+      if (stored && isMainView(stored)) return stored;
+    } catch {
+      // best-effort
+    }
+    return initial.activeId ? "plan" : "board";
+  });
+  const [project, setProject] = useState<ProjectFilter>(() => {
+    try {
+      return localStorage.getItem(STORE_PROJECT);
+    } catch {
+      return null;
+    }
+  });
+  const [hideCompleted, setHideCompleted] = useState(() => {
+    try {
+      return localStorage.getItem(STORE_HIDE_COMPLETED) === "yes";
+    } catch {
+      return false;
+    }
+  });
+  const [recentPaths, setRecentPaths] = useState<string[]>(loadRecent);
+  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [summaries, setSummaries] = useState<ReviewSummary[]>([]);
+
   const { base, plans, refresh: refreshPlans, arrivals } = usePlanBase();
+
+  // The projects and the open threads are read with the plans, on the same
+  // base-changed event: nothing polls, and a build without these commands
+  // just shows neither.
+  useEffect(() => {
+    void listProjects()
+      .then(setProjects)
+      .catch(() => setProjects([]));
+    void reviewSummaries()
+      .then(setSummaries)
+      .catch(() => setSummaries([]));
+  }, [plans]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [focusThreadId, setFocusThreadId] = useState<string | null>(null);
@@ -489,6 +559,7 @@ export default function App() {
       }
       return next;
     });
+    setMainView("plan");
     if (activeIdRef.current === paths[0]) {
       setReloadKey((k) => k + 1); // re-read a file that's already open
     } else {
@@ -743,6 +814,7 @@ export default function App() {
         setActiveId(id);
         setView("preview");
       }
+      setMainView("plan");
     },
     [flushSave],
   );
@@ -903,6 +975,17 @@ export default function App() {
       // best-effort
     }
   }, [outlineOpen]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORE_MAIN_VIEW, mainView);
+      if (project == null) localStorage.removeItem(STORE_PROJECT);
+      else localStorage.setItem(STORE_PROJECT, project);
+      localStorage.setItem(STORE_HIDE_COMPLETED, hideCompleted ? "yes" : "no");
+    } catch {
+      // best-effort
+    }
+  }, [mainView, project, hideCompleted]);
 
   /* ---------- initial folder scans ---------- */
 
@@ -1247,6 +1330,73 @@ export default function App() {
     [refreshPlans, openFilePaths, notify],
   );
 
+  /* ---------- the views ---------- */
+
+  const activePlanPath = activePlan?.path ?? null;
+  useEffect(() => {
+    if (!activePlanPath) return;
+    setRecentPaths((prev) =>
+      prev[0] === activePlanPath ? prev : pushRecent(prev, activePlanPath),
+    );
+  }, [activePlanPath]);
+
+  useEffect(() => saveRecent(recentPaths), [recentPaths]);
+
+  const recentPlans = useMemo(
+    () =>
+      recentPaths
+        .map((path) => plans.find((plan) => plan.path === path))
+        .filter((plan): plan is PlanSummary => plan != null),
+    [recentPaths, plans],
+  );
+
+  const shownPlans = useMemo(
+    () => filterByProject(plans, project),
+    [plans, project],
+  );
+
+  const forYouCount = useMemo(() => {
+    const waiting = forYou(shownPlans, summaries);
+    return waiting.review.length + waiting.answered.length;
+  }, [shownPlans, summaries]);
+
+  const avatars = useMemo(() => {
+    const found = new Map<string, string>();
+    for (const info of projects) {
+      if (info.project && info.avatarUrl) found.set(info.project, info.avatarUrl);
+    }
+    return found;
+  }, [projects]);
+
+  const crumb = useMemo(() => {
+    if (!activeDoc) return null;
+    if (activePlan && activeDoc.path) return planCrumb(activePlan, activeDoc.path);
+    return { lead: null, title: activeDoc.name };
+  }, [activeDoc, activePlan]);
+
+  const selectProject = useCallback((next: ProjectFilter) => {
+    setProject(next);
+    // The filter is only visible on a list, so a click from the plan page
+    // lands on the board with it applied.
+    setMainView((current) => (current === "plan" ? "board" : current));
+  }, []);
+
+  const showView = useCallback(
+    (next: MainView) => {
+      void flushSave();
+      setMainView(next);
+    },
+    [flushSave],
+  );
+
+  /** The breadcrumb's first part: the project of a plan, the plan of one of
+   * its documents. */
+  const openCrumbLead = useCallback(() => {
+    if (!activePlan || !crumb?.lead) return;
+    if (crumb.lead.kind === "project") selectProject(activePlan.project ?? "");
+    else selectPlan(activePlan);
+  }, [activePlan, crumb, selectPlan, selectProject]);
+
   // Stable identity for the memoized sidebar: recompute only when the
   // library or the base changes, not on every render of the app.
   const sidebarItems = useMemo(
@@ -1279,19 +1429,17 @@ export default function App() {
         aria-hidden={!sidebarOpen}
       >
         <Sidebar
-          items={sidebarItems}
           plans={plans}
-          activePlanPath={activeDoc?.path ?? null}
+          projects={projects}
+          recent={recentPlans}
+          view={mainView}
+          onSelectView={showView}
+          project={project}
+          onSelectProject={selectProject}
+          forYouCount={forYouCount}
+          activePlanPath={activePlanPath}
           onSelectPlan={selectPlan}
-          onSelectDocument={selectDocument}
-          onRenamePlan={handleRename}
-          onRenameDocument={handleRenameDocument}
           onOpenSettings={openSettings}
-          activeId={activeDocId}
-          expanded={expanded}
-          onToggleDir={toggleDir}
-          onSelect={selectFile}
-          onRemove={removeItem}
           padTop={isTauri && isMac && !fullscreen}
         />
       </div>
@@ -1320,6 +1468,16 @@ export default function App() {
 
       <main className="flex min-w-0 flex-1 flex-col">
         <Header
+          mainView={mainView}
+          crumb={crumb}
+          plan={activePlan}
+          onStatusChange={changeStatus}
+          onOpenLead={openCrumbLead}
+          projects={projects}
+          project={project}
+          onSelectProject={setProject}
+          hideCompleted={hideCompleted}
+          onToggleHideCompleted={() => setHideCompleted((h) => !h)}
           doc={activeDoc}
           wordCount={activeDoc ? wordCount : null}
           view={view}
@@ -1345,9 +1503,54 @@ export default function App() {
           }}
           trafficLightGap={isTauri && isMac && !fullscreen}
         />
+        {mainView === "board" && (
+          <div className="min-h-0 flex-1 animate-in fade-in duration-150">
+            <BoardView
+              plans={shownPlans}
+              summaries={summaries}
+              avatars={avatars}
+              hideCompleted={hideCompleted}
+              onOpen={selectPlan}
+            />
+          </div>
+        )}
+
+        {mainView === "list" && (
+          <div className="min-h-0 flex-1 animate-in fade-in duration-150">
+            <ListView
+              plans={shownPlans}
+              summaries={summaries}
+              avatars={avatars}
+              activePlanPath={activePlanPath}
+              onSelectPlan={selectPlan}
+              onSelectDocument={selectDocument}
+              onRenamePlan={handleRename}
+              onRenameDocument={handleRenameDocument}
+              items={sidebarItems}
+              activeId={activeDocId}
+              expanded={expanded}
+              onToggleDir={toggleDir}
+              onSelect={selectFile}
+              onRemove={removeItem}
+            />
+          </div>
+        )}
+
+        {mainView === "for-you" && (
+          <div className="min-h-0 flex-1 animate-in fade-in duration-150">
+            <ForYouView
+              plans={shownPlans}
+              summaries={summaries}
+              avatars={avatars}
+              onOpen={selectPlan}
+            />
+          </div>
+        )}
+
         {/* Clips the outline while it sits translated off-screen — otherwise
             it enlarges the scrollable area and the browser can scroll the
             whole layout sideways to reveal it. */}
+        {mainView === "plan" && (
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <div
             ref={scrollRef}
@@ -1463,6 +1666,7 @@ export default function App() {
             />
           )}
         </div>
+        )}
       </main>
 
       <SettingsDialog

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   ancestorDirsOf,
-  filterLibraryItems,
   findDocInItems,
   firstDocInItems,
   firstFileOfTree,
@@ -125,40 +124,5 @@ describe("updateInlineDoc", () => {
     const items: LibraryItem[] = [{ kind: "file", ...file("/w/loose.md") }];
 
     expect(updateInlineDoc(items, "/w/loose.md", "after")).toEqual(items);
-  });
-});
-
-describe("filterLibraryItems", () => {
-  it("returns everything for an empty query", () => {
-    expect(filterLibraryItems(library, "   ")).toEqual(library);
-  });
-
-  it("matches loose documents by name, case-insensitively", () => {
-    const result = filterLibraryItems(library, "LOOSE");
-
-    expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("loose");
-  });
-
-  it("keeps a whole folder when the folder itself matches", () => {
-    const result = filterLibraryItems(library, "guides");
-    const folder = result.find((r) => r.kind === "folder");
-
-    expect(folder).toBeDefined();
-    expect(folder!.kind === "folder" && folder!.tree).toEqual(guides);
-  });
-
-  it("reveals a match buried in a subfolder, keeping its path", () => {
-    const result = filterLibraryItems(library, "nested");
-    const folder = result.find((r) => r.kind === "folder");
-
-    expect(folder!.kind === "folder" && folder!.tree?.dirs[0].files[0].name).toBe(
-      "nested",
-    );
-    expect(folder!.kind === "folder" && folder!.tree?.files).toEqual([]);
-  });
-
-  it("drops entries that match nothing", () => {
-    expect(filterLibraryItems(library, "zzz")).toEqual([]);
   });
 });
