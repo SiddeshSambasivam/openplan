@@ -913,7 +913,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       tooltip; idle CPU ~0%)
 
 #### GATE 7 findings, round 1 (Sid, 2026-10-29)
-- [ ] R1.1 Plan page: Alignment gets its own tab; todos move to a panel beside the
+- [x] R1.1 Plan page: Alignment gets its own tab; todos move to a panel beside the
       content; a back button returns to where the plan was opened from
 - [x] R1.2 Standards: no "Status, Owner, Repo" header line in the body; the
       frontmatter and the work record carry it
@@ -924,7 +924,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       card shows, persisted
 - [x] R1.5 Settings: an app font size separate from the plan text size; the default
       app text one step smaller
-- [ ] R1.6 Segmented tabs: the selected item keeps its background on hover in dark mode
+- [x] R1.6 Segmented tabs: the selected item keeps its background on hover in dark mode
 - [x] R1.7 Video: confirm playback in the desktop app (the media setting was turned
       on after the app had launched); standards ask for Remotion explainers in a
       clean, minimal, Apple-like style with smooth motion
@@ -1147,6 +1147,8 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | App text size is a root token (`--app-font-size`, 12, 13 or 14px, default 13) that redefines Tailwind's text-xs to text-lg at their usual ratios; the plan body keeps its own px size | Sid: app text one step smaller, and a size apart from the plan text. Scaling `html` would have shrunk rem spacing and the plan's reading width too |
 | 2026-10-29 | Card attributes come from a Display menu on the board, stored in localStorage; list and For you rows read the same options except the two-line clamp | Sid: toggle what a card shows, clamp the title to two lines. Rows are always one line |
 | 2026-10-29 | A plan filed in the last 10 minutes carries a New badge, cleared by one timeout armed to the earliest expiry and re-armed on change, never an interval | Sid: spot what just arrived. One timeout per change is not the periodic wake NFR-8 forbids |
+| 2026-10-29 | The plan page has Plan and Alignment tabs; the todos, repos and PRs sit in a panel beside the content when the main area is 860px or wider, and float from a "Work" toggle below that | Sid: a dedicated alignment tab, todos adjacent to the content. The panel threshold is main-area width, not the window breakpoint, so an open navbar does not squeeze the text |
+| 2026-10-29 | A back control replaces the breadcrumb: opening from a view or the palette starts the trail, opening a plan from a plan stacks it, leaving for a view clears it; back to Search reopens the palette with the query; scroll positions of a left view are restored | Sid: a way back to where the plan was entered from. Restoring scroll costs one DOM walk per navigation |
 
 ---
 
