@@ -55,7 +55,12 @@ Plans are managed by the `openplan` MCP server, not by loose files.
 - When a plan is agreed, file it with `create_plan` (title + full markdown
   body). Do not leave it only in the conversation.
 - To see or reread existing plans, use `list_plans` and `read_plan` rather
-  than searching the filesystem for them."
+  than searching the filesystem for them.
+- Comments are how people review plans. Call `get_comments` whenever you
+  work on one, and answer every open thread with `reply_comment`. Always
+  reply in the thread, not only in chat.
+- Keep each reply to one or two lines: what you changed, or what you
+  decided. Call `resolve_comment` once you have acted on it."
         .to_string()
 }
 

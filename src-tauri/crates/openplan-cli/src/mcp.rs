@@ -91,7 +91,7 @@ fn tool_list() -> Value {
         },
         {
             "name": "get_comments",
-            "description": "The user's open review comments on one plan, with thread ids, quoted text, and line numbers. Address each thread, then reply and resolve it.",
+            "description": "Open review comments on one plan, with thread ids, quoted text, and line numbers. Call this whenever you work on a plan. Every open thread needs a reply.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "id": { "type": "string" } },
@@ -100,13 +100,13 @@ fn tool_list() -> Value {
         },
         {
             "name": "reply_comment",
-            "description": "Reply to one review thread on a plan, as yourself.",
+            "description": "Reply to one review thread on a plan, as yourself. Always reply in the thread, never only in chat. Keep it to one or two lines: what you changed, or what you decided.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "id": { "type": "string", "description": "The plan's id" },
                     "thread_id": { "type": "string" },
-                    "text": { "type": "string" }
+                    "text": { "type": "string", "description": "One or two lines. No preamble, no restating the comment." }
                 },
                 "required": ["id", "thread_id", "text"]
             }
