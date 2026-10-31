@@ -1,4 +1,5 @@
 import { ChevronUp } from "lucide-react";
+import { avatarSeed } from "@/lib/avatar";
 import type { Identity } from "@/lib/comments";
 import { shortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
@@ -30,12 +31,13 @@ interface ProfileMenuProps {
   minimized: boolean;
   dark: boolean;
   onToggleTheme: () => void;
+  onEditProfile: () => void;
   onOpenSettings: () => void;
   onOpenShortcuts: () => void;
 }
 
 /** The person at the foot of the navbar, and the menu of things that are
- * theirs: settings, the theme and the keys. */
+ * theirs: the profile, settings, the theme and the keys. */
 export function ProfileMenu({ identity, minimized, ...items }: ProfileMenuProps) {
   const name = displayName(identity);
   return (
@@ -47,7 +49,7 @@ export function ProfileMenu({ identity, minimized, ...items }: ProfileMenuProps)
               aria-label={minimized ? name : undefined}
               className="flex w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-1 py-1 text-left text-sm text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground data-[state=open]:bg-sidebar-accent/60"
             >
-              <ProfileAvatar seed={avatarSeed(identity)} className="size-6" />
+              <ProfileAvatar seed={avatarSeed(identity)} picture={identity?.avatar} className="size-6" />
               <span
                 className={cn(
                   "flex min-w-0 flex-1 items-center gap-2 transition-opacity duration-180 ease-out",
@@ -78,13 +80,14 @@ export function ProfileMenuItems({
   identity,
   dark,
   onToggleTheme,
+  onEditProfile,
   onOpenSettings,
   onOpenShortcuts,
 }: Omit<ProfileMenuProps, "minimized">) {
   return (
     <>
       <DropdownMenuLabel className="flex items-center gap-3 font-normal">
-        <ProfileAvatar seed={avatarSeed(identity)} className="size-10" />
+        <ProfileAvatar seed={avatarSeed(identity)} picture={identity?.avatar} className="size-10" />
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-medium">{displayName(identity)}</span>
           {identity?.email && (
@@ -93,6 +96,7 @@ export function ProfileMenuItems({
         </span>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={onEditProfile}>Edit profile</DropdownMenuItem>
       <DropdownMenuItem onSelect={onOpenSettings}>
         Settings
         <DropdownMenuShortcut className="tracking-normal">
@@ -123,8 +127,4 @@ export function ProfileMenuItems({
 
 function displayName(identity: Identity | null): string {
   return identity?.name.trim() || identity?.email || "You";
-}
-
-function avatarSeed(identity: Identity | null): string {
-  return identity?.email || identity?.name || "";
 }

@@ -1,5 +1,6 @@
-import { useId, useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 import { MARBLE_SIZE, marble, type ChartColor } from "@/lib/avatar";
+import { fileSrc } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
 /* Whole class names, so Tailwind finds them. */
@@ -11,9 +12,36 @@ const FILL: Record<ChartColor, string> = {
   5: "fill-chart-5",
 };
 
-/** A person's marble: the same seed always draws the same picture, in the
- * theme's chart colours. Size it with a `size-*` class. */
-export function ProfileAvatar({ seed, className }: { seed: string; className?: string }) {
+/** A person's picture, or their marble when they have none: the same seed
+ * always draws the same marble, in the theme's chart colours. Size it with a
+ * `size-*` class. */
+export function ProfileAvatar({
+  seed,
+  picture,
+  className,
+}: {
+  seed: string;
+  /** The picture's path on disk. */
+  picture?: string | null;
+  className?: string;
+}) {
+  // A picture that fails to load falls back to the marble until it changes.
+  const [broken, setBroken] = useState<string | null>(null);
+  if (picture && picture !== broken) {
+    return (
+      <img
+        src={fileSrc(picture)}
+        alt=""
+        aria-hidden
+        onError={() => setBroken(picture)}
+        className={cn("shrink-0 rounded-full object-cover", className)}
+      />
+    );
+  }
+  return <Marble seed={seed} className={className} />;
+}
+
+function Marble({ seed, className }: { seed: string; className?: string }) {
   // React's ids carry punctuation that a `url(#...)` reference can trip on.
   const id = `marble-${useId().replace(/[^\w-]/g, "")}`;
   const { background, blobs, rotate } = useMemo(() => marble(seed), [seed]);

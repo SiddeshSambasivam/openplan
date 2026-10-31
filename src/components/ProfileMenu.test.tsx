@@ -14,6 +14,7 @@ function menu(identity: Identity | null, dark = false): string {
           identity={identity}
           dark={dark}
           onToggleTheme={() => {}}
+          onEditProfile={() => {}}
           onOpenSettings={() => {}}
           onOpenShortcuts={() => {}}
         />
@@ -32,10 +33,15 @@ describe("ProfileMenuItems", () => {
     expect(html).toContain("<svg");
   });
 
-  it("offers settings, the theme and the shortcuts, and nothing else", () => {
+  it("shows the person's picture in the header when they set one", () => {
+    const html = menu({ ...sid, avatar: "/settings/avatar-1.png" });
+    expect(html).toMatch(/<img[^>]*src="\/settings\/avatar-1.png"/);
+  });
+
+  it("offers the profile, settings, the theme and the shortcuts, and nothing else", () => {
     const html = menu(sid);
     const items = [...html.matchAll(/role="menuitem"[^>]*>([^<]*)/g)].map((m) => m[1]);
-    expect(items).toEqual(["Settings", "Keyboard shortcuts"]);
+    expect(items).toEqual(["Edit profile", "Settings", "Keyboard shortcuts"]);
     expect(html).toContain("Theme");
     expect(html).toContain(">Light<");
     expect(html).toContain(">Dark<");

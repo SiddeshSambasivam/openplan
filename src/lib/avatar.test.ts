@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { MARBLE_SIZE, marble } from "./avatar";
+import { MARBLE_SIZE, avatarSeed, marble } from "./avatar";
+
+describe("avatarSeed", () => {
+  it("draws from the email, so a new display name keeps the marble", () => {
+    expect(avatarSeed({ name: "Sid", email: "sid@example.com" })).toBe("sid@example.com");
+    expect(avatarSeed({ name: "Sid", email: "" })).toBe("Sid");
+    expect(avatarSeed(null)).toBe("");
+  });
+});
 
 describe("marble", () => {
   it("draws the same shapes for the same person", () => {

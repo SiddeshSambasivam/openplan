@@ -66,6 +66,7 @@ interface SidebarProps {
   forYouCount: number;
   activePlanPath: string | null;
   onSelectPlan: (plan: PlanSummary) => void;
+  onEditProfile: () => void;
   onOpenSettings: () => void;
   onOpenShortcuts: () => void;
   /** The person this machine's changes belong to. */
@@ -94,6 +95,7 @@ export const Sidebar = memo(function Sidebar({
   forYouCount,
   activePlanPath,
   onSelectPlan,
+  onEditProfile,
   onOpenSettings,
   onOpenShortcuts,
   identity,
@@ -255,6 +257,7 @@ export const Sidebar = memo(function Sidebar({
           minimized={minimized}
           dark={dark}
           onToggleTheme={onToggleTheme}
+          onEditProfile={onEditProfile}
           onOpenSettings={onOpenSettings}
           onOpenShortcuts={onOpenShortcuts}
         />

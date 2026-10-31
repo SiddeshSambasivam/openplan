@@ -2,6 +2,8 @@
 export interface Identity {
   name: string;
   email: string;
+  /** The picture's path on disk. Absent or null draws the marble. */
+  avatar?: string | null;
 }
 
 /** Who wrote a comment: the person using OpenPlan, or the agent that did. */

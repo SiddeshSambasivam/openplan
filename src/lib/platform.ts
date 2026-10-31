@@ -91,6 +91,21 @@ export async function pickMarkdownFiles(): Promise<string[]> {
   return Array.isArray(picked) ? picked : [picked];
 }
 
+/** One picture for the profile, or null when the person cancels. */
+export async function pickImage(): Promise<string | null> {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const picked = await open({
+    multiple: false,
+    filters: [{ name: "Pictures", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }],
+  });
+  return typeof picked === "string" ? picked : null;
+}
+
+/** A file on disk as a URL the webview can load. */
+export function fileSrc(path: string): string {
+  return isTauri ? convertFileSrc(path) : path;
+}
+
 export async function pickFolders(): Promise<string[]> {
   const { open } = await import("@tauri-apps/plugin-dialog");
   const picked = await open({ directory: true, multiple: true });
