@@ -1,6 +1,6 @@
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { PlanSummary } from "@/lib/planBase";
+import { ARCHIVED_TAG, isArchived, type PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
 import { MarqueeText } from "./MarqueeText";
@@ -132,9 +132,20 @@ export function PlanList({
       ),
     [plans],
   );
+  const active = sorted.filter((plan) => !isArchived(plan));
+  const archived = sorted.filter(isArchived);
+
   // A set follows whatever is being read until someone says otherwise, and
   // then it stays where they put it.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  // Archived plans are kept, not shown: the group starts closed, and opens
+  // itself only when the plan being read is inside it.
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const readingArchived = archived.some((plan) => {
+    const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
+    return plan.path === activePath || !!activePath?.startsWith(folder);
+  });
+  const archiveShown = archiveOpen || readingArchived;
 
   if (plans.length === 0) {
     return (
@@ -146,101 +157,133 @@ export function PlanList({
     );
   }
 
+  const renderPlan = (plan: PlanSummary) => {
+    const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
+    const isSet = plan.documents.length > 1;
+    const expanded =
+      isSet && (toggled[plan.path] ?? !!activePath?.startsWith(folder));
+    // The archived label is the group it sits in; repeating it as a chip
+    // says nothing.
+    const chipTags = plan.tags.filter((tag) => tag !== ARCHIVED_TAG);
+    return (
+      <li key={plan.path}>
+        <button
+          onClick={() => {
+            if (!isSet) {
+              onSelect(plan);
+              return;
+            }
+            // Opening a set shows the plan and its documents; folding it
+            // away leaves you where you were reading.
+            const next = !expanded;
+            setToggled((t) => ({ ...t, [plan.path]: next }));
+            if (next) onSelect(plan);
+          }}
+          aria-expanded={isSet ? expanded : undefined}
+          className={cn(
+            "flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+            (plan.path === activePath || expanded) &&
+              "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+          )}
+        >
+          {isSet ? (
+            <>
+              <ChevronRight
+                className={cn(
+                  "-ml-1 size-3 shrink-0 text-muted-foreground transition-transform duration-200",
+                  expanded && "rotate-90",
+                )}
+              />
+              {expanded ? (
+                <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <Folder className="size-4 shrink-0 text-muted-foreground" />
+              )}
+            </>
+          ) : (
+            <FileText className="size-4 shrink-0 text-muted-foreground" />
+          )}
+          <MarqueeText text={plan.title} className="flex-1" />
+          {isSet && (
+            <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+              {plan.documents.length}
+            </span>
+          )}
+          {chipTags.length > 0 && (
+            <span className="max-w-24 shrink-0 truncate rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+              {chipTags[0]}
+              {chipTags.length > 1 && ` +${chipTags.length - 1}`}
+            </span>
+          )}
+        </button>
+
+        {/* A set opens at its entry point; the rest of it is only reachable
+            if the documents are listed. */}
+        {isSet && (
+          <div
+            className={cn(
+              "grid transition-[grid-template-rows] duration-200 ease-in-out",
+              expanded ? "mb-1 grid-rows-[1fr]" : "grid-rows-[0fr]",
+            )}
+          >
+            <div className="overflow-hidden">
+              <SetBranch
+                nodes={buildSetTree(plan.documents)}
+                depth={0}
+                activeDocument={
+                  activePath?.startsWith(folder)
+                    ? activePath.slice(folder.length)
+                    : null
+                }
+                onOpen={(document) => onSelectDocument(plan, document)}
+              />
+            </div>
+          </div>
+        )}
+      </li>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-3">
-      {[sorted].map((group) => (
-        <div key="plans">
-          <p className="px-2 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-            Plans
-            <span className="ml-1.5 tabular-nums opacity-60">{group.length}</span>
-          </p>
-          <ul className="flex flex-col gap-px">
-            {group.map((plan) => {
-              const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
-              const isSet = plan.documents.length > 1;
-              const expanded =
-                isSet && (toggled[plan.path] ?? !!activePath?.startsWith(folder));
-              return (
-              <li key={plan.path}>
-                <button
-                  onClick={() => {
-                        if (!isSet) {
-                          onSelect(plan);
-                          return;
-                        }
-                        // Opening a set shows the plan and its documents;
-                        // folding it away leaves you where you were reading.
-                        const next = !expanded;
-                        setToggled((t) => ({ ...t, [plan.path]: next }));
-                        if (next) onSelect(plan);
-                      }}
-                      aria-expanded={isSet ? expanded : undefined}
-                      className={cn(
-                        "flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-                        (plan.path === activePath || expanded) &&
-                          "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
-                      )}
-                    >
-                      {isSet ? (
-                        <>
-                          <ChevronRight
-                            className={cn(
-                              "-ml-1 size-3 shrink-0 text-muted-foreground transition-transform duration-200",
-                              expanded && "rotate-90",
-                            )}
-                          />
-                          {expanded ? (
-                            <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
-                          ) : (
-                            <Folder className="size-4 shrink-0 text-muted-foreground" />
-                          )}
-                        </>
-                      ) : (
-                        <FileText className="size-4 shrink-0 text-muted-foreground" />
-                      )}
-                      <MarqueeText text={plan.title} className="flex-1" />
-                      {isSet && (
-                        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-                          {plan.documents.length}
-                        </span>
-                      )}
-                      {plan.tags.length > 0 && (
-                        <span className="max-w-24 shrink-0 truncate rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
-                          {plan.tags[0]}
-                          {plan.tags.length > 1 && ` +${plan.tags.length - 1}`}
-                        </span>
-                      )}
-                </button>
+      <div>
+        <p className="px-2 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+          Plans
+          <span className="ml-1.5 tabular-nums opacity-60">{active.length}</span>
+        </p>
+        <ul className="flex flex-col gap-px">{active.map(renderPlan)}</ul>
+      </div>
 
-                {/* A set opens at its entry point; the rest of it is only
-                    reachable if the documents are listed. */}
-                {isSet && (
-                  <div
-                    className={cn(
-                      "grid transition-[grid-template-rows] duration-200 ease-in-out",
-                      expanded ? "mb-1 grid-rows-[1fr]" : "grid-rows-[0fr]",
-                    )}
-                  >
-                    <div className="overflow-hidden">
-                      <SetBranch
-                        nodes={buildSetTree(plan.documents)}
-                        depth={0}
-                        activeDocument={
-                          activePath?.startsWith(folder)
-                            ? activePath.slice(folder.length)
-                            : null
-                        }
-                        onOpen={(document) => onSelectDocument(plan, document)}
-                      />
-                    </div>
-                  </div>
-                )}
-              </li>
-              );
-            })}
-          </ul>
+      {archived.length > 0 && (
+        <div>
+          <button
+            onClick={() => setArchiveOpen((o) => !o)}
+            aria-expanded={archiveShown}
+            className="flex w-full cursor-default items-center gap-1 rounded-md px-2 pb-1 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
+          >
+            <ChevronRight
+              className={cn(
+                "size-3 shrink-0 transition-transform duration-200",
+                archiveShown && "rotate-90",
+              )}
+            />
+            Archived
+            <span className="tabular-nums opacity-60">{archived.length}</span>
+          </button>
+          <div
+            className={cn(
+              "grid transition-[grid-template-rows] duration-200 ease-in-out",
+              archiveShown ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+            )}
+          >
+            <div className="overflow-hidden">
+              <ul className="flex flex-col gap-px">
+                {archived.map(renderPlan)}
+              </ul>
+            </div>
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }

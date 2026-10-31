@@ -70,7 +70,7 @@ fn tool_list() -> Value {
         },
         {
             "name": "tag_plan",
-            "description": "Replace a plan's tags. Tags are free labels shared by the user and their agents.",
+            "description": "Replace a plan's tags. Tags are free labels shared by the user and their agents. The tag \"archived\" puts a plan away: the app tucks it into a collapsed group.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

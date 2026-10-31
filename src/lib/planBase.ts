@@ -10,6 +10,13 @@ export const SOURCE_LABELS: Record<string, string> = {
   import: "Imported",
 };
 
+/** The one tag with an opinion attached: the sidebar tucks these away. */
+export const ARCHIVED_TAG = "archived";
+
+export function isArchived(plan: PlanSummary): boolean {
+  return plan.tags.includes(ARCHIVED_TAG);
+}
+
 export interface PlanSummary {
   id: string;
   title: string;

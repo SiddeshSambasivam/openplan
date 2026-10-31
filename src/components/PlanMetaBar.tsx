@@ -1,11 +1,16 @@
-import { History, Plus, X } from "lucide-react";
+import { Archive, ArchiveRestore, History, Plus, X } from "lucide-react";
 import { useState } from "react";
 import {
   ClaudeCodeIcon,
   CodexIcon,
   CursorIcon,
 } from "@/components/AgentIcons";
-import { SOURCE_LABELS, type PlanSummary } from "@/lib/planBase";
+import {
+  ARCHIVED_TAG,
+  isArchived,
+  SOURCE_LABELS,
+  type PlanSummary,
+} from "@/lib/planBase";
 import { Button } from "@/components/ui/button";
 import { TooltipButton } from "./TooltipButton";
 
@@ -38,6 +43,15 @@ export function PlanMetaBar({
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const updated = formatDate(plan.updated ?? plan.created);
+
+  const archived = isArchived(plan);
+  const toggleArchive = () => {
+    onTagsChange(
+      archived
+        ? plan.tags.filter((t) => t !== ARCHIVED_TAG)
+        : [...plan.tags, ARCHIVED_TAG],
+    );
+  };
 
   const addTag = () => {
     const tag = draft.trim();
@@ -113,7 +127,21 @@ export function PlanMetaBar({
         )}
       </span>
 
-      <span className="ml-auto">
+      <span className="ml-auto flex items-center gap-1">
+        <TooltipButton
+          variant="ghost"
+          size="xs"
+          onClick={toggleArchive}
+          tooltip={
+            archived
+              ? "Bring this plan back into the list"
+              : "Move this plan into the archived group"
+          }
+          className="gap-1.5"
+        >
+          {archived ? <ArchiveRestore /> : <Archive />}
+          {archived ? "Unarchive" : "Archive"}
+        </TooltipButton>
         <Button variant="ghost" size="xs" onClick={onOpenHistory} className="gap-1.5">
           <History />
           History
