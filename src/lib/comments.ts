@@ -1,3 +1,6 @@
+/** Who wrote a comment: the person using OpenPlan, or the agent that did. */
+export type CommentAuthor = "user" | (string & {});
+
 export interface CommentEntry {
   id: string;
   text: string;
@@ -5,6 +8,7 @@ export interface CommentEntry {
   /** Set (and bumped) whenever the comment's text is edited after creation —
    * drives an "(edited)" marker, Notion-style. Absent for never-edited entries. */
   editedAt?: string;
+  author: CommentAuthor;
 }
 
 export interface CommentThread {
@@ -33,11 +37,14 @@ export function newCommentId(): string {
   return crypto.randomUUID();
 }
 
-export function newCommentEntry(text: string): CommentEntry {
-  return { id: newCommentId(), text, createdAt: new Date().toISOString() };
+export function newCommentEntry(
+  text: string,
+  author: CommentAuthor = "user",
+): CommentEntry {
+  return { id: newCommentId(), text, createdAt: new Date().toISOString(), author };
 }
 
-const SIDECAR_VERSION = 1;
+const SIDECAR_VERSION = 2;
 
 interface SidecarShape {
   version: number;
@@ -67,7 +74,16 @@ export function parseCommentsSidecar(json: string | null): CommentThread[] {
     const data: unknown = JSON.parse(json);
     if (!data || typeof data !== "object") return [];
     const threads = (data as Partial<SidecarShape>).threads;
-    return Array.isArray(threads) ? threads.filter(isValidThread) : [];
+    if (!Array.isArray(threads)) return [];
+    // Version 1 predates authorship, when the only writer was the person
+    // reading the plan.
+    return threads.filter(isValidThread).map((thread) => ({
+      ...thread,
+      comments: thread.comments.map((comment) => ({
+        ...comment,
+        author: comment.author ?? "user",
+      })),
+    }));
   } catch {
     return [];
   }

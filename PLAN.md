@@ -556,7 +556,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       migrate localStorage keys **(T: migration logic in `src/lib/`)**
 - [x] P0.2 Convert `src-tauri` to a Cargo workspace; create empty `openplan-core`
       crate; move `atomic_write` + sidecar fs helpers into it **(T: ports existing tests)**
-- [ ] P0.3 Sidecar dual-read rename `.omd-` → `.oplan-` with v2 `author` field
+- [x] P0.3 Sidecar dual-read rename `.omd-` → `.oplan-` with v2 `author` field
       **(T: v1 parse compat, migration on write)**
 - [ ] P0.4 Tests for the remaining pure helpers in `src/lib/` — `tree.ts`,
       `platform.ts` (`comments.ts` is retired in Phase 4, so skip it) **(T)**
