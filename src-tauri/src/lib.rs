@@ -302,6 +302,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             onboarding::app_settings,
             onboarding::complete_onboarding,
+            onboarding::set_role,
+            onboarding::seed_demo,
             onboarding::reset_onboarding,
             onboarding::discover_sources,
             onboarding::import_source,

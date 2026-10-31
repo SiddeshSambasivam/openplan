@@ -22,6 +22,7 @@ import { PlanMetaBar } from "./components/PlanMetaBar";
 import { HistoryPanel } from "./features/history/HistoryPanel";
 import { SettingsDialog, type SettingsSection } from "./features/settings/SettingsDialog";
 import { Onboarding } from "./features/onboarding/Onboarding";
+import type { OnboardingResult } from "./lib/onboarding";
 import { CommentComposer } from "./features/comments/CommentComposer";
 import { CommentsLayer, type AnchorState } from "./features/comments/CommentsLayer";
 import { CommentsPanel } from "./features/comments/CommentsPanel";
@@ -372,14 +373,16 @@ export default function App() {
     );
   }, []);
 
+  // Whether a tour was asked for, set when onboarding hands over to the
+  // board. The tour reads it.
+  const [, setTourRequested] = useState(false);
   const finishOnboarding = useCallback(
-    (name: string | null) => {
-      void import("@tauri-apps/api/core").then(({ invoke }) =>
-        invoke("complete_onboarding", { name }).then(() => {
-          setNeedsOnboarding(false);
-          refreshPlans();
-        }),
-      );
+    ({ folder, startTour }: OnboardingResult) => {
+      setNeedsOnboarding(false);
+      setChosenFolder(folder);
+      setMainView("board");
+      setTourRequested(startTour);
+      refreshPlans();
     },
     [refreshPlans],
   );

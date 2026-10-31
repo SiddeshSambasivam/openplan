@@ -45,6 +45,8 @@
 }
 
 @custom-variant dark (&:is(.dark *));
+/* A window too short for full-size screens, such as the 720x480 minimum. */
+@custom-variant short (@media (max-height: 600px));
 
 /* shadcn/ui "neutral" theme tokens */
 :root {
