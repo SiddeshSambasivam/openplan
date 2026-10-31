@@ -84,6 +84,7 @@ pub struct DetectedAgent {
 pub struct DiscoveredFolder {
     path: PathBuf,
     documents: usize,
+    named_for_plans: bool,
 }
 
 #[derive(Serialize)]
@@ -110,6 +111,7 @@ pub async fn discover_sources() -> Result<Sources, String> {
         .map(|f| DiscoveredFolder {
             path: f.path,
             documents: f.documents,
+            named_for_plans: f.named_for_plans,
         })
         .collect();
     Ok(Sources { agents, folders })

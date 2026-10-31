@@ -20,6 +20,7 @@ interface DetectedAgent {
 interface DiscoveredFolder {
   path: string;
   documents: number;
+  namedForPlans: boolean;
 }
 
 interface Sources {
@@ -88,10 +89,11 @@ export function Onboarding({ onDone }: OnboardingProps) {
         new Set(found.agents.filter((a) => a.installed).map((a) => a.id)),
       );
       setSelectedSources(
-        new Set([
-          ...found.folders.map((f) => f.path),
-          ...found.agents.filter((a) => a.plans.length > 0).map((a) => `agent:${a.id}`),
-        ]),
+        new Set(
+          found.agents
+            .filter((a) => a.plans.length > 0)
+            .map((a) => `agent:${a.id}`),
+        ),
       );
     });
   }, []);
@@ -103,26 +105,37 @@ export function Onboarding({ onDone }: OnboardingProps) {
     return next;
   };
 
-  const importables = useMemo(() => {
-    if (!sources) return [];
-    const folders = sources.folders.map((f) => ({
-      key: f.path,
-      label: f.path.split("/").slice(-2).join("/"),
-      detail: `${f.documents} documents`,
-      paths: [f.path],
-      source: "import",
-    }));
-    const agents = sources.agents
-      .filter((a) => a.plans.length > 0)
-      .map((a) => ({
-        key: `agent:${a.id}`,
-        label: `${a.name} plans`,
-        detail: `${a.plans.length} ${a.plans.length === 1 ? "plan" : "plans"}`,
-        paths: a.plans,
-        source: a.id,
-      }));
-    return [...agents, ...folders];
-  }, [sources]);
+  const agentSources = useMemo(
+    () =>
+      (sources?.agents ?? [])
+        .filter((a) => a.plans.length > 0)
+        .map((a) => ({
+          key: `agent:${a.id}`,
+          label: `${a.name} plans`,
+          detail: `${a.plans.length} ${a.plans.length === 1 ? "plan" : "plans"}`,
+          paths: a.plans,
+          source: a.id,
+        })),
+    [sources],
+  );
+
+  const folderSources = useMemo(
+    () =>
+      (sources?.folders ?? []).map((f) => ({
+        key: f.path,
+        label: f.path.split("/").slice(-2).join("/"),
+        detail: `${f.documents} documents`,
+        paths: [f.path],
+        source: "import",
+        namedForPlans: f.namedForPlans,
+      })),
+    [sources],
+  );
+
+  const importables = useMemo(
+    () => [...agentSources, ...folderSources],
+    [agentSources, folderSources],
+  );
 
   const runImport = async () => {
     setImporting(true);
@@ -281,12 +294,10 @@ export function Onboarding({ onDone }: OnboardingProps) {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              {importables.map((item, i) => (
+              {agentSources.map((item, i) => (
                 <button
                   key={item.key}
-                  onClick={() =>
-                    setSelectedSources((s) => toggle(s, item.key))
-                  }
+                  onClick={() => setSelectedSources((s) => toggle(s, item.key))}
                   aria-pressed={selectedSources.has(item.key)}
                   className={cn(
                     "animate-in flex cursor-default items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors fade-in duration-300 hover:bg-accent/50",
@@ -296,23 +307,63 @@ export function Onboarding({ onDone }: OnboardingProps) {
                   )}
                   style={rise(i)}
                 >
-                  {item.key.startsWith("agent:") ? (
-                    <AgentMark
-                      id={item.key.slice("agent:".length)}
-                      className={cn(
-                        "size-4 shrink-0 text-foreground transition-all duration-200",
-                        !selectedSources.has(item.key) && "opacity-45 grayscale",
-                      )}
-                    />
-                  ) : (
-                    <Folder className="size-4 shrink-0 text-muted-foreground" />
-                  )}
+                  <AgentMark
+                    id={item.key.slice("agent:".length)}
+                    className={cn(
+                      "size-4 shrink-0 text-foreground transition-all duration-200",
+                      !selectedSources.has(item.key) && "opacity-45 grayscale",
+                    )}
+                  />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {item.detail}
                   </span>
                 </button>
               ))}
+
+              {folderSources.length > 0 && (
+                <p
+                  className="animate-in pt-2 pb-0.5 text-[11px] font-medium tracking-wider text-muted-foreground uppercase fade-in duration-300"
+                  style={rise(agentSources.length)}
+                >
+                  Suggested folders
+                </p>
+              )}
+              {folderSources.map((item, i) => (
+                <button
+                  key={item.key}
+                  onClick={() => setSelectedSources((s) => toggle(s, item.key))}
+                  aria-pressed={selectedSources.has(item.key)}
+                  className={cn(
+                    "animate-in flex cursor-default items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors fade-in duration-300 hover:bg-accent/50",
+                    selectedSources.has(item.key)
+                      ? "border-foreground/40 bg-accent/50"
+                      : "border-border text-muted-foreground",
+                  )}
+                  style={rise(agentSources.length + 1 + i)}
+                >
+                  <Folder
+                    className={cn(
+                      "size-4 shrink-0 transition-colors duration-200",
+                      selectedSources.has(item.key)
+                        ? "text-foreground"
+                        : "text-muted-foreground",
+                    )}
+                  />
+                  <span className="min-w-0 flex-1 truncate" title={item.paths[0]}>
+                    {item.label}
+                  </span>
+                  {!item.namedForPlans && (
+                    <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+                      markdown
+                    </span>
+                  )}
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {item.detail}
+                  </span>
+                </button>
+              ))}
+
               {importables.length === 0 && (
                 <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
                   Nothing found to import. Your agents will file plans here

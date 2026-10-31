@@ -26,6 +26,9 @@ pub struct PlanFolder {
     pub path: PathBuf,
     /// Markdown directly inside, and in its immediate subdirectories.
     pub documents: usize,
+    /// True when the folder's own name says plans; false when it is only
+    /// suggested for being full of markdown.
+    pub named_for_plans: bool,
 }
 
 /// Directories never worth descending into: big, and never where plans live.
@@ -37,6 +40,13 @@ const SKIP: [&str; 8] = [
 /// How deep to look below each starting point. Plans live near the top of a
 /// home directory; anything deeper is someone's source tree.
 const MAX_DEPTH: usize = 3;
+
+/// A folder whose name says nothing is still worth suggesting once it holds
+/// this much markdown of its own.
+const SUGGEST_MIN_DOCS: usize = 5;
+
+/// More suggestions than this is a list nobody reads.
+const MAX_FOLDERS: usize = 8;
 
 fn looks_like_plans(name: &str) -> bool {
     let lower = name.to_lowercase();
@@ -130,6 +140,9 @@ pub fn plan_folders(home: &Path, budget: std::time::Duration) -> Vec<PlanFolder>
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
         };
+        // One pass over the directory: gather its subfolders, and count the
+        // markdown sitting directly in each — that count is what promotes a
+        // folder whose name says nothing.
         for entry in entries.flatten() {
             let name = entry.file_name();
             let name = name.to_string_lossy().to_string();
@@ -146,8 +159,22 @@ pub fn plan_folders(home: &Path, budget: std::time::Duration) -> Vec<PlanFolder>
             if looks_like_plans(&name) {
                 let documents = markdown_count(&path, 1);
                 if documents > 0 {
-                    found.push(PlanFolder { path, documents });
+                    found.push(PlanFolder {
+                        path,
+                        documents,
+                        named_for_plans: true,
+                    });
                     continue; // its subdirectories belong to it
+                }
+            } else {
+                let direct = markdown_count(&path, 0);
+                if direct >= SUGGEST_MIN_DOCS {
+                    found.push(PlanFolder {
+                        documents: markdown_count(&path, 1),
+                        path,
+                        named_for_plans: false,
+                    });
+                    continue;
                 }
             }
             if depth > 0 {
@@ -155,7 +182,13 @@ pub fn plan_folders(home: &Path, budget: std::time::Duration) -> Vec<PlanFolder>
             }
         }
     }
-    found.sort_by(|a, b| b.documents.cmp(&a.documents));
+    // The confident ones first, each tier largest first.
+    found.sort_by(|a, b| {
+        b.named_for_plans
+            .cmp(&a.named_for_plans)
+            .then(b.documents.cmp(&a.documents))
+    });
+    found.truncate(MAX_FOLDERS);
     found
 }
 
@@ -214,6 +247,7 @@ mod tests {
         assert_eq!(found.len(), 1, "{found:?}");
         assert!(found[0].path.ends_with("Hypo Fable Plans"));
         assert_eq!(found[0].documents, 2, "counts what is inside");
+        assert!(found[0].named_for_plans);
         let _ = std::fs::remove_dir_all(&home);
     }
 
@@ -225,6 +259,39 @@ mod tests {
         assert_eq!(plan_folders(&home, std::time::Duration::from_secs(5)), vec![]);
 
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn a_folder_full_of_markdown_is_suggested_even_without_the_name() {
+        let home = temp_home("openplan-core-discovery-rich");
+        for i in 0..6 {
+            write(&home.join(format!("Documents/design docs/d{i}.md")), "# D");
+        }
+        write(&home.join("Documents/two notes/a.md"), "# A");
+
+        let found = plan_folders(&home, std::time::Duration::from_secs(5));
+
+        let rich = found.iter().find(|f| f.path.ends_with("design docs"));
+        assert!(rich.is_some(), "{found:?}");
+        assert!(!rich.unwrap().named_for_plans);
+        assert!(
+            !found.iter().any(|f| f.path.ends_with("two notes")),
+            "a couple of files is not a plans folder: {found:?}"
+        );
+    }
+
+    #[test]
+    fn named_folders_come_before_merely_markdown_rich_ones() {
+        let home = temp_home("openplan-core-discovery-order");
+        for i in 0..9 {
+            write(&home.join(format!("Documents/big notes/n{i}.md")), "# N");
+        }
+        write(&home.join("Desktop/plans/one.md"), "# One");
+
+        let found = plan_folders(&home, std::time::Duration::from_secs(5));
+
+        assert!(found[0].path.ends_with("plans"), "{found:?}");
+        assert!(found[0].named_for_plans);
     }
 
     #[test]
