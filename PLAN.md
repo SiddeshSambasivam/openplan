@@ -917,7 +917,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       content; a back button returns to where the plan was opened from
 - [x] R1.2 Standards: no "Status, Owner, Repo" header line in the body; the
       frontmatter and the work record carry it
-- [ ] R1.3 Navbar: two modes only, expanded and minimized, with a smooth transition;
+- [x] R1.3 Navbar: two modes only, expanded and minimized, with a smooth transition;
       the toggle morphs over the OpenPlan mark on hover; no new-plan button; the
       wordmark in EB Garamond, no name or base line
 - [x] R1.4 Cards show repos; a Display menu on the board picks which attributes a
@@ -929,10 +929,10 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       on after the app had launched); standards ask for Remotion explainers in a
       clean, minimal, Apple-like style with smooth motion
 - [x] R1.8 Cards: a Display option clamps the title to two lines
-- [x] R1.9 Cards: a plan filed in the last few minutes carries a "New" tag- [ ] R1.10 Navbar: the macOS traffic lights no longer overlap the minimized rail or
-      the top bar's first control- [ ] R1.11 Folders: a "+" on the navbar's Folders section creates one; empty folders
+- [x] R1.9 Cards: a plan filed in the last few minutes carries a "New" tag- [x] R1.10 Navbar: the macOS traffic lights no longer overlap the minimized rail or
+      the top bar's first control- [x] R1.11 Folders: a "+" on the navbar's Folders section creates one; empty folders
       live in the base's `openplan.json` and the navbar lists the union with frontmatter
-- [ ] R1.12 Navbar: `cmd+shift+[` and `cmd+shift+]` step through the navbar rows
+- [x] R1.12 Navbar: `cmd+shift+[` and `cmd+shift+]` step through the navbar rows
 #### GATE 7 QA script
 
 Run a release build of 0.3.0 against the real base, with Claude Code connected
@@ -1149,6 +1149,11 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | A plan filed in the last 10 minutes carries a New badge, cleared by one timeout armed to the earliest expiry and re-armed on change, never an interval | Sid: spot what just arrived. One timeout per change is not the periodic wake NFR-8 forbids |
 | 2026-10-29 | The plan page has Plan and Alignment tabs; the todos, repos and PRs sit in a panel beside the content when the main area is 860px or wider, and float from a "Work" toggle below that | Sid: a dedicated alignment tab, todos adjacent to the content. The panel threshold is main-area width, not the window breakpoint, so an open navbar does not squeeze the text |
 | 2026-10-29 | A back control replaces the breadcrumb: opening from a view or the palette starts the trail, opening a plan from a plan stacks it, leaving for a view clears it; back to Search reopens the palette with the query; scroll positions of a left view are restored | Sid: a way back to where the plan was entered from. Restoring scroll costs one DOM walk per navigation |
+| 2026-10-29 | **Exception to the transform-and-opacity rule:** the navbar column transitions `width` over 180ms ease-out with `will-change: width`, and the top bar's leading gap moves on the same curve; labels fade. Nothing else animates layout | Sid asked for a smooth transition between the two modes, and a translate cannot push the content. Measured: the board stays under a frame (production, 60 plans); a 2 MB plan costs 15 to 17ms a frame, one frame at 60Hz, what a window resize costs. Accepted. Virtualizing the preview is the only way down and is not worth it for a 180ms transition |
+| 2026-10-29 | The navbar has two modes, expanded and minimized, with `cmd+b`; hidden mode, the edge reveal and `cmd+shift+b` are gone. The collapse chevron sits at the right end of the expanded top row, and only in minimized mode does the mark morph into the expand chevron | Sid, 2026-10-29, in three notes. A single thin chevron, not the panel box |
+| 2026-10-29 | On macOS the navbar keeps a 36px spacer above the mark in both modes, and in minimized mode the top bar's content starts at x 84 | The traffic lights overlapped the rail and the top bar's first control (R1.10). A spacer that changed with the mode would jump the rows during the transition |
+| 2026-10-29 | Folders the person creates live in the base's `openplan.json` `folders` list; the navbar and the pickers show the union with frontmatter; removing drops the list entry only | A folder with no plans has no frontmatter to live in. Plans keep their own folders, so one still in use reappears |
+| 2026-10-29 | Search is a navbar row, not a control in the top row | Both modes then share one layout and the transition moves nothing |
 
 ---
 
