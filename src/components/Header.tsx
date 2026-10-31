@@ -1,6 +1,8 @@
 import {
+  ArrowLeft,
   ChevronDown,
   Eye,
+  ListTodo,
   MessageSquareText,
   Moon,
   PanelLeft,
@@ -14,10 +16,11 @@ import type { ReactNode } from "react";
 import type { FontSize } from "../lib/fontSize";
 import type { DocFile, MainView, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
-import type { Crumb } from "../lib/board";
 import type { FolderFilter } from "../lib/folders";
 import type { NavbarMode } from "../lib/navbar";
+import { VIEW_LABELS, type ListView } from "../lib/origin";
 import type { PlanSummary, Status } from "../lib/planBase";
+import type { TodoCount } from "../lib/work";
 import { cn } from "../lib/utils";
 import { TooltipButton } from "./TooltipButton";
 import { FontSizeMenu } from "./FontSizeMenu";
@@ -37,16 +40,19 @@ import {
 const FILTER_ITEM =
   "pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground";
 
-const VIEW_LABELS: Record<Exclude<MainView, "plan">, string> = {
-  board: "Board",
-  list: "All plans",
-  "for-you": "For you",
-};
-
 interface HeaderProps {
   mainView: MainView;
-  /** The trail above the open plan. Null away from the plan page. */
-  crumb: Crumb | null;
+  /** The name of what is open. Null away from the plan page. */
+  title: string | null;
+  /** Where the plan page was entered from, named. Null when there is
+   * nowhere to go back to. */
+  back: string | null;
+  onBack: () => void;
+  /** The plan's todo count while its work panel floats, so the bar can
+   * open it. Null when the panel has a column or nothing to show. */
+  work: TodoCount | null;
+  workOpen: boolean;
+  onToggleWork: () => void;
   /** The open plan, for the status picker. */
   plan: PlanSummary | null;
   onStatusChange: (status: Status) => void;
@@ -55,8 +61,6 @@ interface HeaderProps {
   onStatusOpenChange: (open: boolean) => void;
   /** Every recorded PR reads merged on a plan in review. */
   offerCompletion: boolean;
-  /** Opens what the crumb sits under: the plan of a document. */
-  onOpenLead: () => void;
   /** Every folder in the base, for the filter. */
   folders: string[];
   folder: FolderFilter;
@@ -100,13 +104,17 @@ interface HeaderProps {
 
 export function Header({
   mainView,
-  crumb,
+  title,
+  back,
+  onBack,
+  work,
+  workOpen,
+  onToggleWork,
   plan,
   onStatusChange,
   statusOpen,
   onStatusOpenChange,
   offerCompletion,
-  onOpenLead,
   folders,
   folder,
   onSelectFolder,
@@ -173,25 +181,27 @@ export function Header({
       </TooltipButton>
 
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-        {onPlan && crumb ? (
+        {onPlan && back && (
+          <TooltipButton
+            variant="ghost"
+            size="xs"
+            onClick={onBack}
+            shortcut="escape"
+            tooltip={`Back to ${back}`}
+            tooltipAlign="start"
+            aria-label={`Back to ${back}`}
+            className="min-w-0 shrink-0 gap-1.5 font-normal text-muted-foreground"
+          >
+            <ArrowLeft />
+            {/* The title is what someone needs to see, so a narrow window
+                keeps only the arrow. */}
+            <span className="hidden max-w-40 truncate md:inline">{back}</span>
+          </TooltipButton>
+        )}
+        {onPlan && title != null ? (
           <>
-            {crumb.lead && (
-              <>
-                {/* The trail is the first thing to go when the window is
-                    narrow: the title is what someone needs to see. */}
-                <button
-                  onClick={onOpenLead}
-                  className="hidden max-w-40 shrink-0 cursor-default truncate rounded-md px-1.5 py-0.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:block"
-                >
-                  {crumb.lead}
-                </button>
-                <span aria-hidden className="hidden text-muted-foreground/50 md:inline">
-                  /
-                </span>
-              </>
-            )}
             <h1 className="min-w-0 flex-1 cursor-default text-sm font-medium text-foreground">
-              <MarqueeText text={crumb.title} />
+              <MarqueeText text={title} />
             </h1>
             {dirty && (
               <span
@@ -203,7 +213,7 @@ export function Header({
           </>
         ) : (
           <h1 className="cursor-default text-sm font-medium text-foreground">
-            {VIEW_LABELS[mainView as Exclude<MainView, "plan">]}
+            {VIEW_LABELS[mainView as ListView]}
           </h1>
         )}
       </div>
@@ -280,7 +290,8 @@ export function Header({
       )}
 
       {showDocTools && wordCount != null && (
-        <span className="pointer-events-none pr-1.5 text-xs tabular-nums text-muted-foreground">
+        // A narrow window gives its room to the title.
+        <span className="pointer-events-none hidden shrink-0 pr-1.5 text-xs tabular-nums text-muted-foreground lg:inline">
           {wordCount.toLocaleString()} {wordCount === 1 ? "word" : "words"}
         </span>
       )}
@@ -303,6 +314,29 @@ export function Header({
 
       {showDocTools && (
         <FontSizeMenu fontSize={fontSize} onChange={onFontSizeChange} />
+      )}
+
+      {onPlan && work && (
+        <TooltipButton
+          variant="ghost"
+          size="xs"
+          onClick={onToggleWork}
+          tooltip="Todos, repos and PRs"
+          tooltipAlign="end"
+          aria-expanded={workOpen}
+          className={cn(
+            "gap-1.5 font-normal text-muted-foreground",
+            workOpen && "bg-accent text-accent-foreground",
+          )}
+        >
+          <ListTodo />
+          Work
+          {work.total > 0 && (
+            <span className="tabular-nums">
+              {work.done}/{work.total}
+            </span>
+          )}
+        </TooltipButton>
       )}
 
       {showDocTools && inPreview && (

@@ -3,7 +3,7 @@ import {
   boardColumns,
   FOLDED,
   forYou,
-  planCrumb,
+  pageTitle,
   relativeTime,
   shortDate,
   sortPlans,
@@ -158,7 +158,7 @@ describe("forYou", () => {
   });
 });
 
-describe("planCrumb", () => {
+describe("pageTitle", () => {
   const set = plan({
     id: "set",
     title: "Move search to OpenSearch",
@@ -167,18 +167,12 @@ describe("planCrumb", () => {
     documents: ["README.md", "01-current-state.md"],
   });
 
-  it("reads a plan as its title alone", () => {
-    expect(planCrumb(set, set.path)).toEqual({
-      lead: null,
-      title: "Move search to OpenSearch",
-    });
+  it("reads a plan as its title", () => {
+    expect(pageTitle(set, set.path)).toBe("Move search to OpenSearch");
   });
 
-  it("reads a document as its plan and what the document is about", () => {
-    expect(planCrumb(set, "/base/move-search/01-current-state.md")).toEqual({
-      lead: "Move search to OpenSearch",
-      title: "Current state",
-    });
+  it("reads a document as what the document is about", () => {
+    expect(pageTitle(set, "/base/move-search/01-current-state.md")).toBe("Current state");
   });
 });
 

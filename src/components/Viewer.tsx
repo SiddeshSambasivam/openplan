@@ -1,10 +1,13 @@
 import { FileWarning, Loader2, ScrollText } from "lucide-react";
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import { HtmlDoc } from "../features/plan/HtmlDoc";
+import { AlignmentTab } from "../features/plan/PlanWork";
 import { isHtmlPath } from "../lib/htmlDoc";
 import { shortcut } from "../lib/shortcuts";
 import { ShortcutKeys } from "./ShortcutKeys";
 import type { PlanSummary } from "../lib/planBase";
+import type { PlanTab } from "../lib/planTab";
+import type { WorkRecord } from "../lib/work";
 import { PlanPage } from "../features/plan/PlanPage";
 import type { DocFile, ViewMode } from "../lib/types";
 import { TooltipButton } from "./TooltipButton";
@@ -40,6 +43,9 @@ interface ViewerProps {
   doc: DocFile;
   /** The plan this document belongs to, or null for a loose file. */
   plan: PlanSummary | null;
+  /** Which tab of the plan shows. Always the plan for a document of a set. */
+  tab: PlanTab;
+  record: WorkRecord | null;
   content: string | null;
   error: string | null;
   loading: boolean;
@@ -61,6 +67,8 @@ interface ViewerProps {
 export function Viewer({
   doc,
   plan,
+  tab,
+  record,
   content,
   error,
   loading,
@@ -144,7 +152,8 @@ export function Viewer({
     );
   }
 
-  if (isLarge && !renderLarge && !html) {
+  const alignment = plan != null && tab === "alignment";
+  if (isLarge && !renderLarge && !html && !alignment) {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl border border-border bg-card p-8 text-center shadow-sm">
@@ -187,7 +196,7 @@ export function Viewer({
       className="mx-auto w-full px-10 py-10 transition-[max-width] duration-200 ease-in-out"
       style={{ maxWidth: "var(--content-max-width, 48rem)" }}
     >
-      {truncated && !html && (
+      {truncated && !html && !alignment && (
         <div className="mb-8 flex items-center gap-2.5 rounded-lg border border-border bg-muted/50 px-3.5 py-2.5 text-xs text-muted-foreground">
           <ScrollText className="size-4 shrink-0" />
           <span>
@@ -197,7 +206,9 @@ export function Viewer({
           </span>
         </div>
       )}
-      {html ? (
+      {alignment ? (
+        <AlignmentTab record={record} />
+      ) : html ? (
         <HtmlDoc content={content} dark={dark} />
       ) : plan ? (
         // One document of a set is not the plan: it carries its own title and
@@ -206,7 +217,6 @@ export function Viewer({
           body={previewContent ?? ""}
           title={doc.path === plan.path ? plan.title : ""}
           type={doc.path === plan.path ? plan.type : null}
-          work={doc.path === plan.path ? plan : null}
           docPath={doc.path}
           dark={dark}
           media={media}

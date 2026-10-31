@@ -33,7 +33,9 @@ const PLAN_MATCHES = 20;
 /** Opens an overlay that keeps its own open state, so opening it renders the
  * overlay alone and not the whole app behind it. */
 export interface OverlayHandle {
-  open: () => void;
+  /** The palette starts from `query`, so going back to it finds the same
+   * results. */
+  open: (query?: string) => void;
 }
 
 interface CommandPaletteProps {
@@ -42,7 +44,8 @@ interface CommandPaletteProps {
   plans: PlanSummary[];
   /** Shown before anything is typed. */
   recent: PlanSummary[];
-  onOpenPlan: (plan: PlanSummary) => void;
+  /** With the query the plan was found by. */
+  onOpenPlan: (plan: PlanSummary, query: string) => void;
 }
 
 /** Every action and every plan, filtered as you type, and the plans whose
@@ -51,9 +54,12 @@ export function CommandPalette({
   ref,
   ...props
 }: CommandPaletteProps & { ref: Ref<OverlayHandle> }) {
-  const [open, setOpen] = useState(false);
-  useImperativeHandle(ref, () => ({ open: () => setOpen(true) }), []);
-  return open ? <PaletteDialog {...props} onClose={() => setOpen(false)} /> : null;
+  // The query it opens with, or null while closed.
+  const [opened, setOpened] = useState<string | null>(null);
+  useImperativeHandle(ref, () => ({ open: (query = "") => setOpened(query) }), []);
+  return opened != null ? (
+    <PaletteDialog {...props} initialQuery={opened} onClose={() => setOpened(null)} />
+  ) : null;
 }
 
 function PaletteDialog({
@@ -61,9 +67,10 @@ function PaletteDialog({
   plans,
   recent,
   onOpenPlan,
+  initialQuery,
   onClose,
-}: CommandPaletteProps & { onClose: () => void }) {
-  const [query, setQuery] = useState("");
+}: CommandPaletteProps & { initialQuery: string; onClose: () => void }) {
+  const [query, setQuery] = useState(initialQuery);
   const hitsByPlan = usePlanSearch(query.trim());
   const typed = query.trim() !== "";
   const planChoices = useMemo(
@@ -87,7 +94,8 @@ function PaletteDialog({
     onClose();
     action?.();
   };
-  const openPlan = (plan: PlanSummary | undefined) => run(plan && (() => onOpenPlan(plan)));
+  const openPlan = (plan: PlanSummary | undefined) =>
+    run(plan && (() => onOpenPlan(plan, query)));
 
   return (
     <CommandDialog

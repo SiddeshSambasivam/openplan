@@ -94,18 +94,11 @@ export function steppedPlan(
   return order[at + step] ?? null;
 }
 
-export interface Crumb {
-  /** The plan a document belongs to. Null for the plan itself. */
-  lead: string | null;
-  title: string;
-}
-
-/** The trail above whatever is open, built from the plan the scan found
+/** The name over whatever is open, built from the plan the scan found
  * rather than from the file's name. */
-export function planCrumb(plan: PlanSummary, path: string): Crumb {
-  if (path === plan.path) return { lead: null, title: plan.title };
-  const name = path.slice(path.lastIndexOf("/") + 1);
-  return { lead: plan.title, title: documentLabel(name) };
+export function pageTitle(plan: PlanSummary, path: string): string {
+  if (path === plan.path) return plan.title;
+  return documentLabel(path.slice(path.lastIndexOf("/") + 1));
 }
 
 /** How long ago something moved, for the first week. After that the date
