@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { loadReplyDrafts, repliedAnswers, saveReplyDrafts } from "./alignmentDrafts";
+import {
+  answeredCount,
+  loadRailShown,
+  loadReplyDrafts,
+  newestWaiting,
+  nextWaiting,
+  queueReply,
+  repliedAnswers,
+  saveRailShown,
+  saveReplyDrafts,
+} from "./alignmentDrafts";
 import type { Question } from "./work";
 
 function memoryStorage(): Storage {
@@ -97,5 +107,121 @@ describe("repliedAnswers", () => {
       q1: { kind: "option", options: ["a"], note: "Fewer parts." },
       q4: { kind: "text", text: "Only new plans." },
     });
+  });
+});
+
+describe("nextWaiting", () => {
+  const thread = [
+    question("q1", { round: 2 }),
+    question("q2"),
+    question("q3", { answer: { kind: "option", options: ["a"] } }),
+    question("q4"),
+  ];
+
+  it("starts at the first waiting question in thread order, oldest round first", () => {
+    expect(nextWaiting(thread, {})?.id).toBe("q2");
+  });
+
+  it("goes on to the next waiting question below, past answered and queued ones", () => {
+    const drafts = { q4: { text: "Queued", replied: true } };
+    expect(nextWaiting(thread, drafts, "q2")?.id).toBe("q1");
+  });
+
+  it("goes back up to the first waiting one when nothing waits below", () => {
+    expect(nextWaiting(thread, {}, "q1")?.id).toBe("q2");
+  });
+
+  it("gives none once every question has an answer or a reply queued", () => {
+    const drafts = {
+      q1: { text: "Yes", replied: true },
+      q2: { option: "a", text: "", replied: true },
+      q4: { text: "No", replied: true },
+    };
+    expect(nextWaiting(thread, drafts, "q2")).toBeUndefined();
+  });
+
+  it("counts a draft not replied yet as still waiting", () => {
+    expect(nextWaiting(thread, { q2: { option: "a", text: "", replied: false } })?.id).toBe("q2");
+  });
+});
+
+describe("newestWaiting", () => {
+  it("gives the last waiting question in thread order", () => {
+    const thread = [question("q1", { round: 2 }), question("q2"), question("q3")];
+    expect(newestWaiting(thread, {})?.id).toBe("q1");
+    expect(newestWaiting(thread, { q1: { text: "Done", replied: true } })?.id).toBe("q3");
+    expect(newestWaiting([], {})).toBeUndefined();
+  });
+});
+
+describe("queueReply", () => {
+  it("queues a pick, a pick with words, or words alone", () => {
+    expect(queueReply("q1", { q1: { option: "a", text: "", replied: false } })).toEqual({
+      q1: { option: "a", text: "", replied: true },
+    });
+    expect(queueReply("q1", { q1: { option: "a", text: "Why", replied: false } })?.q1.replied).toBe(
+      true,
+    );
+    expect(queueReply("q1", { q1: { text: "Only words", replied: false } })?.q1.replied).toBe(true);
+  });
+
+  it("queues nothing without a pick or words", () => {
+    expect(queueReply("q1", {})).toBeNull();
+    expect(queueReply("q1", { q1: { text: "  ", replied: false } })).toBeNull();
+  });
+
+  it("leaves the other drafts as they were", () => {
+    const other = { text: "Later", replied: false };
+    expect(queueReply("q1", { q1: { text: "Now", replied: false }, q2: other })?.q2).toBe(other);
+  });
+});
+
+describe("answeredCount", () => {
+  it("counts the replies queued against the questions still open", () => {
+    const thread = [
+      question("q1"),
+      question("q2"),
+      question("q3"),
+      question("q4", { answer: { kind: "option", options: ["a"] } }),
+    ];
+    const drafts = {
+      q1: { option: "a", text: "", replied: true },
+      q2: { text: "Words", replied: true },
+      q3: { option: "b", text: "", replied: false },
+    };
+
+    expect(answeredCount(thread, drafts)).toBe("2 of 3 waiting questions answered");
+    expect(answeredCount([question("q1")], {})).toBe("0 of 1 waiting question answered");
+  });
+
+  it("says nothing waits once every question has its answer", () => {
+    const answered = question("q1", { answer: { kind: "option", options: ["a"] } });
+    expect(answeredCount([answered], {})).toBe("Nothing waits on you.");
+  });
+});
+
+describe("the people rail choice", () => {
+  it("is hidden until shown, and remembered across a reload", () => {
+    const storage = memoryStorage();
+    expect(loadRailShown(storage)).toBe(false);
+    saveRailShown(true, storage);
+    expect(loadRailShown(storage)).toBe(true);
+    saveRailShown(false, storage);
+    expect(loadRailShown(storage)).toBe(false);
+  });
+
+  it("stays hidden without storage", () => {
+    const broken = {
+      ...memoryStorage(),
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    } as Storage;
+
+    expect(loadRailShown(broken)).toBe(false);
+    expect(() => saveRailShown(true, broken)).not.toThrow();
   });
 });

@@ -89,6 +89,13 @@ export const SHORTCUTS = [
     group: "Plan",
     when: "On a plan with todos, repos or PRs",
   },
+  {
+    id: "peopleRail",
+    label: "Show or hide the people",
+    keys: "mod+shift+p",
+    group: "Plan",
+    when: "On the Alignment tab",
+  },
   { id: "status", label: "Change status", keys: "mod+shift+s", group: "Plan" },
   {
     id: "build",
@@ -112,7 +119,7 @@ export const SHORTCUTS = [
     label: "Send review",
     keys: "mod+enter",
     group: "Review",
-    when: "With the comments panel open",
+    when: "With the comments panel open, or your answers on the Alignment tab",
   },
 ] as const satisfies readonly Shortcut[];
 

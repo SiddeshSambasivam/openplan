@@ -77,22 +77,6 @@ export function buildTooltip(record: WorkRecord | null): string | undefined {
   return `Starts the work. The agent asks about ${spokenList(open)} first.`;
 }
 
-/** What the Alignment tab's Build says before and after a press. It counts
- * draft replies, since that Build sends them first. */
-export function sendBarBuild(score: AlignmentScore): { tooltip: string; sent: string } {
-  const open = openAreas(score);
-  if (open.length === 0) {
-    return {
-      tooltip: "Starts the work.",
-      sent: "Build sent. Everything is settled, so the agent starts now.",
-    };
-  }
-  return {
-    tooltip: `Starts the work. The agent asks about ${spokenList(open)} first.`,
-    sent: `Build sent. The agent asks about ${spokenList(open)} before it starts.`,
-  };
-}
-
 function openAreas(score: AlignmentScore): string[] {
   return score.areas.filter((area) => !area.settled).map((area) => area.name);
 }
