@@ -1,6 +1,5 @@
 import { FileText, Search, Settings, X } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { isMac } from "../lib/platform";
 import { filterLibraryItems } from "../lib/tree";
 import type { FileLibraryItem, LibraryItem } from "../lib/types";
 import { cn } from "../lib/utils";
@@ -269,9 +268,6 @@ export const Sidebar = memo(function Sidebar({
         >
           <Settings className="size-4 shrink-0 text-muted-foreground" />
           <span className="flex-1">Settings</span>
-          <span className="text-[11px] text-muted-foreground">
-            {isMac ? "⌘," : "Ctrl+,"}
-          </span>
         </button>
       </div>
     </aside>
