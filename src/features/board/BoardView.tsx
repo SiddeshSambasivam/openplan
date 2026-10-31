@@ -179,11 +179,12 @@ function HiddenColumns({
   const count = groups.reduce((sum, group) => sum + group.plans.length, 0);
   return (
     <section className="flex w-36 shrink-0 flex-col">
-      <Button
+      <TooltipButton
         variant="ghost"
         size="sm"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
+        tooltip="Completed and archived plans"
         className="justify-start gap-2 px-1 font-medium text-muted-foreground"
       >
         <ChevronRight
@@ -191,16 +192,17 @@ function HiddenColumns({
         />
         Hidden
         <span className="font-normal tabular-nums">{count}</span>
-      </Button>
+      </TooltipButton>
       {open && (
         <ul className="animate-in fade-in-0 mt-1 flex flex-col gap-1 duration-150">
           {groups.map((group) => (
             <li key={group.status}>
-              <Button
+              <TooltipButton
                 variant="ghost"
                 size="sm"
                 onClick={() => onShow(group.status)}
-                title={STATUS_HINTS[group.status]}
+                tooltip={`Show the ${STATUS_LABELS[group.status]} column`}
+                tooltipSide="left"
                 className="w-full justify-start gap-2 px-1 font-normal"
               >
                 <StatusGlyph status={group.status} />
@@ -208,7 +210,7 @@ function HiddenColumns({
                 <span className="ml-auto tabular-nums text-muted-foreground">
                   {group.plans.length}
                 </span>
-              </Button>
+              </TooltipButton>
             </li>
           ))}
         </ul>

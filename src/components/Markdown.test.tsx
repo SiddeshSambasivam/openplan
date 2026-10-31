@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Markdown } from "./Markdown";
 
 // The html fence reads the app's theme tokens while it renders. There is no
@@ -11,7 +12,9 @@ beforeAll(() => {
 
 function render(content: string, media = true): string {
   return renderToStaticMarkup(
-    <Markdown content={content} docPath="/base/plans/plan.md" dark={false} media={media} />,
+    <TooltipProvider>
+      <Markdown content={content} docPath="/base/plans/plan.md" dark={false} media={media} />
+    </TooltipProvider>,
   );
 }
 

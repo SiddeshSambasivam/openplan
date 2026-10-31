@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { findTextRanges } from "../lib/domRange";
 import { FindHighlights } from "./FindHighlights";
 import { cn } from "../lib/utils";
+import { ShortcutLabel } from "./ShortcutKeys";
 import { TooltipButton } from "./TooltipButton";
 
 interface FindBarProps {
@@ -119,7 +120,7 @@ export function FindBar({
         size="icon-sm"
         onClick={goPrev}
         disabled={matchCount === 0}
-        tooltip="Previous match (⇧↵)"
+        tooltip={<ShortcutLabel label="Previous match" keys="shift+enter" />}
         aria-label="Previous match"
       >
         <ChevronUp className="size-4" />
@@ -129,7 +130,7 @@ export function FindBar({
         size="icon-sm"
         onClick={goNext}
         disabled={matchCount === 0}
-        tooltip="Next match (↵)"
+        tooltip={<ShortcutLabel label="Next match" keys="enter" />}
         aria-label="Next match"
       >
         <ChevronDown className="size-4" />
@@ -138,7 +139,8 @@ export function FindBar({
         variant="ghost"
         size="icon-sm"
         onClick={onClose}
-        tooltip="Close (Esc)"
+        shortcut="escape"
+        tooltip="Close"
         aria-label="Close find"
       >
         <X className="size-4" />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { TooltipButton } from "@/components/TooltipButton";
 import { readTheme } from "@/features/plan/HtmlDoc";
 import { frameHeight, fenceSrcDoc } from "@/lib/fences";
 import { frameSrcDoc } from "@/lib/htmlDoc";
@@ -23,9 +23,15 @@ export function HtmlFence({ code, dark, children, ...stamps }: HtmlFenceProps) {
   return (
     <div {...stamps}>
       <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={() => setShowCode((shown) => !shown)}>
+        <TooltipButton
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowCode((shown) => !shown)}
+          tooltip={showCode ? "Run the piece again" : "Read the HTML behind this piece"}
+          tooltipAlign="end"
+        >
           {showCode ? "Show result" : "Show code"}
-        </Button>
+        </TooltipButton>
       </div>
       {showCode ? children : <FenceFrame code={code} dark={dark} />}
     </div>

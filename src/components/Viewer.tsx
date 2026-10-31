@@ -2,7 +2,8 @@ import { FileWarning, Loader2, ScrollText } from "lucide-react";
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import { HtmlDoc } from "../features/plan/HtmlDoc";
 import { isHtmlPath } from "../lib/htmlDoc";
-import { isMac } from "../lib/platform";
+import { shortcut } from "../lib/shortcuts";
+import { ShortcutKeys } from "./ShortcutKeys";
 import type { PlanSummary } from "../lib/planBase";
 import { PlanPage } from "../features/plan/PlanPage";
 import type { DocFile, ViewMode } from "../lib/types";
@@ -157,11 +158,13 @@ export function Viewer({
           </p>
           <div className="flex gap-2 pt-1">
             {canEdit && (
-              <TooltipButton size="sm" onClick={onEnterEdit} tooltip="Fast, even at this size">
+              <TooltipButton
+                size="sm"
+                onClick={onEnterEdit}
+                shortcut="edit"
+                tooltip="Fast, even at this size"
+              >
                 Open editor
-                <kbd className="ml-1 rounded border border-primary-foreground/30 px-1 font-sans text-[10px] font-normal">
-                  {isMac ? "⌘E" : "Ctrl+E"}
-                </kbd>
               </TooltipButton>
             )}
             <TooltipButton
@@ -189,8 +192,8 @@ export function Viewer({
           <ScrollText className="size-4 shrink-0" />
           <span>
             This is a large document. The preview shows the first{" "}
-            {Math.round(PREVIEW_CHAR_LIMIT / 1024)} KB. Open the editor (
-            {isMac ? "⌘E" : "Ctrl+E"}) for the full text.
+            {Math.round(PREVIEW_CHAR_LIMIT / 1024)} KB. Open the editor{" "}
+            <ShortcutKeys keys={shortcut("edit").keys} /> for the full text.
           </span>
         </div>
       )}

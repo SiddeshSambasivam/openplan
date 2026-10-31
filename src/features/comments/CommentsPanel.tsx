@@ -181,15 +181,16 @@ export function CommentsPanel({
 
       <div className="mt-2 flex items-center gap-1">
         {thread.resolved ? (
-          <Button
+          <TooltipButton
             variant="ghost"
             size="xs"
             onClick={() => onSetResolved(thread.id, false)}
+            tooltip="Open this discussion again"
             className="gap-1 text-muted-foreground"
           >
             <RotateCcw />
             Reopen
-          </Button>
+          </TooltipButton>
         ) : (
           <TooltipButton
             variant="ghost"
@@ -231,14 +232,17 @@ export function CommentsPanel({
             <Copy />
             {copied ? "Copied" : "Copy for agents"}
           </TooltipButton>
-          <Button
+          <TooltipButton
             variant="ghost"
             size="icon-xs"
             onClick={onClose}
+            shortcut="escape"
+            tooltip="Close"
+            tooltipAlign="end"
             aria-label="Close comments"
           >
             <X />
-          </Button>
+          </TooltipButton>
         </div>
       </div>
 
@@ -255,10 +259,16 @@ export function CommentsPanel({
               <GroupHeading>Not sent yet</GroupHeading>
               {groups.pending.map(renderThread)}
               <li>
-                <Button size="xs" onClick={onSendReview} className="w-full gap-1.5">
+                <TooltipButton
+                  size="xs"
+                  onClick={onSendReview}
+                  shortcut="sendReview"
+                  tooltip="Send your comments to the agent on this plan"
+                  className="w-full gap-1.5"
+                >
                   <Send />
                   Send review ({groups.pending.length})
-                </Button>
+                </TooltipButton>
               </li>
             </>
           )}
