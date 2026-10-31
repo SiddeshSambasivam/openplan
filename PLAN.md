@@ -756,6 +756,18 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       v0.2.0 release)
 
 ### Phase 5 — Sync & remotes
+- [x] P5.0a Real author identity: name + email resolved from settings, then
+      git config, then an anonymous fallback; agents commit under their tool
+      name with the person's email. Landed ahead of the phase because history
+      is never rewritten **(T)**
+- [ ] P5.0b Comments carry the person too (`authorName`/`authorEmail` beside
+      the existing role token), so a shared thread shows who said what
+      instead of "You" for everyone **(T: golden format stays in step on both
+      sides)**
+- [ ] P5.0c Derived activity on plan rows: last mover, when, open comment
+      count, from one revwalk per base-changed event. Replaces the proposed
+      Draft/Active lifecycle, which saturates and measures provenance rather
+      than liveness **(T)**
 - [ ] P5.1 Base relocation setting (for Drive/iCloud users who want a visible synced
       folder) **(T: relocation logic)**
 - [ ] P5.2 Connect GitHub/GitLab remote from settings: set URL, push/pull via git2,
@@ -816,6 +828,9 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | North star addition: OpenPlan is the interoperable *convention* for plans; the app is a convenience client | Sid's vision note |
 | 2026-08-15 | Marketing site is a standalone static page in `site/` (no build step, no deps), with positioning and copy owned by MARKETING.md | Sid: landing page + marketing content; keeps the app's toolchain untouched and "less code" intact. Site design is deliberately NOT the app's shadcn system — it is a separate marketing surface (§2 Design system governs the app only) |
 | 2026-08-16 | Renaming a set document keeps its numeric prefix unless the new name starts with digits; the entry document (README/00-*) refuses rename and points at the plan row | The prefix is the set's reading order and must survive casual renames; the entry file IS the plan's identity, so renaming it goes through `rename_plan` |
+| 2026-08-17 | Author identity resolves settings → git config → anonymous fallback; agents keep their tool name and carry the person's email | Multi-teammate is near-term and restore never rewrites history, so every commit written as the literal `user` would stay ambiguous forever. Email tells people apart, name says which actor moved it |
+| 2026-08-17 | Agents must answer every open comment thread with `reply_comment`, in the thread, in one or two lines | A review answered only in chat leaves teammates no record; long replies bury the decision. Enforced in the managed CLAUDE.md/AGENTS.md block and the MCP tool descriptions |
+| 2026-08-17 | No Draft/Active lifecycle; derive last-mover, recency, and open-comment count instead | The proposed rule is one-way, so everything ends up Active and stops sorting; it also measures provenance not liveness (a dead agent-written plan reads Active, a plan being hand-drafted today reads Draft). Derived-from-git state also merges without conflict for teams, and needs no agent prompt surface to keep accurate |
 | 2026-08-17 | Sidebar scales by memoization + lazy mounting (memoized plan rows, set trees not built/mounted until first expand, memoized Sidebar), NOT list virtualization | Keeps DOM at O(plans + expanded docs) with zero new dependencies (rule 5); virtualization only becomes worth its complexity if flat plan count itself reaches thousands |
 
 ---
