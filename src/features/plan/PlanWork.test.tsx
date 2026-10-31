@@ -79,11 +79,11 @@ describe("WorkPanel", () => {
     expect(html).not.toContain("Written apart.");
   });
 
-  it("folds into a rail with the todo count when minimized", () => {
+  it("folds into one floating icon button when minimized, its progress in the label", () => {
     const html = panel(record({ todos: [todo("t1", "done"), todo("t2", "open")] }), true);
 
-    expect(html).toContain("1/2");
-    expect(html).not.toContain("1 of 2 done");
+    expect(html).toContain('aria-label="Show the work panel. 1 of 2 todos done"');
+    expect(html).not.toContain("1/2");
   });
 
   it("has no checkboxes, since agents move the todos", () => {

@@ -127,7 +127,7 @@ import {
   type PlanProgress,
 } from "./lib/work";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
-import { WORK_PANEL_PX, WORK_RAIL_PX, WorkPanel } from "./features/plan/PlanWork";
+import { WORK_PANEL_PX, WorkPanel } from "./features/plan/PlanWork";
 import { PlanTabStrip } from "./features/plan/PlanTabStrip";
 import { loadWorkPanelMode, saveWorkPanelMode } from "./lib/workPanel";
 import { buildTooltip } from "./lib/alignmentScore";
@@ -1098,7 +1098,7 @@ export default function App() {
     () => setWorkMode((mode) => (mode === "minimized" ? "expanded" : "minimized")),
     [],
   );
-  const workColumnPx = workMode === "minimized" ? WORK_RAIL_PX : WORK_PANEL_PX;
+  const workColumnPx = workMode === "minimized" ? 0 : WORK_PANEL_PX;
   // Whether there is room for the outline to have a column of its own; when
   // there isn't, it floats instead, and the two have separate open states.
   const outlineOverlays =

@@ -1,4 +1,4 @@
-import { ChevronLeft, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ChevronLeft, ListTodo, PanelRightClose } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ARTICLE_CLASSES } from "@/components/Markdown";
 import { TooltipButton } from "@/components/TooltipButton";
@@ -13,10 +13,6 @@ import { WorkHeading } from "./WorkHeading";
 /** The column the panel takes, its `w-72`, so the layout can tell when it
  * fits. */
 export const WORK_PANEL_PX = 288;
-
-/** The column the minimized panel takes: its `w-9` rail and the `pr-3`
- * beside it. */
-export const WORK_RAIL_PX = 48;
 
 /**
  * What the agents recorded about the work, beside the plan: the todos
@@ -38,8 +34,8 @@ export function WorkPanel({
    * over the content until dismissed, as the outline does. */
   overlay: boolean;
   open: boolean;
-  /** The column folds into a rail with the todo count. A floating panel
-   * closes instead. */
+  /** The column folds into one floating button over the content's corner,
+   * taking no width. A floating panel closes instead. */
   minimized: boolean;
   onClose: () => void;
   onToggleMinimized: () => void;
@@ -48,22 +44,21 @@ export function WorkPanel({
 
   if (!overlay && minimized) {
     const { done, total } = progress(record);
+    const label =
+      total > 0 ? `Show the work panel. ${done} of ${total} todos done` : "Show the work panel";
     return (
-      <aside aria-label="Work" className="flex shrink-0 py-3 pr-3">
+      <aside aria-label="Work" className="absolute top-3 right-3 z-20">
         <TooltipButton
           variant="outline"
+          size="icon"
           shortcut="workPanel"
-          tooltip="Show the work panel"
+          tooltip={label}
           tooltipSide="left"
+          aria-label={label}
           onClick={onToggleMinimized}
-          className="h-auto w-9 animate-in flex-col justify-start gap-2 rounded-lg bg-card px-0 py-3 text-xs font-normal text-muted-foreground fade-in-0 duration-200"
+          className="animate-in bg-card text-muted-foreground shadow-sm fade-in-0 duration-200"
         >
-          <PanelRightOpen />
-          {total > 0 && (
-            <span className="tabular-nums">
-              {done}/{total}
-            </span>
-          )}
+          <ListTodo />
         </TooltipButton>
       </aside>
     );
