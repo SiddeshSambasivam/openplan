@@ -2180,6 +2180,7 @@ export default function App() {
         onOpenChange={setSettingsOpen}
         section={settingsSection}
         onSectionChange={setSettingsSection}
+        onTakeTour={takeTour}
         identity={identity}
         onIdentityChange={setIdentity}
         dark={dark}
