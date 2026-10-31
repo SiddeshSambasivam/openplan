@@ -22,7 +22,9 @@ import { PlanMetaBar } from "./components/PlanMetaBar";
 import { HistoryPanel } from "./features/history/HistoryPanel";
 import { SettingsDialog, type SettingsSection } from "./features/settings/SettingsDialog";
 import { Onboarding } from "./features/onboarding/Onboarding";
-import type { OnboardingResult } from "./lib/onboarding";
+import { DEMO_FOLDER, type OnboardingResult } from "./lib/onboarding";
+import { Tour } from "./features/tour/Tour";
+import { demoStages, restoreDemo, type TourLocation, type TourStep } from "./lib/tour";
 import { CommentComposer } from "./features/comments/CommentComposer";
 import { CommentsLayer, type AnchorState } from "./features/comments/CommentsLayer";
 import { CommentsPanel } from "./features/comments/CommentsPanel";
@@ -373,18 +375,29 @@ export default function App() {
     );
   }, []);
 
-  // Whether a tour was asked for, set when onboarding hands over to the
-  // board. The tour reads it.
-  const [, setTourRequested] = useState(false);
+  // The tour is mounted only while it runs. Starting it first writes back
+  // any demo plan the person deleted, so a replay has every stage to show.
+  const [tourRunning, setTourRunning] = useState(false);
+  const takeTour = useCallback(() => {
+    setSettingsOpen(false);
+    void (async () => {
+      if (isTauri) {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await restoreDemo(invoke);
+      }
+      refreshPlans();
+      setTourRunning(true);
+    })();
+  }, [refreshPlans]);
   const finishOnboarding = useCallback(
     ({ folder, startTour }: OnboardingResult) => {
       setNeedsOnboarding(false);
       setChosenFolder(folder);
       setMainView("board");
-      setTourRequested(startTour);
-      refreshPlans();
+      if (startTour) takeTour();
+      else refreshPlans();
     },
-    [refreshPlans],
+    [refreshPlans, takeTour],
   );
 
   const [dirty, setDirty] = useState(false);
@@ -1623,6 +1636,34 @@ export default function App() {
     if (marks && viewAreaRef.current) restoreScroll(viewAreaRef.current, marks);
   }, [mainView]);
 
+  const tourLocation = useMemo<TourLocation>(
+    () => ({
+      view: mainView,
+      folder: chosenFolder,
+      planId: mainView === "plan" ? (activePlan?.id ?? null) : null,
+      tab: activePlan ? tabFor(planTabs, activePlan.path) : null,
+    }),
+    [mainView, chosenFolder, activePlan, planTabs],
+  );
+  const tourStages = useMemo(() => demoStages(plans), [plans]);
+  const openTourView = useCallback(
+    (step: TourStep) => {
+      if (step.view === "board") {
+        setChosenFolder(DEMO_FOLDER);
+        if (mainView !== "board") showView("board");
+        return;
+      }
+      const plan = plans.find((each) => each.id === step.plan?.id);
+      if (!plan) return;
+      const tab = step.view;
+      setPlanTabs((tabs) => withTab(tabs, plan.path, tab));
+      if (step.work) setWorkOpenFor(plan.path);
+      if (mainView !== "plan" || activePlan?.id !== plan.id) selectPlan(plan);
+    },
+    [mainView, plans, activePlan, selectPlan, showView],
+  );
+  const endTour = useCallback(() => setTourRunning(false), []);
+
   /** A folder row filters the board and shows it. */
   const chooseFolder = useCallback(
     (next: FolderFilter) => {
@@ -2194,6 +2235,15 @@ export default function App() {
       {dragging && <DropOverlay />}
 
       {needsOnboarding && <Onboarding onDone={finishOnboarding} />}
+
+      {tourRunning && !needsOnboarding && (
+        <Tour
+          stages={tourStages}
+          location={tourLocation}
+          onOpenView={openTourView}
+          onClose={endTour}
+        />
+      )}
 
       {notice && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-border bg-popover px-4 py-2 text-sm text-popover-foreground shadow-md">
