@@ -194,10 +194,12 @@ export function Viewer({
       {html ? (
         <HtmlDoc content={content} dark={dark} />
       ) : plan ? (
+        // One document of a set is not the plan: it carries its own title and
+        // the type's required sections are not asked of it.
         <PlanPage
           body={previewContent ?? ""}
-          title={plan.title}
-          type={plan.type}
+          title={doc.path === plan.path ? plan.title : ""}
+          type={doc.path === plan.path ? plan.type : null}
           docPath={doc.path}
           dark={dark}
         />
