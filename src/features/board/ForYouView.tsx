@@ -23,6 +23,7 @@ function Group({
   plans,
   openThreads,
   sessions,
+  progress,
   onOpen,
 }: {
   icon: ReactNode;
@@ -30,6 +31,7 @@ function Group({
   plans: PlanSummary[];
   openThreads: Map<string, number>;
   sessions: Map<string, number>;
+  progress: Map<string, TodoCount>;
   onOpen: (plan: PlanSummary) => void;
 }) {
   const mounted = useMountedKeys(plans.map((plan) => plan.path));
@@ -107,6 +109,7 @@ export function ForYouView({
             plans={groups.review}
             openThreads={openThreads}
             sessions={sessions}
+            progress={progress}
             onOpen={onOpen}
           />
           <Group
@@ -117,6 +120,7 @@ export function ForYouView({
             plans={groups.answered}
             openThreads={openThreads}
             sessions={sessions}
+            progress={progress}
             onOpen={onOpen}
           />
         </>

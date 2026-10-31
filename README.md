@@ -15,13 +15,16 @@ tool can adopt.
 
 ## Status
 
-0.2.0, in active development. The plan base, version history, onboarding, the MCP
+0.3.0, in development. The plan base, version history, onboarding, the MCP
 server and its installers, the status board, rendered plan pages, and comments as a
-review are all built. Plans hold one status: Draft, In progress, In review, or
-Completed. Agents set the first three with `set_status`; Completed is yours. While
-the app window is open it listens on `127.0.0.1` so a running agent session can
-register the plan it is working on and pick up your comments without copy and paste.
-Sync and remotes are the next phase.
+review are all built. Plans move through Draft, Alignment, In progress, In review,
+Completed and Archived. An agent files a draft, you review it, then alignment: the
+agent asks its questions in your session, records the answers, and files the todos
+before it starts. A work record beside each plan tracks todos, decisions, repos and
+pull requests, and the plan page shows them live. While the app window is open it
+listens on `127.0.0.1` so a running agent session can register the plan it is
+working on and pick up your comments without copy and paste. Sync and remotes are
+the next phase.
 
 **[PLAN.md](PLAN.md) is the source of truth** for requirements, architecture,
 decisions, and the phased backlog. Agents working in this repo should start there

@@ -201,23 +201,23 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 
 ## 4. User flows
 
-### 4.1 First-run onboarding (designed with Sid, 2026-08-16 — P3.0; built)
+### 4.1 First-run onboarding (designed with Sid, 2026-08-16 — P3.0; built; import moved out in 0.3.0)
 
-Three stages, every one skippable. Detection runs during the hello, so each
-screen is answered before it is reached. A dev-only "Replay onboarding" button in
-Settings resets the flag for testing; imported plans stay, and re-importing skips
-what is already filed.
+Two stages, both skippable. Detection runs during the hello, so the screen is
+answered before it is reached. A dev-only "Replay onboarding" button in Settings
+resets the flag for testing.
 
 1. **Hello** — the wordmark rises in (staggered entrances), asks what to call
    them, and shows the agent tools found on this machine (Claude Code / Codex /
    Cursor) as Detected / Not found, pre-selected when installed.
-2. **Import** — what discovery found: each agent's loose plans, and folders that
-   look like plans (by name and markdown content, 400ms scan budget). Importing
-   **copies** — the originals stay put — and the copy states it plainly. Result
-   line: "9 plans filed (94 documents) · 1 already there".
-3. **Connect** — for each selected tool: register the `openplan` MCP server and
+2. **Connect** — for each selected tool: register the `openplan` MCP server and
    add the conventions block to its instruction file (managed block, its own
    text untouched). Per-step results shown; then into the app.
+
+Importing existing plans lives in Settings > Import plans (0.3.0): it runs
+discovery each time the section opens, lists each agent's loose plans and folders
+that look like plans, and importing **copies** (the originals stay put). Imported
+hashes are remembered, so a second import skips what is already filed.
 
 ### 4.2 Reading & tracking
 
@@ -885,7 +885,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       `repos`; guards on `set_status`; presence no longer sets status **(T)**
 - [x] P7.4 Delete projects: `project.rs`, `projects.json`, `describe_project`,
       `list_projects`, avatars, project filter; folders replace them in every view
-- [ ] P7.5 Plan page: alignment Q&A, decision cards, live todo checklist, repos and
+- [x] P7.5 Plan page: alignment Q&A, decision cards, live todo checklist, repos and
       PRs block; board card progress **(T: record parsing and progress)**
 - [ ] P7.6 Align event through the loopback server; the picker's Alignment entry;
       the delivery line after Send; auto-archive on launch and board show with the
@@ -896,7 +896,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       confirmation-on-merge rule
 - [x] P7.9 Rendering: LaTeX, video, sandboxed `html` fences with the height message,
       the media setting **(T: fence extraction and CSP)**
-- [ ] P7.10 Onboarding without the import step; version 0.3.0
+- [x] P7.10 Onboarding without the import step; version 0.3.0
 - [ ] P7.11 Shortcut registry feeding keys, `kbd` tooltips and a command palette on
       shadcn `command`; the `?` shortcut sheet; measured on the 2MB plan **(T)**
 - [ ] P7.12 Shell: Linear-style navbar with open, minimized and hidden modes
@@ -1038,6 +1038,8 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 | 2026-10-28 | The main area opens on an empty state, not the welcome document | Sid: empty state by default. The welcome document is removed from the app, the browser demo keeps an inline sample |
 | 2026-10-28 | Body typeface is Inter (variable, vendored in `public/fonts`, OFL) with Linear's feature settings; the wordmark keeps EB Garamond | Sid asked for a typeface that reads as premium. Inter is what the reference screenshots use, and vendoring keeps the app offline (NFR-5) |
 | 2026-10-28 | The shell step runs after the align flow and before the shortcut pass | The tooltip and shortcut audit has to cover the final navbar, and both steps rewrite `App.tsx` |
+| 2026-10-29 | The import UI moved into Settings > Import plans rather than being deleted with the onboarding stage | PLAN.md said settings re-runs discovery, but settings never had it; without the move a release build had no way to import |
+| 2026-10-29 | The work record is re-read on every `base-changed`, like comments; record decisions render as plain text in the existing decision card | The event carries no paths, and markdown output would carry source stamps that misplace comment anchors |
 
 ---
 
