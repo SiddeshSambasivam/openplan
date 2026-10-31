@@ -2,7 +2,6 @@
 //! the few things the app tracks. The body is never rewritten — a plan is the
 //! author's text, and tooling only ever touches the header.
 
-use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// What the app knows about a plan without reading its body.
