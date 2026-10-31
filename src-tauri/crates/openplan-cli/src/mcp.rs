@@ -60,17 +60,22 @@ fn tool_list() -> Value {
         },
         {
             "name": "list_plans",
-            "description": "The plans in the user's plan base, with id and tags.",
+            "description": "The plans in the user's plan base, with where each one stands and its tags. A plan is draft until an agent works on it, active once one has, and archived once the user says the work is done.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "tag": { "type": "string", "description": "Only plans carrying this tag" }
+                    "tag": { "type": "string", "description": "Only plans carrying this tag" },
+                    "lifecycle": {
+                        "type": "string",
+                        "enum": ["draft", "active", "archived"],
+                        "description": "Only plans in this state"
+                    }
                 }
             }
         },
         {
             "name": "tag_plan",
-            "description": "Replace a plan's tags. Tags are free labels shared by the user and their agents. The tag \"archived\" puts a plan away: the app tucks it into a collapsed group.",
+            "description": "Replace a plan's tags. Tags are free labels shared by the user and their agents, for subject matter rather than progress. Where a plan stands is worked out from what has happened to it, so do not tag that. The one exception is \"archived\", which says the work is finished.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -195,6 +200,9 @@ fn list_plans(base: &Base, args: &Value) -> Value {
     if let Some(tag) = args.get("tag").and_then(Value::as_str) {
         entries.retain(|e| e.meta.tags.iter().any(|t| t == tag));
     }
+    if let Some(state) = args.get("lifecycle").and_then(Value::as_str) {
+        entries.retain(|e| e.lifecycle.as_str() == state);
+    }
     if entries.is_empty() {
         return text_result("No plans yet.", false);
     }
@@ -207,7 +215,7 @@ fn list_plans(base: &Base, args: &Value) -> Value {
             } else {
                 format!(" [{}]", e.meta.tags.join(", "))
             };
-            format!("{}{tags} {}", e.meta.id, e.meta.title)
+            format!("[{}] {}{tags} {}", e.lifecycle.as_str(), e.meta.id, e.meta.title)
         })
         .collect();
     text_result(lines.join("\n"), false)

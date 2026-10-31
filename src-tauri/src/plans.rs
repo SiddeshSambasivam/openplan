@@ -32,11 +32,13 @@ pub struct PlanSummary {
     path: PathBuf,
     relative_path: PathBuf,
     documents: Vec<PathBuf>,
+    lifecycle: openplan_core::lifecycle::Lifecycle,
 }
 
 impl From<library::PlanEntry> for PlanSummary {
     fn from(entry: library::PlanEntry) -> Self {
         PlanSummary {
+            lifecycle: entry.lifecycle,
             id: entry.meta.id,
             title: entry.meta.title,
             tags: entry.meta.tags,

@@ -1,6 +1,11 @@
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
-import { ARCHIVED_TAG, isArchived, type PlanSummary } from "@/lib/planBase";
+import {
+  ARCHIVED_TAG,
+  LIFECYCLE_LABELS,
+  LIFECYCLE_ORDER,
+  type PlanSummary,
+} from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
 import { MarqueeText } from "./MarqueeText";
@@ -359,8 +364,10 @@ export function PlanList({
       ),
     [plans],
   );
-  const active = sorted.filter((plan) => !isArchived(plan));
-  const archived = sorted.filter(isArchived);
+  const groups = LIFECYCLE_ORDER.map((state) => ({
+    state,
+    plans: sorted.filter((plan) => plan.lifecycle === state),
+  })).filter((group) => group.plans.length > 0);
 
   // A set follows whatever is being read until someone says otherwise, and
   // then it stays where they put it.
@@ -369,11 +376,14 @@ export function PlanList({
   // itself only when the plan being read is inside it.
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [renaming, setRenaming] = useState<Renaming | null>(null);
-  const readingArchived = archived.some((plan) => {
-    const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
-    return plan.path === activePath || !!activePath?.startsWith(folder);
-  });
-  const archiveShown = archiveOpen || readingArchived;
+  // Finished work is kept, not shown: the group stays closed until someone
+  // opens it, or until what is being read is inside it.
+  const readingArchived = sorted.some(
+    (plan) =>
+      plan.lifecycle === "archived" &&
+      (plan.path === activePath ||
+        !!activePath?.startsWith(plan.path.slice(0, plan.path.lastIndexOf("/") + 1))),
+  );
 
   const toggleExpand = useCallback((plan: PlanSummary, next: boolean) => {
     setToggled((t) => ({ ...t, [plan.path]: next }));
@@ -421,44 +431,54 @@ export function PlanList({
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <p className="px-2 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-          Plans
-          <span className="ml-1.5 tabular-nums opacity-60">{active.length}</span>
-        </p>
-        <ul className="flex flex-col gap-px">{active.map(renderPlan)}</ul>
-      </div>
-
-      {archived.length > 0 && (
-        <div>
-          <button
-            onClick={() => setArchiveOpen((o) => !o)}
-            aria-expanded={archiveShown}
-            className="flex w-full cursor-default items-center gap-1 rounded-md px-2 pb-1 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
-          >
-            <ChevronRight
-              className={cn(
-                "size-3 shrink-0 transition-transform duration-200",
-                archiveShown && "rotate-90",
-              )}
-            />
-            Archived
-            <span className="tabular-nums opacity-60">{archived.length}</span>
-          </button>
-          <div
-            className={cn(
-              "grid transition-[grid-template-rows] duration-200 ease-in-out",
-              archiveShown ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+      {groups.map(({ state, plans: inState }) => {
+        // Only finished work folds away; the states you are working in are
+        // always open, so nothing live is ever a click from view.
+        const collapsible = state === "archived";
+        const shown = !collapsible || archiveOpen || readingArchived;
+        const heading = (
+          <>
+            {collapsible && (
+              <ChevronRight
+                className={cn(
+                  "size-3 shrink-0 transition-transform duration-200",
+                  shown && "rotate-90",
+                )}
+              />
             )}
-          >
-            <div className="overflow-hidden">
-              <ul className="flex flex-col gap-px">
-                {archived.map(renderPlan)}
-              </ul>
+            {LIFECYCLE_LABELS[state]}
+            <span className="tabular-nums opacity-60">{inState.length}</span>
+          </>
+        );
+        return (
+          <div key={state}>
+            {collapsible ? (
+              <button
+                onClick={() => setArchiveOpen((o) => !o)}
+                aria-expanded={shown}
+                className="flex w-full cursor-default items-center gap-1 rounded-md px-2 pb-1 text-left text-[11px] font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
+              >
+                {heading}
+              </button>
+            ) : (
+              <p className="flex items-center gap-1.5 px-2 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+                {heading}
+              </p>
+            )}
+            <div
+              className={cn(
+                collapsible &&
+                  "grid transition-[grid-template-rows] duration-200 ease-in-out",
+                collapsible && (shown ? "grid-rows-[1fr]" : "grid-rows-[0fr]"),
+              )}
+            >
+              <div className={cn(collapsible && "overflow-hidden")}>
+                <ul className="flex flex-col gap-px">{inState.map(renderPlan)}</ul>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }

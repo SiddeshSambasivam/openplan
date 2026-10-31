@@ -8,6 +8,7 @@ pub mod fs;
 pub mod import;
 pub mod integrations;
 pub mod library;
+pub mod lifecycle;
 pub mod plan;
 pub mod profile;
 pub mod repo;

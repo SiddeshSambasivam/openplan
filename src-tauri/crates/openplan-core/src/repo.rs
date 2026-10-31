@@ -172,6 +172,42 @@ pub fn history(root: &Path, relative_path: &Path) -> Result<Vec<Revision>, Strin
     Ok(revisions)
 }
 
+/// Every path an agent has committed to, in one walk of the history. Read
+/// once per scan rather than per plan: a base with a thousand plans would
+/// otherwise walk the same commits a thousand times, and the whole point of
+/// deriving the lifecycle is that it costs nothing to keep true.
+pub fn agent_touched_paths(root: &Path) -> std::collections::HashSet<std::path::PathBuf> {
+    let mut touched = std::collections::HashSet::new();
+    let Ok(repo) = open_or_init(root) else {
+        return touched;
+    };
+    let Ok(mut walk) = repo.revwalk() else {
+        return touched;
+    };
+    if walk.push_head().is_err() {
+        return touched; // no commits yet
+    }
+    for oid in walk.flatten() {
+        let Ok(commit) = repo.find_commit(oid) else {
+            continue;
+        };
+        if !crate::lifecycle::is_agent(commit.author().name().unwrap_or_default()) {
+            continue;
+        }
+        let Ok(tree) = commit.tree() else { continue };
+        let parent = commit.parent(0).ok().and_then(|p| p.tree().ok());
+        let Ok(diff) = repo.diff_tree_to_tree(parent.as_ref(), Some(&tree), None) else {
+            continue;
+        };
+        for delta in diff.deltas() {
+            if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
+                touched.insert(path.to_path_buf());
+            }
+        }
+    }
+    touched
+}
+
 fn commit_touched(repo: &Repository, commit: &git2::Commit, path: &Path) -> bool {
     let tree = match commit.tree() {
         Ok(tree) => tree,
@@ -370,6 +406,21 @@ mod tests {
 
         assert_eq!(history(&root, Path::new("plans/none.md")).unwrap(), vec![]);
 
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn only_the_paths_agents_committed_to_come_back() {
+        let root = temp_repo("openplan-core-repo-agent-paths");
+        std::fs::write(root.join("mine.md"), "# Mine\n").unwrap();
+        commit_all(&root, &Author::user(), "add: mine").unwrap();
+        std::fs::write(root.join("theirs.md"), "# Theirs\n").unwrap();
+        commit_all(&root, &Author::agent("claude-code"), "add: theirs").unwrap();
+
+        let touched = agent_touched_paths(&root);
+
+        assert!(touched.contains(std::path::Path::new("theirs.md")));
+        assert!(!touched.contains(std::path::Path::new("mine.md")));
         let _ = std::fs::remove_dir_all(&root);
     }
 }

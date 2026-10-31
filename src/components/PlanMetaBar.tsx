@@ -7,10 +7,13 @@ import {
 } from "@/components/AgentIcons";
 import {
   ARCHIVED_TAG,
+  LIFECYCLE_HINTS,
+  LIFECYCLE_LABELS,
   isArchived,
   SOURCE_LABELS,
   type PlanSummary,
 } from "@/lib/planBase";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { TooltipButton } from "./TooltipButton";
 
@@ -62,6 +65,18 @@ export function PlanMetaBar({
 
   return (
     <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-3 text-xs text-muted-foreground">
+      <span
+        title={LIFECYCLE_HINTS[plan.lifecycle]}
+        className={cn(
+          "rounded-full px-2 py-0.5 text-[11px] font-medium",
+          plan.lifecycle === "active" && "bg-success/15 text-success",
+          plan.lifecycle === "draft" && "bg-muted text-muted-foreground",
+          plan.lifecycle === "archived" && "bg-muted text-muted-foreground",
+        )}
+      >
+        {LIFECYCLE_LABELS[plan.lifecycle]}
+      </span>
+      <span aria-hidden>·</span>
       <span className="flex items-center gap-1.5">
         {plan.source === "claude-code" && <ClaudeCodeIcon className="size-3.5" />}
         {plan.source === "codex" && <CodexIcon className="size-3.5" />}
@@ -82,7 +97,9 @@ export function PlanMetaBar({
       )}
 
       <span className="flex flex-wrap items-center gap-1">
-        {plan.tags.map((tag) => (
+        {plan.tags
+          .filter((tag) => tag !== ARCHIVED_TAG)
+          .map((tag) => (
           <span
             key={tag}
             className="group/tag flex items-center gap-0.5 rounded-full bg-muted py-0.5 pr-1 pl-2 text-[11px] text-foreground/80"
@@ -95,8 +112,8 @@ export function PlanMetaBar({
             >
               <X className="size-2.5" />
             </button>
-          </span>
-        ))}
+            </span>
+          ))}
         {adding ? (
           <input
             autoFocus

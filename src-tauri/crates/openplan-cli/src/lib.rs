@@ -72,7 +72,12 @@ fn list(ctx: &Context, tag: Option<&str>) -> Result<String, String> {
             } else {
                 format!("  [{}]", e.meta.tags.join(", "))
             };
-            format!("{}{tags}  ({})", e.meta.title, e.relative_path.display())
+            format!(
+                "[{}] {}{tags}  ({})",
+                e.lifecycle.as_str(),
+                e.meta.title,
+                e.relative_path.display()
+            )
         })
         .collect::<Vec<_>>()
         .join("\n"))

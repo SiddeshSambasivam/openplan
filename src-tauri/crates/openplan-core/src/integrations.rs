@@ -65,6 +65,9 @@ Plans are managed by the `{}` MCP server, not by loose files.
   body). Do not leave it only in the conversation.
 - To see or reread existing plans, use `list_plans` and `read_plan` rather
   than searching the filesystem for them.
+- Every plan is draft, active, or archived. This is worked out from what has
+  happened to the plan, so never try to set it. Working on a plan makes it
+  active on its own.
 - Comments are how people review plans. Call `get_comments` whenever you
   work on one, and answer every open thread with `reply_comment`. Always
   reply in the thread, not only in chat.

@@ -11,11 +11,31 @@ export const SOURCE_LABELS: Record<string, string> = {
   import: "Imported",
 };
 
-/** The one tag with an opinion attached: the sidebar tucks these away. */
+/** Where a plan stands. Worked out from what has happened to it, so the
+ * only one anyone sets is archived. */
+export type Lifecycle = "draft" | "active" | "archived";
+
+export const LIFECYCLE_ORDER: Lifecycle[] = ["active", "draft", "archived"];
+
+export const LIFECYCLE_LABELS: Record<Lifecycle, string> = {
+  active: "Active",
+  draft: "Draft",
+  archived: "Archived",
+};
+
+/** What each state means, for the one place that has room to say it. */
+export const LIFECYCLE_HINTS: Record<Lifecycle, string> = {
+  active: "An agent has worked on this.",
+  draft: "No agent has worked on this yet.",
+  archived: "You marked this work finished.",
+};
+
+/** Archiving is the one part of the lifecycle anyone declares, and it is
+ * still carried as a tag. */
 export const ARCHIVED_TAG = "archived";
 
 export function isArchived(plan: PlanSummary): boolean {
-  return plan.tags.includes(ARCHIVED_TAG);
+  return plan.lifecycle === "archived";
 }
 
 export interface PlanSummary {
@@ -31,6 +51,7 @@ export interface PlanSummary {
   relativePath: string;
   /** A set's documents, in reading order. Empty for a single-file plan. */
   documents: string[];
+  lifecycle: Lifecycle;
 }
 
 export interface BaseInfo {
