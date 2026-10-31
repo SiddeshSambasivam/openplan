@@ -1,7 +1,18 @@
-# OpenPlan
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/openplan-logo-dark.svg">
+    <img alt="OpenPlan" src="docs/assets/openplan-logo-light.svg" width="320">
+  </picture>
+</p>
 
-A desktop app that gives every coding-agent plan a lifecycle, with alignment as a
-gate before any code is written.
+<p align="center">
+  <img alt="Latest version" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fd1a9q4jq770jc6.cloudfront.net%2Flatest.json&query=%24.version&label=version&prefix=v&color=100E0D">
+</p>
+
+<p align="center">
+  A desktop app that gives every coding-agent plan a lifecycle, with alignment as a
+  gate before any code is written.
+</p>
 
 Coding agents write good code, but they work from a prompt, a repo and a few context
 files. They miss the context a team carries in its head, so they can build a clean
