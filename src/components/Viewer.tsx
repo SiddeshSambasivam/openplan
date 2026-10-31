@@ -2,7 +2,7 @@ import { FileWarning, Loader2, ScrollText } from "lucide-react";
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import { isMac } from "../lib/platform";
 import type { DocFile, ViewMode } from "../lib/types";
-import { Button } from "./Button";
+import { TooltipButton } from "./TooltipButton";
 import { Editor, type EditorApi } from "./Editor";
 import { Markdown } from "./Markdown";
 
@@ -88,20 +88,22 @@ export function Viewer({
             {error}
           </p>
           <div className="flex gap-2 pt-1">
-            <Button
+            <TooltipButton
+              size="sm"
               variant="outline"
               onClick={onRetry}
               tooltip="Read the file from disk again"
             >
               Try again
-            </Button>
-            <Button
+            </TooltipButton>
+            <TooltipButton
+              size="sm"
               variant="ghost"
               onClick={onRemove}
               tooltip="Take it off the sidebar — the file itself is untouched"
             >
               Remove from list
-            </Button>
+            </TooltipButton>
           </div>
         </div>
       </div>
@@ -143,20 +145,21 @@ export function Viewer({
           </p>
           <div className="flex gap-2 pt-1">
             {canEdit && (
-              <Button onClick={onEnterEdit} tooltip="Fast, even at this size">
+              <TooltipButton size="sm" onClick={onEnterEdit} tooltip="Fast, even at this size">
                 Open editor
                 <kbd className="ml-1 rounded border border-primary-foreground/30 px-1 font-sans text-[10px] font-normal">
                   {isMac ? "⌘E" : "Ctrl+E"}
                 </kbd>
-              </Button>
+              </TooltipButton>
             )}
-            <Button
+            <TooltipButton
+              size="sm"
               variant="outline"
               onClick={() => setRenderLarge(true)}
               tooltip="May take a few seconds"
             >
               Render preview
-            </Button>
+            </TooltipButton>
           </div>
         </div>
       </div>

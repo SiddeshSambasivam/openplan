@@ -2,7 +2,7 @@ import { CaseSensitive, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { HAS_HIGHLIGHT_API, findTextRanges } from "../lib/domRange";
 import { cn } from "../lib/utils";
-import { Button } from "./Button";
+import { TooltipButton } from "./TooltipButton";
 
 function paintHighlights(matches: Range[], currentIndex: number) {
   if (!HAS_HIGHLIGHT_API) return;
@@ -109,9 +109,9 @@ export function FindBar({ articleRef, open, focusSeq, onClose }: FindBarProps) {
       <span className="min-w-[3.25rem] shrink-0 px-1 text-center text-xs tabular-nums text-muted-foreground">
         {matchCount === 0 ? "0/0" : `${currentIndex + 1}/${matchCount}`}
       </span>
-      <Button
+      <TooltipButton
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         onClick={() => setCaseSensitive((c) => !c)}
         tooltip="Match case"
         aria-label="Match case"
@@ -119,36 +119,36 @@ export function FindBar({ articleRef, open, focusSeq, onClose }: FindBarProps) {
         className={cn(caseSensitive && "bg-accent text-accent-foreground")}
       >
         <CaseSensitive className="size-4" />
-      </Button>
-      <Button
+      </TooltipButton>
+      <TooltipButton
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         onClick={goPrev}
         disabled={matchCount === 0}
         tooltip="Previous match (⇧↵)"
         aria-label="Previous match"
       >
         <ChevronUp className="size-4" />
-      </Button>
-      <Button
+      </TooltipButton>
+      <TooltipButton
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         onClick={goNext}
         disabled={matchCount === 0}
         tooltip="Next match (↵)"
         aria-label="Next match"
       >
         <ChevronDown className="size-4" />
-      </Button>
-      <Button
+      </TooltipButton>
+      <TooltipButton
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         onClick={onClose}
         tooltip="Close (Esc)"
         aria-label="Close find"
       >
         <X className="size-4" />
-      </Button>
+      </TooltipButton>
     </div>
   );
 }

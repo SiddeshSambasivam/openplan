@@ -5,7 +5,14 @@ import type { FileLibraryItem, LibraryItem } from "../lib/types";
 import { cn } from "../lib/utils";
 import { FolderTree } from "./FolderTree";
 import { MarqueeText } from "./MarqueeText";
-import { TooltipLabel } from "./Tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { TooltipButton } from "./TooltipButton";
 
 interface SidebarProps {
   items: LibraryItem[];
@@ -34,30 +41,36 @@ function LooseFileRow({
 }) {
   return (
     <li className="group relative">
-      <button
-        onClick={() => onSelect(file.id)}
-        className={cn(
-          "group/tip relative flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-          active &&
-            "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
-        )}
-      >
-        {inset && <span className="size-3.5 shrink-0" />}
-        <FileText className="size-4 shrink-0 text-muted-foreground" />
-        <MarqueeText text={file.name} className="flex-1 pr-3" />
-        <TooltipLabel label={file.path ?? file.name} />
-      </button>
-      <button
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => onSelect(file.id)}
+            className={cn(
+              "relative flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+              active &&
+                "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+            )}
+          >
+            {inset && <span className="size-3.5 shrink-0" />}
+            <FileText className="size-4 shrink-0 text-muted-foreground" />
+            <MarqueeText text={file.name} className="flex-1 pr-3" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{file.path ?? file.name}</TooltipContent>
+      </Tooltip>
+      <TooltipButton
+        variant="ghost"
+        size="icon-xs"
         onClick={(e) => {
           e.stopPropagation();
           onRemove(file.id);
         }}
         aria-label={`Remove ${file.name} from list`}
-        className="group/tip absolute top-1/2 right-1.5 hidden size-5 -translate-y-1/2 cursor-default items-center justify-center rounded-sm text-muted-foreground group-hover:flex hover:bg-border hover:text-foreground"
+        tooltip="Remove from list (the file stays on disk)"
+        className="absolute top-1/2 right-1.5 hidden -translate-y-1/2 text-muted-foreground group-hover:flex"
       >
-        <X className="size-3.5" />
-        <TooltipLabel label="Remove from list (the file stays on disk)" />
-      </button>
+        <X />
+      </TooltipButton>
     </li>
   );
 }
@@ -107,7 +120,7 @@ export function Sidebar({
       <div className="shrink-0 px-3 pb-2">
         <div className="relative flex items-center">
           <Search className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground" />
-          <input
+          <Input
             ref={searchInputRef}
             type="text"
             value={query}
@@ -120,19 +133,21 @@ export function Sidebar({
             }}
             placeholder="Search"
             aria-label="Search library"
-            className="w-full cursor-text rounded-md border border-sidebar-border bg-background py-1.5 pr-7 pl-8 text-sm text-sidebar-foreground outline-none placeholder:text-muted-foreground focus:border-ring"
+            className="h-8 pr-7 pl-8"
           />
           {query && (
-            <button
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => {
                 setQuery("");
                 searchInputRef.current?.focus();
               }}
               aria-label="Clear search"
-              className="absolute right-1.5 flex size-5 cursor-default items-center justify-center rounded-sm text-muted-foreground hover:bg-border hover:text-foreground"
+              className="absolute right-1.5 text-muted-foreground"
             >
-              <X className="size-3.5" />
-            </button>
+              <X />
+            </Button>
           )}
         </div>
       </div>

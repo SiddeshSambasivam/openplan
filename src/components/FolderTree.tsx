@@ -9,7 +9,12 @@ import {
 import type { FileLeaf, FolderLibraryItem, FolderNode } from "../lib/types";
 import { cn } from "../lib/utils";
 import { MarqueeText } from "./MarqueeText";
-import { TooltipLabel } from "./Tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { TooltipButton } from "./TooltipButton";
 
 interface TreeContext {
   activeId: string | null;
@@ -37,20 +42,24 @@ function FileRow({
 }) {
   return (
     <li>
-      <button
-        onClick={() => ctx.onSelect(leaf.id)}
-        style={indent(depth)}
-        className={cn(
-          rowClass,
-          leaf.id === ctx.activeId &&
-            "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
-        )}
-      >
-        <span className="size-3.5 shrink-0" />
-        <FileText className="size-4 shrink-0 text-muted-foreground" />
-        <MarqueeText text={leaf.name} className="flex-1" />
-        <TooltipLabel label={leaf.path ?? leaf.name} />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => ctx.onSelect(leaf.id)}
+            style={indent(depth)}
+            className={cn(
+              rowClass,
+              leaf.id === ctx.activeId &&
+                "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+            )}
+          >
+            <span className="size-3.5 shrink-0" />
+            <FileText className="size-4 shrink-0 text-muted-foreground" />
+            <MarqueeText text={leaf.name} className="flex-1" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{leaf.path ?? leaf.name}</TooltipContent>
+      </Tooltip>
     </li>
   );
 }
@@ -96,22 +105,26 @@ function DirRow({
 }) {
   const FolderIcon = open ? FolderOpen : Folder;
   return (
-    <button
-      onClick={() => onToggle(path)}
-      style={indent(depth)}
-      className={rowClass}
-      aria-expanded={open}
-    >
-      <ChevronRight
-        className={cn(
-          "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-          open && "rotate-90",
-        )}
-      />
-      <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate">{name}</span>
-      <TooltipLabel label={tooltip ?? path} />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={() => onToggle(path)}
+          style={indent(depth)}
+          className={rowClass}
+          aria-expanded={open}
+        >
+          <ChevronRight
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+              open && "rotate-90",
+            )}
+          />
+          <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate">{name}</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{tooltip ?? path}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -184,17 +197,19 @@ export function FolderTree({ item, ctx, onRemove }: FolderTreeProps) {
           open={open}
           onToggle={ctx.onToggleDir}
         />
-        <button
+        <TooltipButton
+          variant="ghost"
+          size="icon-xs"
           onClick={(e) => {
             e.stopPropagation();
             onRemove(item.id);
           }}
           aria-label={`Remove ${item.name} from list`}
-          className="group/tip absolute top-1/2 right-1.5 hidden size-5 -translate-y-1/2 cursor-default items-center justify-center rounded-sm bg-sidebar-accent text-muted-foreground group-hover:flex hover:bg-border hover:text-foreground"
+          tooltip="Remove from list (files stay on disk)"
+          className="absolute top-1/2 right-1.5 hidden -translate-y-1/2 bg-sidebar-accent text-muted-foreground group-hover:flex"
         >
-          <X className="size-3.5" />
-          <TooltipLabel label="Remove from list (files stay on disk)" />
-        </button>
+          <X />
+        </TooltipButton>
       </div>
       {open && (
         <ul>

@@ -561,8 +561,10 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 - [x] P0.4 Tests for the remaining pure helpers in `src/lib/` — `tree.ts`,
       `platform.ts` (`comments.ts` is retired in Phase 4, so skip it) **(T)**
       — Vitest itself was set up in P0.1, which needed it for its test
-- [ ] P0.5 Vendor shadcn/ui CLI + replace `Button.tsx`, `Tooltip.tsx` with shadcn
-      equivalents (visual parity)
+- [x] P0.5 Adopt shadcn/ui across the app: vendor `button`, `tooltip`,
+      `dropdown-menu`, `input` into `components/ui/`; delete the hand-rolled
+      `Button`, `Tooltip`, `IconMenu`; rewrite every call site (header, sidebar,
+      folder tree, find bar, viewer, empty state, menus). `@/` alias added
 - [x] P0.6 Remove the comments UI outright — the 6 `Comment*` components,
       `useComments`, the popover positioning hook, and quote anchoring in
       `domRange.ts` (find-in-document keeps the rest). `lib/comments.ts` stays
@@ -708,6 +710,8 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Default reading settings: small font, compact width | Sid's preference |
 | 2026-08-15 | Shared motion utilities in `index.css` (transform/opacity entrances, `prefers-reduced-motion` guard) | Sid: interactions felt too sudden; keeps motion consistent instead of per-component ad hoc |
 | 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
+| 2026-08-15 | Tooltips are now Radix (shadcn) rather than CSS hover labels, and menus are `dropdown-menu` | Real focus/keyboard/portal behaviour, and it retires three hand-rolled primitives |
+| 2026-08-15 | `TooltipButton` and `SettingMenu` are app-level compositions of shadcn primitives, not new primitives | shadcn ships no tooltip-button or preference-menu; composing beats repeating the pairing at ~15 call sites |
 | 2026-08-15 | The comments UI was deleted in P0.6 rather than merely disabled (P4.1 pulled forward) | Keeping ~1400 lines of unreachable code through three phases fights "less code", and it would have had to be migrated to shadcn for no reason |
 | 2026-08-15 | No autostart/daemon for MCP; instead the MCP server is self-sufficient (auto-creates the base if missing) | Clients spawn `openplan mcp` per session over stdio — the app is never a runtime dependency; autostart would violate NFR-8 |
 | 2026-08-15 | Single design system: shadcn components + tokens only; Tailwind is plumbing, never a second design language | Sid: don't maintain two design systems |

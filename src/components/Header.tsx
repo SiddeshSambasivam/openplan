@@ -12,7 +12,7 @@ import type { FontSize } from "../lib/fontSize";
 import type { DocFile, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
 import { cn } from "../lib/utils";
-import { Button } from "./Button";
+import { TooltipButton } from "./TooltipButton";
 import { FontSizeMenu } from "./FontSizeMenu";
 import { MarqueeText } from "./MarqueeText";
 import { WidthMenu } from "./WidthMenu";
@@ -81,17 +81,17 @@ export function Header({
           )}
         />
       )}
-      <Button
+      <TooltipButton
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         onClick={onToggleSidebar}
         tooltip={toggleSidebarLabel}
-        tooltipSide="bottom-start"
+        tooltipSide="bottom" tooltipAlign="start"
         aria-label={toggleSidebarLabel}
         aria-expanded={sidebarOpen}
       >
         <PanelLeft className="size-4" />
-      </Button>
+      </TooltipButton>
       <div className="pointer-events-none flex min-w-0 flex-1 items-center gap-2">
         {doc && (
           <>
@@ -116,15 +116,15 @@ export function Header({
       )}
 
       {doc && inPreview && (
-        <Button
+        <TooltipButton
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           onClick={onOpenFind}
           tooltip={`Find (${mod}F)`}
           aria-label="Find in document"
         >
           <Search className="size-4" />
-        </Button>
+        </TooltipButton>
       )}
 
       {doc && (
@@ -134,27 +134,27 @@ export function Header({
       {doc && <FontSizeMenu fontSize={fontSize} onChange={onFontSizeChange} />}
 
       {doc && inPreview && (
-        <Button
+        <TooltipButton
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           onClick={onToggleOutline}
           tooltip={`Outline (${modShift}T)`}
-          tooltipSide="bottom-end"
+          tooltipSide="bottom" tooltipAlign="end"
           aria-label="Outline"
           aria-expanded={outlineOpen}
           className={cn(outlineOpen && "bg-accent text-accent-foreground")}
         >
           <TableOfContents className="size-4" />
-        </Button>
+        </TooltipButton>
       )}
 
       {doc && canEdit && (
-        <Button
+        <TooltipButton
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           onClick={onToggleView}
           tooltip={toggleViewLabel}
-          tooltipSide="bottom-end"
+          tooltipSide="bottom" tooltipAlign="end"
           aria-label={toggleViewLabel}
         >
           {view === "preview" ? (
@@ -162,19 +162,19 @@ export function Header({
           ) : (
             <Eye className="size-4" />
           )}
-        </Button>
+        </TooltipButton>
       )}
 
-      <Button
+      <TooltipButton
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         onClick={onToggleTheme}
         tooltip={toggleThemeLabel}
-        tooltipSide="bottom-end"
+        tooltipSide="bottom" tooltipAlign="end"
         aria-label="Toggle theme"
       >
         {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-      </Button>
+      </TooltipButton>
     </header>
   );
 }

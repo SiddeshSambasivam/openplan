@@ -1,6 +1,6 @@
 import { FileText } from "lucide-react";
 import { isMac } from "../lib/platform";
-import { Button } from "./Button";
+import { Button } from "@/components/ui/button";
 
 export function EmptyState({
   onOpenFileDialog,
@@ -24,14 +24,10 @@ export function EmptyState({
           </p>
         </div>
         <div className="flex items-center gap-2.5 pt-1">
-          <Button onClick={onOpenFileDialog} tooltip={isMac ? "⌘O" : "Ctrl+O"}>
+          <Button size="sm" onClick={onOpenFileDialog}>
             Open file
           </Button>
-          <Button
-            variant="outline"
-            onClick={onOpenFolderDialog}
-            tooltip={isMac ? "⇧⌘O" : "Ctrl+Shift+O"}
-          >
+          <Button size="sm" variant="outline" onClick={onOpenFolderDialog}>
             Open folder
           </Button>
           <kbd className="rounded-md border border-border bg-muted px-1.5 py-0.5 font-sans text-[11px] font-medium text-muted-foreground">

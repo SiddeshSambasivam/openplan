@@ -1,6 +1,6 @@
 import { ALargeSmall } from "lucide-react";
 import { FONT_SIZE_LABELS, FONT_SIZE_ORDER, type FontSize } from "../lib/fontSize";
-import { IconMenu } from "./IconMenu";
+import { SettingMenu } from "./SettingMenu";
 
 interface FontSizeMenuProps {
   fontSize: FontSize;
@@ -9,10 +9,9 @@ interface FontSizeMenuProps {
 
 export function FontSizeMenu({ fontSize, onChange }: FontSizeMenuProps) {
   return (
-    <IconMenu
+    <SettingMenu
       icon={ALargeSmall}
       tooltip="Font size"
-      tooltipSide="bottom-end"
       ariaLabel="Font size"
       value={fontSize}
       options={FONT_SIZE_ORDER.map((value) => ({

@@ -1,6 +1,6 @@
 import { MoveHorizontal } from "lucide-react";
 import { WIDTH_LABELS, WIDTH_ORDER, type ContentWidth } from "../lib/width";
-import { IconMenu } from "./IconMenu";
+import { SettingMenu } from "./SettingMenu";
 
 interface WidthMenuProps {
   width: ContentWidth;
@@ -9,10 +9,9 @@ interface WidthMenuProps {
 
 export function WidthMenu({ width, onChange }: WidthMenuProps) {
   return (
-    <IconMenu
+    <SettingMenu
       icon={MoveHorizontal}
       tooltip="Reading width"
-      tooltipSide="bottom-end"
       ariaLabel="Reading width"
       value={width}
       options={WIDTH_ORDER.map((value) => ({ value, label: WIDTH_LABELS[value] }))}
