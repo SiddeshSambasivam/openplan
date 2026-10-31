@@ -967,6 +967,7 @@ rather than at once, because MCP gives a server no way to speak first.
 | 2026-09-22 | Entrances fill backwards, never forwards or both | A held final frame wins over every later declaration in the cascade, so a card with a forwards fill can never lift on hover again. Backwards covers the stagger delay and then gets out of the way |
 | 2026-09-22 | The reduced-motion guard stills delays as well as durations | A stilled animation that keeps its delay still holds the item back, invisible, for the length of the stagger. That is the wait the setting exists to remove |
 | 2026-09-22 | The status glyph beats only where it stands for the open plan, and the picker is keyed to that plan | A glyph in a list is a fact, not an event. Keying the picker to the plan keeps opening another plan from reading as a change of status |
+| 2026-09-22 | Each atomic write names its own temp file, by process and a counter, rather than one name per target | Two writers to one file shared the temp name, so the first rename left the second with nothing to rename and the write failed with an error about a missing folder. Found by the test for the launch race |
 
 ---
 

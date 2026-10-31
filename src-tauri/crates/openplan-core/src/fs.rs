@@ -2,6 +2,12 @@
 
 use std::io::Write;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Counts writes so no two of them name the same temp file. Two writers to
+/// one file that shared a name would leave the second rename with nothing to
+/// rename, and the process id keeps a second OpenPlan out of it too.
+static WRITES: AtomicU64 = AtomicU64::new(0);
 
 /// Turns an io error into something worth showing a person.
 pub fn friendly_write_error(e: &std::io::Error) -> String {
@@ -41,7 +47,11 @@ pub fn atomic_write(target: &Path, contents: &str) -> Result<(), String> {
         .file_name()
         .and_then(|s| s.to_str())
         .ok_or_else(|| "Invalid file name.".to_string())?;
-    let tmp = dir.join(format!(".{file_name}.openplan-tmp"));
+    let tmp = dir.join(format!(
+        ".{file_name}.{}-{}.openplan-tmp",
+        std::process::id(),
+        WRITES.fetch_add(1, Ordering::Relaxed)
+    ));
 
     let result = (|| -> std::io::Result<()> {
         let mut f = std::fs::File::create(&tmp)?;
@@ -102,6 +112,26 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().contains("tmp"))
             .collect();
         assert!(leftovers.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn writers_working_at_once_do_not_share_a_temp_file() {
+        let dir = temp_dir("openplan-core-write-at-once");
+        let path = dir.join("doc.md");
+
+        let failures: Vec<String> = std::thread::scope(|scope| {
+            let started: Vec<_> = (0..8)
+                .map(|_| scope.spawn(|| atomic_write(&path, "same text")))
+                .collect();
+            started
+                .into_iter()
+                .filter_map(|handle| handle.join().unwrap().err())
+                .collect()
+        });
+
+        assert!(failures.is_empty(), "{failures:?}");
+        assert_eq!(read_to_string(&path).unwrap(), "same text");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
