@@ -76,6 +76,10 @@ pub struct Question {
     pub id: String,
     pub aspect: String,
     pub question: String,
+    /// Why the question matters for this plan, and what in the code or the
+    /// plan raised it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     pub options: Vec<Choice>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recommended: Option<String>,
@@ -95,6 +99,9 @@ pub struct Choice {
     pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub consequence: Option<String>,
+    /// What the option costs or gives up.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tradeoff: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -524,10 +531,12 @@ mod tests {
             id: id.to_string(),
             aspect: "tests".to_string(),
             question: "Which tests?".to_string(),
+            context: None,
             options: vec![Choice {
                 id: "a".to_string(),
                 label: "Unit tests".to_string(),
                 consequence: None,
+                tradeoff: None,
             }],
             recommended: Some("a".to_string()),
             must_answer: false,
@@ -632,6 +641,44 @@ mod tests {
         assert_eq!(read(&doc).unwrap().unwrap(), record);
         assert_eq!(serde_json::to_value(&record).unwrap()["prs"][0]["state"], "draft");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_detailed_question_round_trips() {
+        let dir = temp_dir("openplan-core-work-detailed-question");
+        let doc = dir.join("plan.md");
+        let detailed = Question {
+            context: Some("`load` in `library.rs` reads every plan on each board open.".to_string()),
+            options: vec![Choice {
+                id: "a".to_string(),
+                label: "Cache in memory".to_string(),
+                consequence: Some("The board opens at once after the first time.".to_string()),
+                tradeoff: Some("Costs a full read on every launch.".to_string()),
+            }],
+            ..question("q1", Some(Answer::Agent {}))
+        };
+
+        let record = modify(&doc, |r| record_alignment(r, vec![detailed]).map_err(|ids| ids.join(","))).unwrap();
+
+        assert_eq!(read(&doc).unwrap().unwrap(), record);
+        let json = serde_json::to_value(&record).unwrap();
+        let question = &json["alignment"]["questions"][0];
+        assert!(question["context"].as_str().unwrap().contains("library.rs"));
+        assert_eq!(question["options"][0]["tradeoff"], "Costs a full read on every launch.");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_question_from_before_context_and_tradeoffs_still_reads() {
+        let question: Question = serde_json::from_str(
+            r#"{"id":"q1","aspect":"tests","question":"Which tests?","options":[{"id":"a","label":"Unit","consequence":"Fast"}],"answer":{"kind":"agent"}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(question.context, None);
+        assert_eq!(question.options[0].tradeoff, None);
+        let json = serde_json::to_value(&question).unwrap();
+        assert!(json.get("context").is_none() && json["options"][0].get("tradeoff").is_none());
     }
 
     #[test]

@@ -29,6 +29,9 @@ export interface Question {
   id: string;
   aspect: string;
   question: string;
+  /** Why the question matters for this plan, and what in the code or the
+   * plan raised it. */
+  context?: string;
   options: Choice[];
   recommended?: string;
   mustAnswer: boolean;
@@ -40,6 +43,8 @@ export interface Choice {
   id: string;
   label: string;
   consequence?: string;
+  /** What the option costs or gives up. */
+  tradeoff?: string;
 }
 
 export type Answer =
@@ -208,6 +213,19 @@ export function answerOf(question: Question): {
     (id) => question.options.find((option) => option.id === id)?.label ?? id,
   );
   return { kind: "option", text: labels.join(", ") };
+}
+
+/** The options the answer settled on: the person's picks, or the
+ * recommended option when the agent decides. A typed answer picks none. */
+export function chosenOptions(question: Question): Choice[] {
+  const answer = question.answer;
+  const ids =
+    answer?.kind === "option"
+      ? answer.options
+      : answer?.kind === "agent" && question.recommended
+        ? [question.recommended]
+        : [];
+  return question.options.filter((option) => ids.includes(option.id));
 }
 
 /** The panel beside the plan holds the todos, repos and PRs, so it shows

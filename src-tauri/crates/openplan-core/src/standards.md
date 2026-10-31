@@ -143,15 +143,44 @@ anyone writes code. It starts when the person sets a plan to alignment.
    go one by one?", with each recommendation listed below it in one line. If the
    person accepts all, every recommended option is the answer. Ask the
    must-answer questions either way.
-4. Write each question as one direct sentence. List the recommended option first
-   and mark it "(Recommended)". Give every option its consequence in one line.
-5. Add a "Let the agent decide" option to every question you have not marked
+4. Write each question as one direct sentence, and give it a `context` of two to
+   four sentences. The context says why the question matters for this plan and
+   what you found in the code or the plan that raised it. Name the files,
+   functions and numbers you found.
+5. List the recommended option first and mark it "(Recommended)". Give every
+   option a `consequence`, what happens if the person picks it, and a `tradeoff`,
+   what it costs or gives up and when it is the right pick. One sentence each.
+6. In AskUserQuestion, put the context on the question text's first line and the
+   question on the line after it. Put the consequence and the trade-off in each
+   option's description.
+7. Add a "Let the agent decide" option to every question you have not marked
    must-answer. Mark a question must-answer only when it is about product
    behaviour you cannot know from the plan or the code. AskUserQuestion takes four
    options, so offer at most three of your own beside "Let the agent decide".
-6. Call `record_alignment` with every question and answer as soon as the last
-   answer arrives. Then call `add_decisions` for the answers that are
-   consequential, `add_todos` for the work, and `set_status` with in-progress.
+8. Call `record_alignment` with every question, its context, its options and the
+   answer as soon as the last answer arrives. Then call `add_decisions` for the
+   answers that are consequential, `add_todos` for the work, and `set_status`
+   with in-progress.
+
+A question at the level of detail this asks for, as `record_alignment` takes it,
+from a feature plan that adds a cache:
+
+```json
+{
+  "id": "q4", "aspect": "performance",
+  "question": "Where does the plan cache live?",
+  "context": "`list_plans` in `library.rs` reads every plan file each time the board opens. The base has 412 plans, and the board takes 900 ms to open.",
+  "options": [
+    { "id": "a", "label": "In memory, filled on launch",
+      "consequence": "The board opens in under 50 ms once the app has launched.",
+      "tradeoff": "Launch reads every plan once. Right while the base stays under a few thousand plans." },
+    { "id": "b", "label": "On disk beside the base",
+      "consequence": "The board opens at once, even right after launch.",
+      "tradeoff": "A second copy of every plan that can go stale. Right only when launch time matters more than the board." }
+  ],
+  "recommended": "a"
+}
+```
 
 When alignment is reopened, ask only about what changed since the last record. The
 target is under 15 minutes of the person's time.
@@ -160,7 +189,8 @@ target is under 15 minutes of the person's time.
 
 These are model questions for each plan type. Reword each one for the plan in
 front of you and replace the options with the real ones. The usual options are a
-starting point, not a menu to copy.
+starting point, not a menu to copy. The context and the trade-offs come from what
+you find in the plan and the code, so the bank has none.
 
 ### `feature`
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   offersCompletion,
   answerOf,
+  chosenOptions,
   mostAdvancedPr,
   PR_MARKS,
   prBadges,
@@ -345,5 +346,26 @@ describe("prSummaryText", () => {
 
   it("says no pull request is open yet when none is reported", () => {
     expect(prSummaryText({ reported: [], expected: true })).toBe("No pull request yet");
+  });
+});
+
+describe("chosenOptions", () => {
+  const asked = question("q1", "tests");
+
+  it("is what the person picked", () => {
+    const picked = chosenOptions({ ...asked, answer: { kind: "option", options: ["b"] } });
+
+    expect(picked.map((option) => option.id)).toEqual(["b"]);
+  });
+
+  it("is the recommended option when the agent decides", () => {
+    const picked = chosenOptions({ ...asked, answer: { kind: "agent" } });
+
+    expect(picked.map((option) => option.id)).toEqual(["a"]);
+  });
+
+  it("is none for a typed answer or no answer", () => {
+    expect(chosenOptions({ ...asked, answer: { kind: "text", text: "Neither" } })).toEqual([]);
+    expect(chosenOptions(asked)).toEqual([]);
   });
 });

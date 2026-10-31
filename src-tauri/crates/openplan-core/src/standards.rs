@@ -302,6 +302,24 @@ mod tests {
     }
 
     #[test]
+    fn alignment_questions_carry_their_context_and_each_options_tradeoff() {
+        let alignment = section("## Alignment").join("\n");
+
+        for rule in [
+            "at most 12 questions",
+            "Accept all N recommendations",
+            "`context`",
+            "`consequence`",
+            "`tradeoff`",
+            "first line",
+            "description",
+        ] {
+            assert!(alignment.contains(rule), "the Alignment section is missing {rule}");
+        }
+        assert_eq!(writing_faults(&alignment), Vec::<String>::new());
+    }
+
+    #[test]
     fn the_question_bank_stays_short_enough_to_read_in_one_go() {
         let bank = section("## Question bank");
 

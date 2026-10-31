@@ -708,6 +708,7 @@ mod tests {
                 id: "q1".to_string(),
                 aspect: "tests".to_string(),
                 question: "Which tests?".to_string(),
+                context: None,
                 options: Vec::new(),
                 recommended: None,
                 must_answer: false,

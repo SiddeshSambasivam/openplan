@@ -9,8 +9,11 @@ The server refuses moves the work has not earned.
 ## What was agreed
 
 - What has to be tested? Unit and end-to-end tests
+  Why q1 came up.
 - Where does the logic live? Unit tests (agent decided)
 - What happens to old records? Leave them.
+- Who may skip the guard? Nobody.
+  The guard reads the record. Old records have no todos.
 
 ## Decisions
 
