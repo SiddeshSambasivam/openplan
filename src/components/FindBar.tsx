@@ -6,6 +6,14 @@ import { TooltipButton } from "./TooltipButton";
 
 function paintHighlights(matches: Range[], currentIndex: number) {
   if (!HAS_HIGHLIGHT_API) return;
+  // Nothing to show means the registration goes away entirely. Replacing it
+  // with an empty Highlight looks equivalent, and is under Chromium, but
+  // WebKit — which is what the desktop app runs on — keeps painting the
+  // ranges the name held before.
+  if (matches.length === 0) {
+    clearHighlights();
+    return;
+  }
   CSS.highlights.set("app-find-match", new Highlight(...matches));
   const current = matches[currentIndex];
   if (current) CSS.highlights.set("app-find-current", new Highlight(current));
