@@ -155,6 +155,13 @@ describe("AlignmentTab", () => {
               mustAnswer: false,
               answer: { kind: "agent" },
             },
+            {
+              id: "q3",
+              aspect: "scope",
+              question: "Which plans?",
+              options: [{ id: "a", label: "Every plan" }],
+              mustAnswer: true,
+            },
           ],
         },
         decisions: [decision],
@@ -171,7 +178,7 @@ describe("AlignmentTab", () => {
     expect(html.indexOf("Which tests?")).toBeLessThan(html.indexOf("D1. Ask in the harness"));
   });
 
-  it("shows why a question was asked and what the chosen option costs, the rest folded", () => {
+  it("shows why a waiting question was asked and what each option does and costs", () => {
     const html = alignmentTab(
       record({
         alignment: {
@@ -180,8 +187,10 @@ describe("AlignmentTab", () => {
             {
               id: "q1",
               aspect: "performance",
+              role: "engineering",
               question: "Where does the plan cache live?",
               context: "The board reads every plan file each time it opens.",
+              illustration: "| Option | Launch |\n| --- | --- |\n| Memory | Slow |",
               options: [
                 {
                   id: "a",
@@ -198,21 +207,24 @@ describe("AlignmentTab", () => {
               ],
               recommended: "a",
               mustAnswer: false,
-              answer: { kind: "option", options: ["a"] },
             },
           ],
         },
       }),
     );
 
+    expect(html).toContain("Theo");
+    expect(html).toContain("Tech lead");
     expect(html).toContain("The board reads every plan file each time it opens.");
+    expect(html).toContain("<table");
     expect(html).toContain("The board opens at once after launch.");
-    expect(html).toContain("Launch reads every plan once.");
-    expect(html).toContain("Show the other options");
-    expect(html).not.toContain("A second copy that can go stale.");
+    expect(html).toContain("Trade-off: A second copy that can go stale.");
+    expect(html).toContain("Recommended");
+    expect(html).toContain("Reply to Theo, optional");
+    expect(html).toContain("Send answers");
   });
 
-  it("puts the questions waiting for the person above the answered ones, with who asks", () => {
+  it("reads oldest round first, with who asks and who had nothing to ask", () => {
     const html = alignmentTab(
       record({
         alignment: {
@@ -245,17 +257,52 @@ describe("AlignmentTab", () => {
       }),
     );
 
-    expect(html).toContain("Waiting for your answer");
-    expect(html).toContain("On-call");
-    expect(html).toContain("Product owner");
-    expect(html).toContain("One more try.");
-    expect(html).toContain("Recommended");
+    expect(html).toContain("Round 1");
     expect(html).toContain("Round 2");
-    expect(html).toContain("Submit answers");
-    expect(html.indexOf("What happens when the write fails?")).toBeLessThan(
-      html.indexOf("Which plans get it?"),
+    expect(html).toContain("Mila");
+    expect(html).toContain("On-call");
+    expect(html.indexOf("Which plans get it?")).toBeLessThan(
+      html.indexOf("What happens when the write fails?"),
     );
-    expect(html).toContain("The tech lead and the designer had nothing to ask on this plan.");
+    expect(html).toContain("Theo, Iris and Kai had nothing to ask this round.");
+    expect(html).toContain("Mila, Theo and Iris had nothing to ask this round.");
+    expect(html).toContain('aria-label="1 waiting"');
+  });
+
+  it("scores the areas settled and names the required ones nobody asked about", () => {
+    const html = alignmentTab(
+      record({
+        alignment: {
+          askedAt: "2026-10-28T09:00:00Z",
+          questions: [
+            {
+              id: "q1",
+              aspect: "scale",
+              role: "engineering",
+              question: "How many plans?",
+              options: [{ id: "a", label: "Fifty" }],
+              mustAnswer: false,
+              answer: { kind: "option", options: ["a"], note: "The largest base we know." },
+            },
+            {
+              id: "q2",
+              aspect: "UX",
+              role: "design",
+              question: "Where does it sit?",
+              options: [{ id: "a", label: "Top bar" }],
+              mustAnswer: false,
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(html).toContain("Alignment score 60 out of 100");
+    expect(html).toContain("1 of 2 areas settled · 40 of 80");
+    expect(html).toContain("1 of 1 answer explains why · 20 of 20");
+    expect(html).toContain("Not asked yet: edge cases");
+    expect(html).toContain("Not asked yet: error handling");
+    expect(html).not.toContain("Not asked yet: scale");
   });
 
   it("shows the note written beside a picked option under it", () => {
@@ -282,7 +329,7 @@ describe("AlignmentTab", () => {
 
     expect(html).toContain("Old plans too, they are few.");
     expect(html.indexOf("Every plan")).toBeLessThan(html.indexOf("Old plans too"));
-    expect(html.indexOf("Old plans too")).toBeLessThan(html.indexOf("Show the other options"));
+    expect(html).not.toContain("New plans");
   });
 
   it("says alignment has not been recorded when the record has none", () => {
