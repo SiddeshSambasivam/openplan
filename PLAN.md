@@ -982,6 +982,14 @@ main with no PRs (q10).
       matte 3D blob personas that blink and turn their heads, one tab per persona,
       replies queue and go out together, and an alignment score (80 for coverage, 20
       for reasoning) never gates Build
+- [x] R4.10 Alignment tab polish (Sid, 2026-10-31): the app's type scale; only the
+      thread scrolls, with a hidden scrollbar and up and down arrows; the score row at
+      the top with its areas in a popover; the people rail on the left, hidden by
+      default, sliding in and out; short round dividers; a chat composer where picking
+      an option is the answer, "Answered 2/3", and one Send for every answer
+- [x] R4.11 Plan and Alignment are full-height square tabs at the top of the plan
+      area; the work panel shows on the Plan tab only; `mod+alt+arrowleft` and
+      `mod+alt+arrowright` step between the tabs, and each tab's tooltip shows its key
 
 Round 4 QA, on a release build with Claude Code connected:
 1. Kill a session's `openplan mcp` process: its plan's session count drops at once.
@@ -1245,6 +1253,10 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-31 | Supersedes D11. The `openplan mcp` process wakes an idle Claude Code session by writing to its inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`): an auth line, then one `{"type":"user",...}` line. It reports the result to the app, which shows "Agent woken." or "Couldn't wake the session. It will hear on your next message." The setting "Wake the agent when I send a review" is on by default and lives in the app's server, which tells the process on each poll | Sid (R4.7, q16, q17). The format is undocumented. It was verified on 2026-10-31 by a child process writing to its own session, which got the message with no approval prompt. A session mid-turn hears through the Stop hook and then gets the wake after its turn, which costs one extra turn. Channels were rejected: research preview, a development-only startup flag, nothing on the desktop app |
 | 2026-10-31 | Events for a plan nobody is on wait for the first session that takes it, except status changes | The plan file already says where it stands, so a replayed status is noise |
 | 2026-10-31 | Supersedes the drawn persona tiles: personas are matte 3D blobs (Mila, Theo, Iris, Kai) with one prop each, colour tokens per persona in `index.css`, and one shared clock that runs only for on-screen avatars while the window is visible and focused. The score ring takes its length at once and only the number counts up | Sid (R4.9): clearly able to blink and turn their heads, not glossy. One clock and an IntersectionObserver keep idle CPU at zero (NFR-8). Only transform and opacity animate |
+| 2026-10-31 | Picking an option is the answer: it is saved as a draft at once, and one Send delivers every drafted answer. The composer's text is the active question's note | Sid could not answer, because an option only counted once Enter added it. "Answered 2/3" says what Send will deliver |
+| 2026-10-31 | The plan tab strip has square corners | Sid's explicit exception to the radius tokens, for this strip only. The open tab carries a 2px top rule instead |
+| 2026-10-31 | The shortcut registry takes `alt` as a modifier, only inside a chord, plus the left and right arrow keys | Sid asked for ⌥⌘ with the arrows to switch tabs. Option on its own types characters on macOS, so it never fires alone |
+| 2026-10-31 | Verified: an answer sent from the Alignment tab woke an idle Claude Code session through its inbox, which read the answer in about 3 seconds with nobody typing | The live test Sid asked for, run in the dev app against a real interactive session |
 | 2026-10-31 | `read_plan` ends with each alignment question and its answer | An agent woken by answers given in the app needs to read them somewhere |
 | 2026-10-31 | The app reads unmerged PRs with the person's `gh` CLI on plan open, from a board Refresh control, and when a plan's last session leaves. When every PR reads merged it offers "All PRs merged. Mark completed?". It never completes a plan on its own | Sid (q5, q6, q15). The agent's reports go stale once its session ends. `gh` uses the person's own login and needs no stored secret. The person stays the one who completes (2026-10-28) |
 
