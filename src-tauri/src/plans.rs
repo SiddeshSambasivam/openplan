@@ -314,17 +314,52 @@ pub async fn rename_document(
 pub struct IdentityInfo {
     name: String,
     email: String,
+    /// The picture's absolute path, or null for the generated marble.
+    avatar: Option<PathBuf>,
 }
 
 /// Who this machine's changes and comments belong to, so the interface can
 /// say "You" for your own and name everyone else.
 #[tauri::command]
 pub async fn app_identity() -> Result<IdentityInfo, String> {
-    let id = settings::current_identity();
-    Ok(IdentityInfo {
+    Ok(identity_info(settings::current_identity(), settings::current_avatar()))
+}
+
+/// A blank name or email falls back to the git config.
+#[tauri::command]
+pub async fn set_profile(name: Option<String>, email: Option<String>) -> Result<IdentityInfo, String> {
+    let mut refused = Ok(());
+    crate::onboarding::update_settings(|s| refused = settings::apply_profile(s, name, email))?;
+    refused?;
+    app_identity().await
+}
+
+/// Copies the chosen picture beside the settings file.
+#[tauri::command]
+pub async fn set_avatar(path: PathBuf) -> Result<IdentityInfo, String> {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+        .to_string();
+    let saved = settings::save_avatar(&settings::settings_dir()?, &path, &stamp)?;
+    crate::onboarding::update_settings(|s| s.avatar = Some(saved))?;
+    app_identity().await
+}
+
+#[tauri::command]
+pub async fn clear_avatar() -> Result<IdentityInfo, String> {
+    settings::remove_avatars(&settings::settings_dir()?)?;
+    crate::onboarding::update_settings(|s| s.avatar = None)?;
+    app_identity().await
+}
+
+fn identity_info(id: repo::Identity, avatar: Option<PathBuf>) -> IdentityInfo {
+    IdentityInfo {
         name: id.name,
         email: id.email,
-    })
+        avatar,
+    }
 }
 
 #[tauri::command]
@@ -608,6 +643,21 @@ mod tests {
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains("status: completed\n"), "{text}");
         assert!(text.contains("completed: 2026-10-28T10:00:00Z\n"), "{text}");
+    }
+
+    #[test]
+    fn an_identity_without_a_picture_says_so() {
+        let id = repo::Identity {
+            name: "Sid".into(),
+            email: "sid@example.com".into(),
+        };
+
+        let json = serde_json::to_value(identity_info(id, None)).unwrap();
+
+        assert_eq!(
+            json,
+            serde_json::json!({ "name": "Sid", "email": "sid@example.com", "avatar": null })
+        );
     }
 
     #[test]
