@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
-/* The wordmark, matching the marketing site. */
+/* The wordmark's typeface. */
 @font-face {
   font-family: "EB Garamond";
   font-style: normal;

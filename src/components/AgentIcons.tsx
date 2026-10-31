@@ -1,5 +1,5 @@
-/* The marks of the agent tools OpenPlan connects to, taken from the
-   marketing site's own assets. Claude carries its brand terracotta, which
+/* The marks of the agent tools OpenPlan connects to. Claude carries its
+   brand terracotta, which
    reads on both themes; the OpenAI and Cursor marks are monochrome by brand,
    so they follow the surface they sit on. */
 
