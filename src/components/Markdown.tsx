@@ -1,5 +1,5 @@
 import { memo, type MouseEvent } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeHighlight from "rehype-highlight";
@@ -131,7 +131,9 @@ const schema = {
   },
 };
 
-const remarkPlugins = [remarkGfm, remarkMath];
+// Plans quote prices, so a lone dollar sign is text. Inline math is `$$x$$`
+// on one line, and a block is `$$` on its own lines.
+const remarkPlugins: NonNullable<Options["remarkPlugins"]> = [remarkGfm, [remarkMath, { singleDollarTextMath: false }]];
 
 function rehypePlugins(offset: number) {
   return [

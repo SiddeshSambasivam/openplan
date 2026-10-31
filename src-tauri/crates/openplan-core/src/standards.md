@@ -105,6 +105,8 @@ Decisions settled during alignment also go to the work record through
 - Write for the person reviewing it, not the one who already understands it.
 - Prefer specifics to adjectives: paths, names, commands, numbers.
 - Tables for anything enumerable: phases, targets, constants, documents.
+- Math: `$$x$$` on one line is inline, `$$` on its own lines is a block. A lone
+  dollar sign is a price and stays text. Mermaid fences draw diagrams.
 - Bold the load-bearing term in a paragraph, not the paragraph.
 - Keep a status tracker current. A stale plan is read as a wrong plan.
 

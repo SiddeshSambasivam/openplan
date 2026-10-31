@@ -894,7 +894,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       `openplan pending`, managed block text **(T)**
 - [x] P7.8 Standards: question bank per type, alignment procedure, media rule,
       confirmation-on-merge rule
-- [ ] P7.9 Rendering: LaTeX, video, sandboxed `html` fences with the height message,
+- [x] P7.9 Rendering: LaTeX, video, sandboxed `html` fences with the height message,
       the media setting **(T: fence extraction and CSP)**
 - [ ] P7.10 Onboarding without the import step; version 0.3.0
 - [ ] P7.11 Shortcut registry feeding keys, `kbd` tooltips and a command palette on
@@ -1023,6 +1023,8 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 | 2026-10-28 | `update_plan` is added | The draft stage is iteration. Without it agents file duplicates, which is where the base's v2 and v3 plans came from |
 | 2026-10-28 | One shortcut registry feeds every key, its `kbd` tooltip and the command palette | Sid: a shortcut and a tooltip with the key on every action. A key defined in two places drifts |
 | 2026-10-28 | **GATE 6 waived and Phase 7 (0.3.0) starts** | Sid, 2026-10-28: "Gate waived", after the rule was pointed out. Recorded per §2 Process. GATE 7 remains |
+| 2026-10-28 | Inline math is `$$x$$` on one line, never a single dollar pair | Plans quote prices ("$5 to $10"), and `remark-math`'s default would render the text between them as a formula |
+| 2026-10-28 | KaTeX runs after `rehype-sanitize`, like the highlighter, and the app page carries `frame-src 'none'` | Allowing `style` on spans for KaTeX would let any raw HTML carry inline styles. A fence script could navigate its own frame to a web page, which the frame's CSP does not cover; the page directive blocks it and `srcdoc` frames still load |
 
 ---
 

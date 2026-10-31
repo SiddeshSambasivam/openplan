@@ -21,7 +21,7 @@ function iframes(html: string): string[] {
 
 describe("Markdown math", () => {
   it("renders inline and block formulas with KaTeX", () => {
-    const html = render("Area is $\\pi r^2$.\n\n$$\nE = mc^2\n$$\n");
+    const html = render("Area is $$\\pi r^2$$.\n\n$$\nE = mc^2\n$$\n");
     expect(html).toContain('class="katex"');
     expect(html).toContain('class="katex-display"');
   });
@@ -32,7 +32,13 @@ describe("Markdown math", () => {
   });
 
   it("renders math when media is off", () => {
-    expect(render("$x$", false)).toContain('class="katex"');
+    expect(render("$$x$$", false)).toContain('class="katex"');
+  });
+
+  it("leaves a price alone", () => {
+    const html = render("From $5 to $10 a month.");
+    expect(html).not.toContain("katex");
+    expect(html).toContain("$5 to $10");
   });
 
   it("still strips scripts and script links", () => {
