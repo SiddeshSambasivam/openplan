@@ -6,7 +6,9 @@ import {
   type ReviewSummary,
   type StatusGroup,
 } from "@/lib/board";
+import { entrance, useMountedKeys } from "@/lib/motion";
 import { STATUS_HINTS, STATUS_LABELS, type PlanSummary } from "@/lib/planBase";
+import { cn } from "@/lib/utils";
 import { useMemo } from "react";
 
 interface BoardViewProps {
@@ -25,18 +27,29 @@ function Card({
   avatarUrl,
   open,
   sessions,
+  index,
+  mountedWith,
   onOpen,
 }: {
   plan: PlanSummary;
   avatarUrl: string | null;
   open: number;
   sessions: number;
+  /** Where the card sits in its column, which sets its entrance delay. */
+  index: number;
+  /** False for a card filed after the column was drawn: it fades in place. */
+  mountedWith: boolean;
   onOpen: (plan: PlanSummary) => void;
 }) {
+  const enter = entrance(index, mountedWith);
   return (
     <button
       onClick={() => onOpen(plan)}
-      className="flex w-full cursor-default flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left transition-[transform,border-color] duration-150 hover:-translate-y-px hover:border-ring active:translate-y-0"
+      style={enter.style}
+      className={cn(
+        "motion-card flex w-full cursor-default flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left hover:border-ring",
+        enter.className,
+      )}
     >
       <span className="text-sm leading-snug font-medium text-balance text-foreground">
         {plan.title}
@@ -67,6 +80,7 @@ function Column({
   sessions: Map<string, number>;
   onOpen: (plan: PlanSummary) => void;
 }) {
+  const mounted = useMountedKeys(group.plans.map((plan) => plan.path));
   return (
     <section className="flex min-w-60 flex-1 flex-col">
       <h3
@@ -82,13 +96,15 @@ function Column({
       {/* Each column carries its own overflow, so a long one scrolls
           without taking the others with it. */}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 pb-2">
-        {group.plans.map((plan) => (
+        {group.plans.map((plan, index) => (
           <Card
             key={plan.path}
             plan={plan}
             avatarUrl={(plan.project && avatars.get(plan.project)) || null}
             open={summaries.get(plan.path)?.open ?? 0}
             sessions={sessions.get(plan.id) ?? 0}
+            index={index}
+            mountedWith={mounted.has(plan.path)}
             onOpen={onOpen}
           />
         ))}
@@ -117,7 +133,7 @@ export function BoardView({
 
   if (plans.length === 0) {
     return (
-      <p className="p-10 text-center text-sm leading-6 text-muted-foreground">
+      <p className="animate-in fade-in-0 p-10 text-center text-sm leading-6 text-muted-foreground duration-200">
         No plans yet.
         <br />
         Your agents will file them here.

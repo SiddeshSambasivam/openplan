@@ -43,7 +43,7 @@ export function PlanMetaBar({
 
   return (
     <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-3 text-xs text-muted-foreground">
-      <StatusPicker status={plan.status} onChange={onStatusChange} />
+      <StatusPicker key={plan.id} status={plan.status} onChange={onStatusChange} />
       <span aria-hidden>·</span>
       <span className="flex items-center gap-1.5">
         {plan.source === "claude-code" && <ClaudeCodeIcon className="size-3.5" />}

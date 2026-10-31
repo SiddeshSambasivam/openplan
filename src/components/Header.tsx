@@ -248,7 +248,9 @@ export function Header({
       )}
 
       {onPlan && plan && (
-        <StatusPicker status={plan.status} onChange={onStatusChange} />
+        // Keyed to the plan: opening another one is not a change of status,
+        // and the glyph must not beat as though it were.
+        <StatusPicker key={plan.id} status={plan.status} onChange={onStatusChange} />
       )}
 
       {showDocTools && wordCount != null && (

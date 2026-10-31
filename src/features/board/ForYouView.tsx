@@ -3,6 +3,7 @@ import { useMemo, type ReactNode } from "react";
 import { PlanRowFacts } from "@/components/PlanFacts";
 import { StatusGlyph } from "@/components/StatusGlyph";
 import { forYou, type ReviewSummary } from "@/lib/board";
+import { entrance, useMountedKeys } from "@/lib/motion";
 import type { PlanSummary } from "@/lib/planBase";
 
 interface ForYouViewProps {
@@ -31,6 +32,7 @@ function Group({
   sessions: Map<string, number>;
   onOpen: (plan: PlanSummary) => void;
 }) {
+  const mounted = useMountedKeys(plans.map((plan) => plan.path));
   if (plans.length === 0) return null;
   return (
     <section>
@@ -42,25 +44,28 @@ function Group({
         </span>
       </p>
       <ul className="flex flex-col">
-        {plans.map((plan) => (
-          <li key={plan.path}>
-            <button
-              onClick={() => onOpen(plan)}
-              className="flex w-full cursor-default items-center gap-3 border-b border-border px-4 py-2 text-left text-sm transition-colors hover:bg-sidebar"
-            >
-              <StatusGlyph status={plan.status} />
-              <span className="flex-1 truncate font-medium">{plan.title}</span>
-              <span className="flex items-center gap-3 text-xs text-muted-foreground">
-                <PlanRowFacts
-                  plan={plan}
-                  avatarUrl={(plan.project && avatars.get(plan.project)) || null}
-                  open={openThreads.get(plan.path) ?? 0}
-                  sessions={sessions.get(plan.id) ?? 0}
-                />
-              </span>
-            </button>
-          </li>
-        ))}
+        {plans.map((plan, index) => {
+          const enter = entrance(index, mounted.has(plan.path));
+          return (
+            <li key={plan.path} style={enter.style} className={enter.className}>
+              <button
+                onClick={() => onOpen(plan)}
+                className="flex w-full cursor-default items-center gap-3 border-b border-border px-4 py-2 text-left text-sm transition-colors hover:bg-sidebar"
+              >
+                <StatusGlyph status={plan.status} />
+                <span className="flex-1 truncate font-medium">{plan.title}</span>
+                <span className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <PlanRowFacts
+                    plan={plan}
+                    avatarUrl={(plan.project && avatars.get(plan.project)) || null}
+                    open={openThreads.get(plan.path) ?? 0}
+                    sessions={sessions.get(plan.id) ?? 0}
+                  />
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -89,7 +94,7 @@ export function ForYouView({
         the thread is still open.
       </p>
       {nothingWaiting ? (
-        <p className="p-10 text-center text-sm leading-6 text-muted-foreground">
+        <p className="animate-in fade-in-0 p-10 text-center text-sm leading-6 text-muted-foreground duration-200">
           Nothing is waiting on you.
           <br />
           Plans land here when a review opens or an agent replies.

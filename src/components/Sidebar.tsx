@@ -311,6 +311,7 @@ export const Sidebar = memo(function Sidebar({
                       onClick={() => onSelectPlan(plan)}
                       className={cn(
                         rowClass,
+                        "animate-in fade-in-0 duration-200",
                         plan.path === activePlanPath &&
                           view === "plan" &&
                           "bg-sidebar-accent font-medium text-sidebar-accent-foreground",

@@ -32,7 +32,7 @@ export function StatusPicker({ status, onChange }: StatusPickerProps) {
           aria-label={`Status: ${STATUS_LABELS[status]}`}
           className="-ml-1.5 gap-1.5 text-foreground"
         >
-          <StatusGlyph status={status} />
+          <StatusGlyph status={status} tick />
           {STATUS_LABELS[status]}
           <ChevronDown className="size-3 text-muted-foreground" />
         </Button>
