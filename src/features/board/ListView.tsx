@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils";
 interface ListViewProps {
   plans: PlanSummary[];
   summaries: ReviewSummary[];
-  avatars: Map<string, string>;
   /** Live agent sessions by plan id. */
   sessions: Map<string, number>;
   activePlanPath: string | null;
@@ -73,7 +72,6 @@ function LooseFileRow({
 export function ListView({
   plans,
   summaries,
-  avatars,
   sessions,
   activePlanPath,
   onSelectPlan,
@@ -103,7 +101,6 @@ export function ListView({
       <PlanList
         plans={plans}
         activePath={activePlanPath}
-        avatars={avatars}
         openThreads={openThreads}
         sessions={sessions}
         onSelect={onSelectPlan}

@@ -9,7 +9,6 @@ import type { PlanSummary } from "@/lib/planBase";
 interface ForYouViewProps {
   plans: PlanSummary[];
   summaries: ReviewSummary[];
-  avatars: Map<string, string>;
   /** Live agent sessions by plan id. */
   sessions: Map<string, number>;
   onOpen: (plan: PlanSummary) => void;
@@ -19,7 +18,6 @@ function Group({
   icon,
   label,
   plans,
-  avatars,
   openThreads,
   sessions,
   onOpen,
@@ -27,7 +25,6 @@ function Group({
   icon: ReactNode;
   label: string;
   plans: PlanSummary[];
-  avatars: Map<string, string>;
   openThreads: Map<string, number>;
   sessions: Map<string, number>;
   onOpen: (plan: PlanSummary) => void;
@@ -57,7 +54,6 @@ function Group({
                 <span className="flex items-center gap-3 text-xs text-muted-foreground">
                   <PlanRowFacts
                     plan={plan}
-                    avatarUrl={(plan.project && avatars.get(plan.project)) || null}
                     open={openThreads.get(plan.path) ?? 0}
                     sessions={sessions.get(plan.id) ?? 0}
                   />
@@ -75,7 +71,6 @@ function Group({
 export function ForYouView({
   plans,
   summaries,
-  avatars,
   sessions,
   onOpen,
 }: ForYouViewProps) {
@@ -105,7 +100,6 @@ export function ForYouView({
             icon={<StatusGlyph status="in-review" />}
             label="Waiting for your review"
             plans={groups.review}
-            avatars={avatars}
             openThreads={openThreads}
             sessions={sessions}
             onOpen={onOpen}
@@ -116,7 +110,6 @@ export function ForYouView({
             }
             label="An agent replied to you"
             plans={groups.answered}
-            avatars={avatars}
             openThreads={openThreads}
             sessions={sessions}
             onOpen={onOpen}

@@ -35,6 +35,17 @@ describe("splitFrontmatter", () => {
     expect(body).toBe("# Alpha\n");
   });
 
+  it("keeps a folders list verbatim, in either form", () => {
+    for (const folders of ["folders: [Search, Infra]\n", "folders:\n  - Search\n  - Infra\n"]) {
+      const text = `---\nid: a\n${folders}status: alignment\n---\n# Alpha\n`;
+
+      const { header, body } = splitFrontmatter(text);
+
+      expect(header).toBe(`---\nid: a\n${folders}status: alignment\n---\n`);
+      expect(body).toBe("# Alpha\n");
+    }
+  });
+
   it("has no block for a plan that carries none", () => {
     const { header, body } = splitFrontmatter("# Alpha\n");
 

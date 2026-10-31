@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   boardColumns,
-  filterByProject,
+  FOLDED,
   forYou,
   planCrumb,
   shortDate,
   sortPlans,
   statusGroups,
 } from "./board";
-import type { PlanSummary, Status } from "./planBase";
+import { STATUS_FLOW, STATUS_ORDER, type PlanSummary, type Status } from "./planBase";
 
 function plan(overrides: Partial<PlanSummary> & { id: string }): PlanSummary {
   return {
@@ -16,10 +16,11 @@ function plan(overrides: Partial<PlanSummary> & { id: string }): PlanSummary {
     status: "draft" as Status,
     type: null,
     source: "claude-code",
-    project: null,
+    folders: [],
     pr: null,
     created: null,
     updated: null,
+    completed: null,
     path: `/base/${overrides.id}.md`,
     relativePath: `${overrides.id}.md`,
     documents: [],
@@ -46,39 +47,52 @@ describe("sortPlans", () => {
   });
 });
 
-describe("filterByProject", () => {
-  const plans = [
-    plan({ id: "one", project: "github.com/acme/tools" }),
-    plan({ id: "two", project: "github.com/acme/site" }),
-    plan({ id: "loose" }),
-  ];
-
-  it("keeps every plan when no project is chosen", () => {
-    expect(filterByProject(plans, null)).toHaveLength(3);
-  });
-
-  it("keeps the plans of one project", () => {
-    expect(filterByProject(plans, "github.com/acme/tools").map((p) => p.id)).toEqual([
-      "one",
+describe("status order", () => {
+  it("runs the way work moves", () => {
+    expect(STATUS_FLOW).toEqual([
+      "draft",
+      "alignment",
+      "in-progress",
+      "in-review",
+      "completed",
+      "archived",
     ]);
   });
 
-  it("can ask for the plans that name no project", () => {
-    expect(filterByProject(plans, "").map((p) => p.id)).toEqual(["loose"]);
+  it("lists what is moving first and what is put away last", () => {
+    expect(STATUS_ORDER).toEqual([
+      "in-progress",
+      "alignment",
+      "in-review",
+      "draft",
+      "completed",
+      "archived",
+    ]);
   });
 });
 
 describe("boardColumns", () => {
-  it("shows all four columns, in board order, even when empty", () => {
-    const columns = boardColumns([plan({ id: "a", status: "in-review" })]);
+  it("shows all six columns, in the order work moves, even when empty", () => {
+    const columns = boardColumns([
+      plan({ id: "a", status: "in-review" }),
+      plan({ id: "b", status: "alignment" }),
+      plan({ id: "c", status: "archived" }),
+    ]);
 
-    expect(columns.map((c) => c.status)).toEqual([
+    expect(columns.map((c) => c.status)).toEqual(STATUS_FLOW);
+    expect(columns.map((c) => c.plans.length)).toEqual([0, 1, 0, 1, 0, 1]);
+  });
+
+  it("folds finished work away and keeps the four working columns open", () => {
+    const open = boardColumns([]).filter((c) => !FOLDED.includes(c.status));
+
+    expect(open.map((c) => c.status)).toEqual([
       "draft",
+      "alignment",
       "in-progress",
       "in-review",
-      "completed",
     ]);
-    expect(columns.map((c) => c.plans.length)).toEqual([0, 0, 1, 0]);
+    expect(FOLDED).toEqual(["completed", "archived"]);
   });
 
   it("sorts each column newest first", () => {
@@ -96,9 +110,16 @@ describe("statusGroups", () => {
     const groups = statusGroups([
       plan({ id: "a", status: "completed" }),
       plan({ id: "b", status: "in-review" }),
+      plan({ id: "c", status: "archived" }),
+      plan({ id: "d", status: "alignment" }),
     ]);
 
-    expect(groups.map((g) => g.status)).toEqual(["in-review", "completed"]);
+    expect(groups.map((g) => g.status)).toEqual([
+      "alignment",
+      "in-review",
+      "completed",
+      "archived",
+    ]);
   });
 });
 
@@ -138,31 +159,22 @@ describe("planCrumb", () => {
   const set = plan({
     id: "set",
     title: "Move search to OpenSearch",
-    project: "github.com/acme/tools",
+    folders: ["Search"],
     path: "/base/move-search/README.md",
     documents: ["README.md", "01-current-state.md"],
   });
 
-  it("reads a plan as its project and its title", () => {
+  it("reads a plan as its title alone", () => {
     expect(planCrumb(set, set.path)).toEqual({
-      lead: { kind: "project", label: "acme/tools" },
+      lead: null,
       title: "Move search to OpenSearch",
     });
   });
 
   it("reads a document as its plan and what the document is about", () => {
     expect(planCrumb(set, "/base/move-search/01-current-state.md")).toEqual({
-      lead: { kind: "plan", label: "Move search to OpenSearch" },
+      lead: "Move search to OpenSearch",
       title: "Current state",
-    });
-  });
-
-  it("leaves out the project a plan does not have", () => {
-    const loose = plan({ id: "loose", title: "Land September under 70k" });
-
-    expect(planCrumb(loose, loose.path)).toEqual({
-      lead: null,
-      title: "Land September under 70k",
     });
   });
 });

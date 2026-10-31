@@ -66,23 +66,17 @@ import { usePlanBase } from "./lib/usePlanBase";
 import {
   commitBase,
   getIdentity,
-  listProjects,
   renamePlan,
   renameDocument,
   reviewSummaries,
+  setFolders,
   setPlanStatus,
-  type ProjectInfo,
   type Status,
   SOURCE_LABELS,
   type PlanSummary,
 } from "./lib/planBase";
-import {
-  filterByProject,
-  forYou,
-  planCrumb,
-  type ProjectFilter,
-  type ReviewSummary,
-} from "./lib/board";
+import { forYou, planCrumb, type ReviewSummary } from "./lib/board";
+import { allFolders, filterByFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
 import { BoardView } from "./features/board/BoardView";
 import { ForYouView } from "./features/board/ForYouView";
@@ -106,8 +100,7 @@ const STORE_WIDTH = "openplan:width";
 const STORE_FONT_SIZE = "openplan:font-size";
 const STORE_OUTLINE = "openplan:outline";
 const STORE_MAIN_VIEW = "openplan:main-view";
-const STORE_PROJECT = "openplan:project";
-const STORE_HIDE_COMPLETED = "openplan:hide-completed";
+const STORE_FOLDER = "openplan:folder";
 
 const MAIN_VIEWS: MainView[] = ["board", "list", "for-you", "plan"];
 
@@ -273,34 +266,22 @@ export default function App() {
     }
     return initial.activeId ? "plan" : "board";
   });
-  const [project, setProject] = useState<ProjectFilter>(() => {
+  const [chosenFolder, setChosenFolder] = useState<FolderFilter>(() => {
     try {
-      return localStorage.getItem(STORE_PROJECT);
+      return localStorage.getItem(STORE_FOLDER);
     } catch {
       return null;
     }
   });
-  const [hideCompleted, setHideCompleted] = useState(() => {
-    try {
-      return localStorage.getItem(STORE_HIDE_COMPLETED) === "yes";
-    } catch {
-      return false;
-    }
-  });
   const [recentPaths, setRecentPaths] = useState<string[]>(loadRecent);
-  const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [summaries, setSummaries] = useState<ReviewSummary[]>([]);
 
   const { base, plans, refresh: refreshPlans, arrivals } = usePlanBase();
   const sessions = useLiveSessions();
 
-  // The projects and the open threads are read with the plans, on the same
-  // base-changed event: nothing polls, and a build without these commands
-  // just shows neither.
+  // The open threads are read with the plans, on the same base-changed
+  // event: nothing polls, and a build without the command just shows none.
   useEffect(() => {
-    void listProjects()
-      .then(setProjects)
-      .catch(() => setProjects([]));
     void reviewSummaries()
       .then(setSummaries)
       .catch(() => setSummaries([]));
@@ -594,6 +575,13 @@ export default function App() {
       void setPlanStatus(activePlan.path, status).then(refreshPlans);
     },
     [activePlan, refreshPlans],
+  );
+
+  const changeFolders = useCallback(
+    (plan: PlanSummary, folders: string[]) => {
+      void setFolders(plan.path, folders).then(refreshPlans);
+    },
+    [refreshPlans],
   );
 
   /* ---------- opening folders ---------- */
@@ -982,13 +970,12 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem(STORE_MAIN_VIEW, mainView);
-      if (project == null) localStorage.removeItem(STORE_PROJECT);
-      else localStorage.setItem(STORE_PROJECT, project);
-      localStorage.setItem(STORE_HIDE_COMPLETED, hideCompleted ? "yes" : "no");
+      if (chosenFolder == null) localStorage.removeItem(STORE_FOLDER);
+      else localStorage.setItem(STORE_FOLDER, chosenFolder);
     } catch {
       // best-effort
     }
-  }, [mainView, project, hideCompleted]);
+  }, [mainView, chosenFolder]);
 
   /* ---------- initial folder scans ---------- */
 
@@ -1383,36 +1370,22 @@ export default function App() {
     [recentPaths, plans],
   );
 
-  const shownPlans = useMemo(
-    () => filterByProject(plans, project),
-    [plans, project],
-  );
+  const knownFolders = useMemo(() => allFolders(plans), [plans]);
+  // A folder the last plan left is no filter at all, so the views fall back
+  // to every plan rather than showing an empty board.
+  const folder = knownFolders.includes(chosenFolder ?? "") ? chosenFolder : null;
+  const shownPlans = useMemo(() => filterByFolder(plans, folder), [plans, folder]);
 
   const forYouCount = useMemo(() => {
     const waiting = forYou(shownPlans, summaries);
     return waiting.review.length + waiting.answered.length;
   }, [shownPlans, summaries]);
 
-  const avatars = useMemo(() => {
-    const found = new Map<string, string>();
-    for (const info of projects) {
-      if (info.project && info.avatarUrl) found.set(info.project, info.avatarUrl);
-    }
-    return found;
-  }, [projects]);
-
   const crumb = useMemo(() => {
     if (!activeDoc) return null;
     if (activePlan && activeDoc.path) return planCrumb(activePlan, activeDoc.path);
     return { lead: null, title: activeDoc.name };
   }, [activeDoc, activePlan]);
-
-  const selectProject = useCallback((next: ProjectFilter) => {
-    setProject(next);
-    // The filter is only visible on a list, so a click from the plan page
-    // lands on the board with it applied.
-    setMainView((current) => (current === "plan" ? "board" : current));
-  }, []);
 
   const showView = useCallback(
     (next: MainView) => {
@@ -1422,13 +1395,10 @@ export default function App() {
     [flushSave],
   );
 
-  /** The breadcrumb's first part: the project of a plan, the plan of one of
-   * its documents. */
+  /** The breadcrumb's first part: the plan one of its documents belongs to. */
   const openCrumbLead = useCallback(() => {
-    if (!activePlan || !crumb?.lead) return;
-    if (crumb.lead.kind === "project") selectProject(activePlan.project ?? "");
-    else selectPlan(activePlan);
-  }, [activePlan, crumb, selectPlan, selectProject]);
+    if (activePlan && crumb?.lead) selectPlan(activePlan);
+  }, [activePlan, crumb, selectPlan]);
 
   // Stable identity for the memoized sidebar: recompute only when the
   // library or the base changes, not on every render of the app.
@@ -1463,12 +1433,9 @@ export default function App() {
       >
         <Sidebar
           plans={plans}
-          projects={projects}
           recent={recentPlans}
           view={mainView}
           onSelectView={showView}
-          project={project}
-          onSelectProject={selectProject}
           forYouCount={forYouCount}
           activePlanPath={activePlanPath}
           onSelectPlan={selectPlan}
@@ -1506,11 +1473,9 @@ export default function App() {
           plan={activePlan}
           onStatusChange={changeStatus}
           onOpenLead={openCrumbLead}
-          projects={projects}
-          project={project}
-          onSelectProject={setProject}
-          hideCompleted={hideCompleted}
-          onToggleHideCompleted={() => setHideCompleted((h) => !h)}
+          folders={knownFolders}
+          folder={folder}
+          onSelectFolder={setChosenFolder}
           doc={activeDoc}
           wordCount={activeDoc ? wordCount : null}
           view={view}
@@ -1545,9 +1510,9 @@ export default function App() {
             <BoardView
               plans={shownPlans}
               summaries={summaries}
-              avatars={avatars}
               sessions={sessions}
-              hideCompleted={hideCompleted}
+              folders={knownFolders}
+              onFoldersChange={changeFolders}
               onOpen={selectPlan}
             />
           </div>
@@ -1558,7 +1523,6 @@ export default function App() {
             <ListView
               plans={shownPlans}
               summaries={summaries}
-              avatars={avatars}
               sessions={sessions}
               activePlanPath={activePlanPath}
               onSelectPlan={selectPlan}
@@ -1580,7 +1544,6 @@ export default function App() {
             <ForYouView
               plans={shownPlans}
               summaries={summaries}
-              avatars={avatars}
               sessions={sessions}
               onOpen={selectPlan}
             />
@@ -1616,6 +1579,8 @@ export default function App() {
                   plan={activePlan}
                   sessions={sessions.get(activePlan.id) ?? 0}
                   onStatusChange={changeStatus}
+                  folders={knownFolders}
+                  onFoldersChange={(next) => changeFolders(activePlan, next)}
                   onOpenHistory={() => setHistoryOpen(true)}
                 />
               </div>

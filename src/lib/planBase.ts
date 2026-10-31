@@ -15,24 +15,52 @@ export const SOURCE_LABELS: Record<string, string> = {
 };
 
 /** Where a plan stands. Stored in the plan, and the one field anyone sets. */
-export type Status = "draft" | "in-progress" | "in-review" | "completed";
+export type Status =
+  | "draft"
+  | "alignment"
+  | "in-progress"
+  | "in-review"
+  | "completed"
+  | "archived";
 
-/** The order groups and columns show them in: what is moving first. */
-export const STATUS_ORDER: Status[] = ["in-progress", "in-review", "draft", "completed"];
+/** The order work moves through them: the board's columns and the picker. */
+export const STATUS_FLOW: Status[] = [
+  "draft",
+  "alignment",
+  "in-progress",
+  "in-review",
+  "completed",
+  "archived",
+];
+
+/** The order lists group them in: what is moving first, what is put away
+ * last. */
+export const STATUS_ORDER: Status[] = [
+  "in-progress",
+  "alignment",
+  "in-review",
+  "draft",
+  "completed",
+  "archived",
+];
 
 export const STATUS_LABELS: Record<Status, string> = {
   draft: "Draft",
+  alignment: "Alignment",
   "in-progress": "In progress",
   "in-review": "In review",
   completed: "Completed",
+  archived: "Archived",
 };
 
 /** What each state means, for the one place that has room to say it. */
 export const STATUS_HINTS: Record<Status, string> = {
   draft: "Filed. No session has started on it.",
+  alignment: "The agent is asking you its questions. Answer them in your session.",
   "in-progress": "A session is working on it.",
   "in-review": "A pull request is open. It waits on you.",
   completed: "You marked the work done.",
+  archived: "Done and put away.",
 };
 
 export interface PlanSummary {
@@ -42,24 +70,18 @@ export interface PlanSummary {
   /** What kind of work it is: feature, bug, migration, research, audit. */
   type: string | null;
   source: string;
-  project: string | null;
-  /** The pull request the work went out in. */
+  /** The folders the person filed it under. Empty for none. */
+  folders: string[];
+  /** The pull request a plan from before 0.3.0 went out in. */
   pr: string | null;
   created: string | null;
   updated: string | null;
+  /** When it was marked completed. Null for any other status. */
+  completed: string | null;
   path: string;
   relativePath: string;
   /** A set's documents, in reading order. Empty for a single-file plan. */
   documents: string[];
-}
-
-export interface ProjectInfo {
-  /** The normalised remote, or null for the plans that name no project. */
-  project: string | null;
-  name: string;
-  description: string | null;
-  avatarUrl: string | null;
-  plans: number;
 }
 
 export interface BaseInfo {
@@ -142,11 +164,6 @@ export async function scanPlans(): Promise<PlanSummary[]> {
   return invoke<PlanSummary[]>("scan_plans");
 }
 
-export async function listProjects(): Promise<ProjectInfo[]> {
-  if (!isTauri) return [];
-  return invoke<ProjectInfo[]>("list_projects");
-}
-
 /** What is open and what is waiting, per plan, in one read of the base. */
 export async function reviewSummaries(): Promise<ReviewSummary[]> {
   if (!isTauri) return [];
@@ -185,6 +202,11 @@ export async function searchPlans(query: string): Promise<SearchHit[]> {
 
 export async function setPlanStatus(path: string, status: Status): Promise<void> {
   return invoke<void>("set_plan_status", { path, status });
+}
+
+/** Replaces the folders a plan is filed under. */
+export async function setFolders(path: string, folders: string[]): Promise<void> {
+  return invoke<void>("set_folders", { path, folders });
 }
 
 export async function commitBase(message: string): Promise<void> {

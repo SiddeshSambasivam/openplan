@@ -1,20 +1,8 @@
 import { documentLabel } from "./planTree";
-import { projectName } from "./projects";
-import { STATUS_ORDER, type PlanSummary, type Status } from "./planBase";
+import { STATUS_FLOW, STATUS_ORDER, type PlanSummary, type Status } from "./planBase";
 
-/** Left to right on the board: the way work moves. */
-export const BOARD_ORDER: Status[] = [
-  "draft",
-  "in-progress",
-  "in-review",
-  "completed",
-];
-
-/**
- * The project a view is filtered to: a normalised remote, the empty string
- * for the plans that name none, or null for all of them.
- */
-export type ProjectFilter = string | null;
+/** Finished work: kept, folded away until someone opens it. */
+export const FOLDED: Status[] = ["completed", "archived"];
 
 /** What a plan's comment threads mean for the person reading it. */
 export interface ReviewSummary {
@@ -39,19 +27,11 @@ export function sortPlans(plans: PlanSummary[]): PlanSummary[] {
   );
 }
 
-export function filterByProject(
-  plans: PlanSummary[],
-  project: ProjectFilter,
-): PlanSummary[] {
-  if (project == null) return plans;
-  return plans.filter((plan) => (plan.project ?? "") === project);
-}
-
 /** Every column, empty ones included: a board with a column missing reads as
  * a different board rather than an empty one. */
 export function boardColumns(plans: PlanSummary[]): StatusGroup[] {
   const sorted = sortPlans(plans);
-  return BOARD_ORDER.map((status) => ({
+  return STATUS_FLOW.map((status) => ({
     status,
     plans: sorted.filter((plan) => plan.status === status),
   }));
@@ -88,24 +68,17 @@ export function forYou(
 }
 
 export interface Crumb {
-  /** What the title sits under: the project of a plan, or the plan a
-   * document belongs to. */
-  lead: { kind: "project" | "plan"; label: string } | null;
+  /** The plan a document belongs to. Null for the plan itself. */
+  lead: string | null;
   title: string;
 }
 
 /** The trail above whatever is open, built from the plan the scan found
  * rather than from the file's name. */
 export function planCrumb(plan: PlanSummary, path: string): Crumb {
-  if (path !== plan.path) {
-    const name = path.slice(path.lastIndexOf("/") + 1);
-    return { lead: { kind: "plan", label: plan.title }, title: documentLabel(name) };
-  }
-  const project = projectName(plan.project);
-  return {
-    lead: project ? { kind: "project", label: project } : null,
-    title: plan.title,
-  };
+  if (path === plan.path) return { lead: null, title: plan.title };
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  return { lead: plan.title, title: documentLabel(name) };
 }
 
 /** A date short enough for a card: the year only when it is not this one. */
