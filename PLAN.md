@@ -887,7 +887,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       `list_projects`, avatars, project filter; folders replace them in every view
 - [x] P7.5 Plan page: alignment Q&A, decision cards, live todo checklist, repos and
       PRs block; board card progress **(T: record parsing and progress)**
-- [ ] P7.6 Align event through the loopback server; the picker's Alignment entry;
+- [x] P7.6 Align event through the loopback server; the picker's Alignment entry;
       the delivery line after Send; auto-archive on launch and board show with the
       days setting **(T)**
 - [x] P7.7 Installers: Claude Code and Cursor Stop and UserPromptSubmit hooks,
@@ -1044,6 +1044,8 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 | 2026-10-29 | A session keeps the events its agent has not seen: `/pending` lists them without consuming, and the MCP server acknowledges with `/heard` once a tool result carried them | The MCP server holds a poll open, so a plain non-consuming route would almost always be empty by the time a hook asked |
 | 2026-10-29 | Hooks: Claude Code gets `Stop` (`{"decision":"block","reason"}`) and `UserPromptSubmit` (plain stdout as context); Cursor gets `stop` only (`followup_message`); `openplan pending --format stop` prints nothing when a stop hook already continued the turn | Read from the two vendors' hook documentation on 2026-10-29. Cursor's `beforeSubmitPrompt` can only block a prompt. The guard prevents a Stop hook loop |
 | 2026-10-29 | Our hook entries are identified by their exact command string; reinstall replaces them and nothing else in the person's settings is touched, with key order preserved (`serde_json` `preserve_order`) | A settings file other tools own is rewritten only inside our own entries, as the 2026-08-16 managed-block row requires |
+| 2026-10-29 | Auto-archive runs on launch and on entering the board, commits once as `openplan <openplan@openplan.local>`, and counts a pre-0.3.0 completed plan's age from `updated` | No timer (NFR-8). The app is a writer of its own here, not the person. Without the fallback every 0.2.0 completed plan would stay in Completed forever |
+| 2026-10-29 | The picker shows In progress and In review disabled with "The agent moves it here"; the person's moves are draft, alignment, completed and archived | The guards live in the server, and the person's path to in-progress is answering alignment, not the picker |
 
 ---
 
