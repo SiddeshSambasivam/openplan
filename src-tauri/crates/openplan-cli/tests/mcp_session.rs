@@ -49,7 +49,8 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         names,
         vec![
             "create_plan", "list_plans", "set_status", "read_plan",
-            "get_comments", "reply_comment", "resolve_comment", "get_standards"
+            "get_comments", "reply_comment", "resolve_comment", "describe_project",
+            "get_standards"
         ]
     );
 
@@ -60,9 +61,18 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         .contains("Plan standards"));
 
     let created = ask(
-        r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor\n\n## Context\n\nwhy","project":"github.com/acme/api","type":"feature"}}}"##,
+        r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor\n\n## Summary\n\nwhy\n\n## Current state\n\nnow\n\n## Approach\n\nthis\n\n## Steps\n\none\n\n## Risks and open questions\n\nnone","project":"git@github.com:acme/api.git","type":"feature"}}}"##,
     );
     assert_eq!(created["result"]["isError"], false, "{created}");
+    let filed = created["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(filed.contains("describe_project"), "nobody has said what the repo is: {filed}");
+    assert!(!filed.contains("missing"), "every required section is there: {filed}");
+
+    // The first agent into a project says what it is, once.
+    let described = ask(
+        r##"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"describe_project","arguments":{"project":"git@github.com:acme/api.git","description":"The public API Hypotenuse customers call."}}}"##,
+    );
+    assert_eq!(described["result"]["isError"], false, "{described}");
 
     // Filing the same title again is refused, not overwritten.
     let dup = ask(
@@ -71,10 +81,9 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     assert_eq!(dup["result"]["isError"], true);
 
     let listed = ask(r##"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"list_plans","arguments":{}}}"##);
-    assert!(listed["result"]["content"][0]["text"]
-        .as_str()
-        .unwrap()
-        .contains("[draft] auth-refactor Auth refactor"));
+    let listing = listed["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(listing.contains("[draft] auth-refactor Auth refactor"), "{listing}");
+    assert!(listing.contains("acme/api"), "the repo it belongs to: {listing}");
 
     // The agent cannot finish a plan on the person's behalf...
     let finished = ask(r##"{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"completed"}}}"##);
@@ -88,7 +97,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let read = ask(r##"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"read_plan","arguments":{"id":"auth-refactor"}}}"##);
     let text = read["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("source: claude-code"), "client name normalised: {text}");
-    assert!(text.contains("project: github.com/acme/api"));
+    assert!(text.contains("project: github.com/acme/api"), "remote normalised: {text}");
     assert!(text.contains("type: feature"), "{text}");
     assert!(text.contains("status: in-review"), "{text}");
     assert!(text.contains("pr: https://github.com/acme/api/pull/4"), "{text}");
@@ -151,6 +160,21 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         openplan_core::repo::history(&base.root, std::path::Path::new("plans/auth-refactor.md"))
             .unwrap();
     assert_eq!(history[0].author, "claude-code");
+
+    // The project the plan belongs to, described and counted.
+    let listed = openplan_core::project::list(&base);
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert_eq!(listed[0].project.as_deref(), Some("github.com/acme/api"));
+    assert_eq!(
+        listed[0].description.as_deref(),
+        Some("The public API Hypotenuse customers call.")
+    );
+    let described = openplan_core::repo::history(
+        &base.root,
+        std::path::Path::new(openplan_core::project::DESCRIPTIONS_FILE),
+    )
+    .unwrap();
+    assert_eq!(described[0].author, "claude-code", "the write is attributed");
 
     let _ = std::fs::remove_dir_all(&home);
 }

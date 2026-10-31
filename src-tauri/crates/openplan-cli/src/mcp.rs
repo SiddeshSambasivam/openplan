@@ -9,7 +9,7 @@ use openplan_core::base::Base;
 use openplan_core::import::iso_from_unix;
 use openplan_core::plan::{self, slugify, Plan, PlanMeta, Status};
 use openplan_core::repo::{self, Author};
-use openplan_core::{comments, fs, library, settings, standards};
+use openplan_core::{comments, fs, library, project, settings, standards};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
 
@@ -80,7 +80,8 @@ fn tool_list() -> Value {
                 "properties": {
                     "id": { "type": "string" },
                     "status": { "type": "string", "enum": ["draft", "in-progress", "in-review"] },
-                    "pr": { "type": "string", "description": "The pull request URL. Required with in-review." }
+                    "pr": { "type": "string", "description": "The pull request URL. Required with in-review." },
+                    "project": { "type": "string", "description": "The git remote of the repo you are working in, as owner/repo or its URL. Pass it when the plan does not name one yet." }
                 },
                 "required": ["id", "status"]
             }
@@ -129,6 +130,18 @@ fn tool_list() -> Value {
             }
         },
         {
+            "name": "describe_project",
+            "description": "Say in one line what a repo is. Call this when create_plan tells you the project has no description yet. It replaces whatever the project said before.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string", "description": "The git remote, as owner/repo or its URL" },
+                    "description": { "type": "string", "description": "One line: what the repo is, in plain words" }
+                },
+                "required": ["project", "description"]
+            }
+        },
+        {
             "name": "get_standards",
             "description": "How plans are written here. Read before writing one.",
             "inputSchema": { "type": "object", "properties": {} }
@@ -149,6 +162,11 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
     else {
         return text_result("create_plan needs the plan's markdown body.", true);
     };
+    let project = args
+        .get("project")
+        .and_then(Value::as_str)
+        .map(project::normalize)
+        .filter(|p| !p.is_empty());
     let id = slugify(title);
     let destination = base.plans_dir().join(format!("{id}.md"));
     if destination.exists() {
@@ -165,7 +183,7 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
             status: Status::Draft,
             plan_type: args.get("type").and_then(Value::as_str).map(str::to_string),
             source: author.to_string(),
-            project: args.get("project").and_then(Value::as_str).map(str::to_string),
+            project: project.clone(),
             pr: None,
             created: Some(now.clone()),
             updated: Some(now),
@@ -184,7 +202,37 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
     ) {
         return text_result(e, true);
     }
-    text_result(format!("Filed as {id}."), false)
+    let mut reply = format!("Filed as {id}.");
+    let undescribed = project
+        .as_ref()
+        .is_some_and(|p| !project::read_descriptions(base).contains_key(p));
+    if undescribed {
+        reply.push_str(
+            " This project has no description yet. Call describe_project with one line about what the repo is.",
+        );
+    }
+    text_result(reply, false)
+}
+
+fn describe_project(base: &Base, author: &str, args: &Value) -> Value {
+    let (Some(named), Some(description)) = (
+        args.get("project").and_then(Value::as_str).filter(|p| !p.trim().is_empty()),
+        args.get("description").and_then(Value::as_str).filter(|d| !d.trim().is_empty()),
+    ) else {
+        return text_result("describe_project needs a project and a one-line description.", true);
+    };
+    let named = project::normalize(named);
+    if let Err(e) = project::set_description(base, &named, description) {
+        return text_result(e, true);
+    }
+    if let Err(e) = repo::commit_all(
+        &base.root,
+        &Author::agent_for(author, &openplan_core::settings::current_identity()),
+        &format!("agent({author}): describe {named}"),
+    ) {
+        return text_result(e, true);
+    }
+    text_result(format!("{named} is described."), false)
 }
 
 fn list_plans(base: &Base, args: &Value) -> Value {
@@ -204,7 +252,20 @@ fn list_plans(base: &Base, args: &Value) -> Value {
     entries.sort_by(|a, b| b.meta.updated.cmp(&a.meta.updated));
     let lines: Vec<String> = entries
         .iter()
-        .map(|e| format!("[{}] {} {}", e.meta.status.as_str(), e.meta.id, e.meta.title))
+        .map(|e| {
+            let belongs = e
+                .meta
+                .project
+                .as_deref()
+                .map(|p| format!(" ({})", project::short_name(p)))
+                .unwrap_or_default();
+            format!(
+                "[{}] {} {}{belongs}",
+                e.meta.status.as_str(),
+                e.meta.id,
+                e.meta.title
+            )
+        })
         .collect();
     text_result(lines.join("\n"), false)
 }
@@ -243,6 +304,14 @@ fn set_status(base: &Base, author: &str, args: &Value) -> Value {
     parsed.meta.status = status;
     if pr.is_some() {
         parsed.meta.pr = pr;
+    }
+    if let Some(named) = args
+        .get("project")
+        .and_then(Value::as_str)
+        .map(project::normalize)
+        .filter(|p| !p.is_empty())
+    {
+        parsed.meta.project = Some(named);
     }
     parsed.meta.updated = Some(now_iso());
     if let Err(e) = fs::atomic_write(&entry.path, &plan::serialize(&parsed)) {
@@ -397,6 +466,7 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                     "get_comments" => Ok(get_comments(base, &args)),
                     "reply_comment" => Ok(reply_comment(base, &author, &args)),
                     "resolve_comment" => Ok(resolve_comment(base, &author, &args)),
+                    "describe_project" => Ok(describe_project(base, &author, &args)),
                     "get_standards" => Ok(get_standards()),
                     other => Err((-32602, format!("No such tool: {other}"))),
                 }
