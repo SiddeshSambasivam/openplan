@@ -1140,6 +1140,7 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | One Escape handler closes the app's panels topmost first (find, history, comments, floating outline, revealed navbar); menus and dialogs close themselves and a handled event is skipped | Separate Escape listeners per panel closed two things at once |
 | 2026-10-29 | The command palette is shadcn `command` on `cmdk` (the one new dependency, for its fuzzy filter); it lists five recent plans untyped and the top 20 title matches typed, plus content matches from the on-demand search; it and the shortcut sheet mount only while open | Mounting every plan made opening the palette grow with the base (NFR-1); the overlays re-render only themselves |
 | 2026-10-29 | Tooltips with keys go on every icon and action button; rows that open a plan, breadcrumbs, section toggles and inline form buttons carry none | A tooltip on a list row says what the row already says |
+| 2026-10-29 | The asset protocol scope sets `requireLiteralLeadingDot: false` | The base is `~/.openplan`, a dot-directory, and Tauri's `**` does not match one on Unix by default, so every local image and video under the base was refused (found at GATE 7: the video showed WebKit's cannot-play glyph and an image beside it broke the same way) |
 
 ---
 
