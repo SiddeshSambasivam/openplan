@@ -50,6 +50,8 @@ jobs:
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           # On tag pushes, create a draft release with installers attached.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
@@ -57,8 +59,7 @@ jobs:
           releaseDraft: true
           args: ${{ matrix.args }}
 
-      - name: Upload artifacts (manual runs)
-        if: "!startsWith(github.ref, 'refs/tags/')"
+      - name: Upload bundles
         uses: actions/upload-artifact@v4
         with:
           name: bundles-${{ matrix.platform }}
@@ -70,4 +71,59 @@ jobs:
             src-tauri/target/**/bundle/**/*.deb
             src-tauri/target/**/bundle/**/*.rpm
             src-tauri/target/**/bundle/**/*.AppImage
+            src-tauri/target/**/bundle/**/*.sig
           if-no-files-found: warn
+
+  # Runs only after every platform built. latest.json goes up last, so the
+  # app never sees a release whose files are not all in place.
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bundles-*
+          path: bundles
+          merge-multiple: true
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.UPDATES_ROLE_ARN }}
+          aws-region: ${{ vars.UPDATES_REGION }}
+
+      - name: Write the updater manifest
+        env:
+          TAG: ${{ github.ref_name }}
+          HOST: ${{ vars.UPDATES_HOST }}
+        run: |
+          VERSION="${TAG#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          # Checkout leaves a lightweight tag, so fetch the real one to read its message.
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+          NOTES="OpenPlan $VERSION"
+          if [ "$(git cat-file -t "$TAG")" = tag ]; then
+            NOTES="$(git tag -l --format='%(contents)' "$TAG")"
+          fi
+          mkdir release
+          find bundles -type f -exec mv {} release/ \;
+          node scripts/updater-manifest.mjs --version "$VERSION" --host "$HOST" \
+            --notes "$NOTES" --dir release --out release/latest.json
+
+      - name: Upload the release, then latest.json
+        env:
+          BUCKET: ${{ vars.UPDATES_BUCKET }}
+        run: |
+          aws s3 cp release "s3://$BUCKET/releases/$VERSION/" --recursive \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 cp release/latest.json "s3://$BUCKET/latest.json" \
+            --cache-control "no-cache" --content-type application/json

@@ -42,6 +42,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "category": "Productivity",
     "shortDescription": "Manage the plans you build with your coding agents",
