@@ -5,7 +5,7 @@ import { TooltipButton } from "@/components/TooltipButton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { progress, showsWorkPanel, type Decision, type WorkRecord } from "@/lib/work";
-import { AlignmentAnswers } from "./AlignmentAnswers";
+import { AlignmentQuestions, type AlignmentContext } from "./AlignmentQuestions";
 import { ReposAndPrs } from "./ReposAndPrs";
 import { TodoChecklist, TodoDetail } from "./TodoChecklist";
 import { WorkHeading } from "./WorkHeading";
@@ -196,13 +196,20 @@ function PanelBody({ record, onMinimize }: { record: WorkRecord; onMinimize: () 
   );
 }
 
-/** The plan's Alignment tab: the questions the agent asked and what was
- * chosen, then the decisions the agent recorded. */
-export function AlignmentTab({ record }: { record: WorkRecord | null }) {
+/** The plan's Alignment tab: the questions the agents asked, to answer or
+ * as answered, then the decisions the agents recorded. Keyed by the plan, so
+ * a draft answer never carries over to another plan. */
+export function AlignmentTab({
+  record,
+  plan,
+}: {
+  record: WorkRecord | null;
+  plan: AlignmentContext;
+}) {
   const decisions = record?.decisions ?? [];
   return (
     <div className="flex flex-col gap-8">
-      <AlignmentAnswers alignment={record?.alignment} />
+      <AlignmentQuestions key={plan.path} record={record} plan={plan} />
       {decisions.length > 0 && <RecordedDecisions decisions={decisions} />}
     </div>
   );

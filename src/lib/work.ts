@@ -28,16 +28,25 @@ export interface Alignment {
 export interface Question {
   id: string;
   aspect: string;
+  role?: Role;
   question: string;
   /** Why the question matters for this plan, and what in the code or the
    * plan raised it. */
   context?: string;
+  /** Markdown shown with the question, for what is easier to see than read. */
+  illustration?: string;
   options: Choice[];
   recommended?: string;
   mustAnswer: boolean;
   answer?: Answer;
   answeredBy?: string;
+  /** Questions posted together are one round. None counts as the first. */
+  round?: number;
 }
+
+/** Who on a team would ask the question. On-call is the person paged when
+ * it breaks. */
+export type Role = "product" | "engineering" | "design" | "oncall";
 
 export interface Choice {
   id: string;
@@ -45,11 +54,14 @@ export interface Choice {
   consequence?: string;
   /** What the option costs or gives up. */
   tradeoff?: string;
+  /** Markdown that shows what the option looks like or does. */
+  illustration?: string;
 }
 
 export type Answer =
   | { kind: "option"; options: string[] }
   | { kind: "text"; text: string }
+  /** Older records only: the person let the agent decide. */
   | { kind: "agent" };
 
 export interface Decision {
@@ -102,6 +114,21 @@ export async function readWorkRecord(path: string): Promise<WorkRecord | null> {
   return invoke<WorkRecord | null>("read_work_record", { path });
 }
 
+/** Writes the person's answers and returns the record as written. Nothing
+ * is written when an id names no question on the plan. */
+export async function answerQuestions(
+  path: string,
+  answers: { id: string; answer: Answer }[],
+): Promise<WorkRecord> {
+  return invoke<WorkRecord>("answer_questions", { path, answers });
+}
+
+/** Tells the plan's agent sessions the answers are in. Returns how many got
+ * it: none means the agent sees them on its next message. */
+export async function sendAnswers(planId: string): Promise<number> {
+  return invoke<number>("send_answers", { plan: planId });
+}
+
 export interface TodoCount {
   done: number;
   total: number;
@@ -121,6 +148,8 @@ export interface PlanProgress extends TodoCount {
   path: string;
   repos: Repo[];
   prs: PrSummary;
+  /** Posted questions still waiting for the person. */
+  pendingQuestions: number;
 }
 
 /** The card facts for every plan that has a work record, in one call. Empty
@@ -206,21 +235,84 @@ export const TODO_MARKS: Record<TodoState, { label: string; tone: string }> = {
   dropped: { label: "Dropped", tone: "text-muted-foreground" },
 };
 
-export interface AspectGroup {
-  aspect: string;
+/** The questions an agent posted that wait for the person, in the order
+ * they were asked. */
+export function pendingQuestions(record: WorkRecord | null): Question[] {
+  return record?.alignment?.questions.filter((question) => !question.answer) ?? [];
+}
+
+export interface RoundGroup {
+  round: number;
   questions: Question[];
 }
 
-/** Questions on one aspect sit together, in the order the agent first asked
- * about each aspect. */
-export function questionsByAspect(questions: Question[]): AspectGroup[] {
-  const groups: AspectGroup[] = [];
+/** The newest round first, the way the page reads from the latest down.
+ * Within a round, questions keep the order they were asked. */
+export function questionsByRound(questions: Question[]): RoundGroup[] {
+  const groups: RoundGroup[] = [];
   for (const question of questions) {
-    const group = groups.find((g) => g.aspect === question.aspect);
+    const round = question.round ?? 1;
+    const group = groups.find((g) => g.round === round);
     if (group) group.questions.push(question);
-    else groups.push({ aspect: question.aspect, questions: [question] });
+    else groups.push({ round, questions: [question] });
   }
-  return groups;
+  return groups.sort((a, b) => b.round - a.round);
+}
+
+/** Each role as the person on the team who asks. `inSentence` is the name
+ * mid-sentence. */
+export const PERSONAS: Record<Role, { name: string; inSentence: string }> = {
+  product: { name: "Product owner", inSentence: "the product owner" },
+  engineering: { name: "Tech lead", inSentence: "the tech lead" },
+  design: { name: "Designer", inSentence: "the designer" },
+  oncall: { name: "On-call", inSentence: "on-call" },
+};
+
+const ROLES = Object.keys(PERSONAS) as Role[];
+
+/** The roles no question came from. Questions from before roles name none,
+ * so nothing counts as left out for them. */
+export function unusedRoles(questions: Question[]): Role[] {
+  const asked = new Set(questions.map((question) => question.role).filter(Boolean));
+  if (asked.size === 0) return [];
+  return ROLES.filter((role) => !asked.has(role));
+}
+
+export function unusedRolesText(roles: Role[]): string | null {
+  if (roles.length === 0) return null;
+  const names = roles.map((role) => PERSONAS[role].inSentence);
+  const list =
+    names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `${list.charAt(0).toUpperCase()}${list.slice(1)} had nothing to ask on this plan.`;
+}
+
+/** What the person has picked and written for one question so far. */
+export interface AnswerDraft {
+  option?: string;
+  text: string;
+}
+
+/** The answer a draft gives. An answer holds an option or text, not both,
+ * so reasoning written beside a pick goes in the text after the option's
+ * label. */
+export function answerFromDraft(
+  question: Question,
+  draft: AnswerDraft | undefined,
+): Answer | null {
+  const text = draft?.text.trim() ?? "";
+  const option = question.options.find((choice) => choice.id === draft?.option);
+  if (option && text) return { kind: "text", text: `${option.label}. ${text}` };
+  if (option) return { kind: "option", options: [option.id] };
+  if (text) return { kind: "text", text };
+  return null;
+}
+
+/** What a card says about questions waiting on the person. Once the work
+ * has started, a question holds it up. */
+export function pendingQuestionsLabel(count: number, status: Status): string | null {
+  if (count <= 0) return null;
+  if (status === "in-progress") return "Needs your answer";
+  return `${count} ${count === 1 ? "question" : "questions"}`;
 }
 
 /** What a question's answer says, in words. */
@@ -230,7 +322,7 @@ export function answerOf(question: Question): {
 } {
   const answer = question.answer;
   if (!answer) return { kind: "none", text: "Not answered yet" };
-  if (answer.kind === "agent") return { kind: "agent", text: "Agent decides" };
+  if (answer.kind === "agent") return { kind: "agent", text: "Agent decided" };
   if (answer.kind === "text") return { kind: "text", text: answer.text };
   const labels = answer.options.map(
     (id) => question.options.find((option) => option.id === id)?.label ?? id,

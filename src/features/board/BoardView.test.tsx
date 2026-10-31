@@ -107,6 +107,7 @@ describe("BoardView card display", () => {
       total: 0,
       repos: [{ path: "~/code/openplan", remote: "github.com/owner/openplan", branch: "feat/x" }],
       prs: { reported: [{ url: "https://github.com/owner/openplan/pull/3", state: "open" }], expected: true },
+      pendingQuestions: 0,
     };
     const progress = new Map([[long.path, work]]);
 

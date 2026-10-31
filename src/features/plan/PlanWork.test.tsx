@@ -38,7 +38,11 @@ function panel(work: WorkRecord | null, minimized = false): string {
 }
 
 function alignmentTab(work: WorkRecord | null): string {
-  return renderToStaticMarkup(<AlignmentTab record={work} />);
+  return renderToStaticMarkup(
+    <TooltipProvider>
+      <AlignmentTab record={work} plan={{ path: "/base/p.md", id: "p", dark: false, media: false }} />
+    </TooltipProvider>,
+  );
 }
 
 describe("WorkPanel", () => {
@@ -160,7 +164,7 @@ describe("AlignmentTab", () => {
     expect(html).toContain("Which tests?");
     expect(html).toContain("Unit tests");
     expect(html).toContain("How big?");
-    expect(html).toContain("Agent decides");
+    expect(html).toContain("Agent decided");
     expect(html).toContain("Must answer");
     expect(html).toContain('class="plan-decision"');
     expect(html).toContain("D1. Ask in the harness");
@@ -206,6 +210,52 @@ describe("AlignmentTab", () => {
     expect(html).toContain("Launch reads every plan once.");
     expect(html).toContain("Show the other options");
     expect(html).not.toContain("A second copy that can go stale.");
+  });
+
+  it("puts the questions waiting for the person above the answered ones, with who asks", () => {
+    const html = alignmentTab(
+      record({
+        alignment: {
+          askedAt: "2026-10-28T09:00:00Z",
+          questions: [
+            {
+              id: "q1",
+              aspect: "scope",
+              role: "product",
+              question: "Which plans get it?",
+              options: [{ id: "a", label: "Every plan" }],
+              mustAnswer: false,
+              answer: { kind: "option", options: ["a"] },
+            },
+            {
+              id: "q2",
+              aspect: "errors",
+              role: "oncall",
+              question: "What happens when the write fails?",
+              options: [
+                { id: "a", label: "Retry once", consequence: "One more try." },
+                { id: "b", label: "Show the error" },
+              ],
+              recommended: "a",
+              mustAnswer: false,
+              round: 2,
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(html).toContain("Waiting for your answer");
+    expect(html).toContain("On-call");
+    expect(html).toContain("Product owner");
+    expect(html).toContain("One more try.");
+    expect(html).toContain("Recommended");
+    expect(html).toContain("Round 2");
+    expect(html).toContain("Submit answers");
+    expect(html.indexOf("What happens when the write fails?")).toBeLessThan(
+      html.indexOf("Which plans get it?"),
+    );
+    expect(html).toContain("The tech lead and the designer had nothing to ask on this plan.");
   });
 
   it("says alignment has not been recorded when the record has none", () => {

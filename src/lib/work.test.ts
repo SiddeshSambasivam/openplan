@@ -12,8 +12,13 @@ import {
   progress,
   repoLabel,
   progressText,
-  questionsByAspect,
+  answerFromDraft,
+  pendingQuestions,
+  pendingQuestionsLabel,
+  questionsByRound,
   showsWorkPanel,
+  unusedRoles,
+  unusedRolesText,
   TODO_MARKS,
   todoTitle,
   type Pr,
@@ -109,22 +114,122 @@ describe("TODO_MARKS", () => {
   });
 });
 
-describe("questionsByAspect", () => {
-  it("keeps questions on one aspect together, in the order aspects first appear", () => {
-    const groups = questionsByAspect([
+describe("pendingQuestions", () => {
+  it("lists the questions with no answer, in the order they were asked", () => {
+    const pending = pendingQuestions({
+      ...record([]),
+      alignment: {
+        askedAt: "2026-10-28T09:00:00Z",
+        questions: [
+          question("q1", "tests"),
+          question("q2", "scale", { answer: { kind: "text", text: "Small" } }),
+          question("q3", "tests"),
+        ],
+      },
+    });
+
+    expect(pending.map((q) => q.id)).toEqual(["q1", "q3"]);
+  });
+
+  it("has none without an alignment or a record", () => {
+    expect(pendingQuestions(record([]))).toEqual([]);
+    expect(pendingQuestions(null)).toEqual([]);
+  });
+});
+
+describe("questionsByRound", () => {
+  it("puts the newest round first and keeps the asked order within a round", () => {
+    const groups = questionsByRound([
       question("q1", "tests"),
-      question("q2", "scale"),
-      question("q3", "tests"),
+      question("q2", "scale", { round: 2 }),
+      question("q3", "tests", { round: 1 }),
+      question("q4", "tests", { round: 2 }),
     ]);
 
-    expect(groups.map((g) => [g.aspect, g.questions.map((q) => q.id)])).toEqual([
-      ["tests", ["q1", "q3"]],
-      ["scale", ["q2"]],
+    expect(groups.map((g) => [g.round, g.questions.map((q) => q.id)])).toEqual([
+      [2, ["q2", "q4"]],
+      [1, ["q1", "q3"]],
     ]);
   });
 
   it("has no groups without questions", () => {
-    expect(questionsByAspect([])).toEqual([]);
+    expect(questionsByRound([])).toEqual([]);
+  });
+});
+
+describe("unusedRoles", () => {
+  it("names the roles no question came from, in the team's order", () => {
+    const roles = unusedRoles([
+      question("q1", "scope", { role: "product" }),
+      question("q2", "scale", { role: "engineering" }),
+    ]);
+
+    expect(roles).toEqual(["design", "oncall"]);
+  });
+
+  it("names none for questions from before roles", () => {
+    expect(unusedRoles([question("q1", "scope")])).toEqual([]);
+  });
+});
+
+describe("unusedRolesText", () => {
+  it("says which roles had nothing to ask", () => {
+    expect(unusedRolesText(["design", "oncall"])).toBe(
+      "The designer and on-call had nothing to ask on this plan.",
+    );
+    expect(unusedRolesText(["product", "engineering", "design"])).toBe(
+      "The product owner, the tech lead and the designer had nothing to ask on this plan.",
+    );
+    expect(unusedRolesText(["oncall"])).toBe("On-call had nothing to ask on this plan.");
+  });
+
+  it("says nothing when every role asked", () => {
+    expect(unusedRolesText([])).toBeNull();
+  });
+});
+
+describe("answerFromDraft", () => {
+  const asked = question("q1", "tests");
+
+  it("answers with the picked option", () => {
+    expect(answerFromDraft(asked, { option: "b", text: " " })).toEqual({
+      kind: "option",
+      options: ["b"],
+    });
+  });
+
+  it("answers with the text alone when no option is picked", () => {
+    expect(answerFromDraft(asked, { text: "  Only the parser " })).toEqual({
+      kind: "text",
+      text: "Only the parser",
+    });
+  });
+
+  it("keeps the reasoning with a picked option by naming the option in the text", () => {
+    expect(answerFromDraft(asked, { option: "b", text: "The parser is the risk." })).toEqual({
+      kind: "text",
+      text: "End to end. The parser is the risk.",
+    });
+  });
+
+  it("gives no answer for an empty draft", () => {
+    expect(answerFromDraft(asked, { text: "" })).toBeNull();
+    expect(answerFromDraft(asked, undefined)).toBeNull();
+  });
+});
+
+describe("pendingQuestionsLabel", () => {
+  it("counts the questions waiting on the person", () => {
+    expect(pendingQuestionsLabel(1, "alignment")).toBe("1 question");
+    expect(pendingQuestionsLabel(3, "in-review")).toBe("3 questions");
+  });
+
+  it("says the work waits on an answer once the plan is in progress", () => {
+    expect(pendingQuestionsLabel(2, "in-progress")).toBe("Needs your answer");
+  });
+
+  it("says nothing without questions", () => {
+    expect(pendingQuestionsLabel(0, "in-progress")).toBeNull();
   });
 });
 
@@ -156,7 +261,7 @@ describe("answerOf", () => {
   it("says when the agent was left to decide", () => {
     const answer = answerOf(question("q1", "tests", { answer: { kind: "agent" } }));
 
-    expect(answer).toEqual({ kind: "agent", text: "Agent decides" });
+    expect(answer).toEqual({ kind: "agent", text: "Agent decided" });
   });
 
   it("says when a question is still open", () => {
