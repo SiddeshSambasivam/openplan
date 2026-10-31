@@ -2,6 +2,7 @@
   "name": "openplan",
   "private": true,
   "version": "0.6.1",
+  "license": "Apache-2.0",
   "description": "One place to manage the plans you and your coding agents collaborate on",
   "type": "module",
   "packageManager": "pnpm@11.3.0",

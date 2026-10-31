@@ -10,7 +10,7 @@
   <img alt="macOS, Windows and Linux" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-100E0D">
   <img alt="Works with Claude Code, Codex and Cursor" src="https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Codex%20%7C%20Cursor-100E0D">
   <img alt="Built with Tauri 2" src="https://img.shields.io/badge/built%20with-Tauri%202-100E0D">
-  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-100E0D">
+  <img alt="Apache 2.0 license" src="https://img.shields.io/badge/license-Apache%202.0-100E0D">
 </p>
 
 <p align="center">
@@ -88,4 +88,4 @@ OpenPlan does not accept pull requests yet. To report a bug or suggest an idea,
 
 ## License
 
-[MIT](LICENSE)
+[Apache 2.0](LICENSE)
