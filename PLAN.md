@@ -941,8 +941,8 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [x] R2.4 Minimized navbar: the top bar spans the full width above the rail, so the
       traffic lights sit in the top bar and nothing crowds them
 - [x] R2.5 Every clickable control shows the pointer cursor
-- [ ] R2.6 Pull request state has its own icon: open, draft, merged, closed, and none
-- [ ] R2.7 Alignment questions carry more detail: why the question matters, what the
+- [x] R2.6 Pull request state has its own icon: open, draft, merged, closed, and none
+- [x] R2.7 Alignment questions carry more detail: why the question matters, what the
       agent found, and each option's trade-off
 
 - [x] R2.8 Profile: one profile, the app's existing identity, shown as a generated
@@ -1173,6 +1173,8 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | Minimized, the top bar spans the full window above the rail and carries the traffic lights, the mark (which morphs into the expand chevron) and the title; expanded, the navbar's top row sits level with the top bar with a left inset on macOS instead of a spacer above it | Sid (R2.4): the lights crowded the rail and the title. One row height in both modes keeps the rows from jumping vertically on a flip |
 | 2026-10-29 | The width-transition exception extends to the top bar's `margin-left`, on the same 180ms curve | The title then slides with the navbar instead of jumping; sampled at 16ms it moves smoothly from x 114 to 256 |
 | 2026-10-29 | The profile avatar is a marble drawn from a hash of the email, coloured from shadcn's `--chart-1` to `--chart-5`, which the theme now defines | A generated avatar needs no upload and no dependency, and the chart tokens follow light and dark |
+| 2026-10-29 | Pull requests gain a `draft` state; a card shows the icon of the most advanced PR (merged, open, draft, closed), or a muted "no PR yet" icon only when the plan has a repo with a remote; merged uses a new `--merged` violet token | Sid (R2.6): one icon per state, as GitHub shows them. A plain folder never gets a PR, so the empty icon would mislead there |
+| 2026-10-29 | Alignment questions carry `context` (two to four sentences: why it matters, what the agent found) and options a `tradeoff`, both optional so old records read; `pr_body` prints the context only where the answer departs from the recommendation | Sid (R2.7): questions were too thin to answer well. The PR reviewer needs the reasoning only where the person overrode the agent |
 
 ---
 
