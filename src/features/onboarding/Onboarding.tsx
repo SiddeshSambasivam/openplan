@@ -29,10 +29,13 @@ interface Sources {
 }
 
 interface Imported {
-  id: string;
+  filed: number;
   documents: number;
-  alreadyThere: boolean;
+  alreadyThere: number;
 }
+
+/** Where one source is in the import: waiting, being copied, or finished. */
+type SourceProgress = "running" | Imported | { error: true };
 
 interface InstallStep {
   label: string;
@@ -51,6 +54,27 @@ const AGENT_ICONS: Record<string, typeof ClaudeCodeIcon> = {
 function AgentMark({ id, className }: { id: string; className?: string }) {
   const Icon = AGENT_ICONS[id];
   return Icon ? <Icon className={className} /> : null;
+}
+
+function SourceStatus({ state }: { state: SourceProgress | undefined }) {
+  if (state === "running") {
+    return <Loader2 className="size-3.5 animate-spin text-muted-foreground" />;
+  }
+  if (state && typeof state === "object" && "error" in state) {
+    return <span className="text-xs text-destructive">couldn't read</span>;
+  }
+  if (state) {
+    const parts = [];
+    if (state.filed > 0) parts.push(`${state.filed} filed`);
+    if (state.alreadyThere > 0) parts.push(`${state.alreadyThere} already here`);
+    return (
+      <span className="flex items-center gap-1 text-xs text-success">
+        <Check className="size-3.5" />
+        {parts.join(" · ") || "nothing new"}
+      </span>
+    );
+  }
+  return null;
 }
 
 /** Staggered entrance for a column of elements. */
@@ -74,7 +98,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
   const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
-  const [importSummary, setImportSummary] = useState<string | null>(null);
+  const [progress, setProgress] = useState<Record<string, SourceProgress>>({});
   const [installing, setInstalling] = useState(false);
   const [installResults, setInstallResults] = useState<
     { tool: string; steps: InstallStep[]; error?: string }[]
@@ -139,11 +163,10 @@ export function Onboarding({ onDone }: OnboardingProps) {
 
   const runImport = async () => {
     setImporting(true);
-    let filed = 0;
-    let already = 0;
-    let documents = 0;
     for (const item of importables) {
       if (!selectedSources.has(item.key)) continue;
+      setProgress((p) => ({ ...p, [item.key]: "running" }));
+      const total: Imported = { filed: 0, documents: 0, alreadyThere: 0 };
       for (const path of item.paths) {
         // A source that can't be read shouldn't sink the rest of the import.
         try {
@@ -151,24 +174,20 @@ export function Onboarding({ onDone }: OnboardingProps) {
             path,
             source: item.source,
           });
-          if (result.alreadyThere) already += 1;
-          else {
-            filed += 1;
-            documents += result.documents;
-          }
+          total.filed += result.filed;
+          total.documents += result.documents;
+          total.alreadyThere += result.alreadyThere;
         } catch {
-          // reported in the summary as not filed
+          setProgress((p) => ({ ...p, [item.key]: { error: true } }));
         }
       }
+      setProgress((p) =>
+        (p[item.key] as { error?: boolean })?.error ? p : { ...p, [item.key]: total },
+      );
     }
     setImporting(false);
-    setImportSummary(
-      filed === 0 && already === 0
-        ? "Nothing was imported."
-        : `${filed} ${filed === 1 ? "plan" : "plans"} filed` +
-            (documents > filed ? ` (${documents} documents)` : "") +
-            (already > 0 ? ` · ${already} already there` : ""),
-    );
+    // The ticks get a beat to land, then the flow moves on by itself.
+    setTimeout(() => setStage("connect"), 900);
   };
 
   const runInstalls = async () => {
@@ -184,6 +203,10 @@ export function Onboarding({ onDone }: OnboardingProps) {
       setInstallResults([...results]);
     }
     setInstalling(false);
+    // When every connection worked, the last click was the one that mattered.
+    if (results.every((r) => !r.error)) {
+      setTimeout(() => onDone(name.trim() || null), 1200);
+    }
   };
 
   const agentName = (id: string) =>
@@ -315,9 +338,13 @@ export function Onboarding({ onDone }: OnboardingProps) {
                     )}
                   />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {item.detail}
-                  </span>
+                  {progress[item.key] ? (
+                    <SourceStatus state={progress[item.key]} />
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {item.detail}
+                    </span>
+                  )}
                 </button>
               ))}
 
@@ -353,14 +380,20 @@ export function Onboarding({ onDone }: OnboardingProps) {
                   <span className="min-w-0 flex-1 truncate" title={item.paths[0]}>
                     {item.label}
                   </span>
-                  {!item.namedForPlans && (
-                    <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
-                      markdown
-                    </span>
+                  {progress[item.key] ? (
+                    <SourceStatus state={progress[item.key]} />
+                  ) : (
+                    <>
+                      {!item.namedForPlans && (
+                        <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+                          markdown
+                        </span>
+                      )}
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {item.detail}
+                      </span>
+                    </>
                   )}
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {item.detail}
-                  </span>
                 </button>
               ))}
 
@@ -372,25 +405,18 @@ export function Onboarding({ onDone }: OnboardingProps) {
               )}
             </div>
 
-            {importSummary ? (
-              <>
-                <p className="text-sm text-muted-foreground">{importSummary}</p>
-                <Button onClick={() => setStage("connect")} className="w-full">
-                  Continue
+            <div className="flex gap-2">
+              {importables.length > 0 && (
+                <Button
+                  onClick={() => void runImport()}
+                  disabled={importing || selectedSources.size === 0}
+                  className="flex-1"
+                >
+                  {importing && <Loader2 className="animate-spin" />}
+                  {importing ? "Importing" : "Import selected"}
                 </Button>
-              </>
-            ) : (
-              <div className="flex gap-2">
-                {importables.length > 0 && (
-                  <Button
-                    onClick={() => void runImport()}
-                    disabled={importing || selectedSources.size === 0}
-                    className="flex-1"
-                  >
-                    {importing && <Loader2 className="animate-spin" />}
-                    Import selected
-                  </Button>
-                )}
+              )}
+              {!importing && (
                 <Button
                   variant={importables.length > 0 ? "ghost" : "default"}
                   onClick={() => setStage("connect")}
@@ -398,8 +424,8 @@ export function Onboarding({ onDone }: OnboardingProps) {
                 >
                   Skip
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
@@ -454,7 +480,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
                           key={step.label}
                           className="mt-1 flex items-start gap-1.5 text-xs text-muted-foreground"
                         >
-                          <Check className="mt-0.5 size-3 shrink-0" />
+                          <Check className="mt-0.5 size-3 shrink-0 text-success" />
                           <span>
                             {step.label}: {step.detail}
                           </span>

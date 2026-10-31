@@ -120,13 +120,14 @@ pub async fn discover_sources() -> Result<Sources, String> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Imported {
-    id: String,
+    filed: usize,
     documents: usize,
-    already_there: bool,
+    already_there: usize,
 }
 
-/// Files one path into the base. `source` is who the plan is from — an
-/// agent's id for its loose plans, "import" for a folder someone pointed at.
+/// Files one path into the base. A folder of plans files each plan inside
+/// it; a single document or a plan set files as one. `source` is who the
+/// plans are from — an agent's id for its own, "import" otherwise.
 #[tauri::command]
 pub async fn import_source(path: String, source: String) -> Result<Imported, String> {
     let base = settings::resolve_default_base()?;
@@ -141,18 +142,27 @@ pub async fn import_source(path: String, source: String) -> Result<Imported, Str
             .map(|d| d.as_secs())
             .unwrap_or(0) as i64,
     );
-    match import_path(&base, &author, &source, std::path::Path::new(&path), &now)? {
-        Outcome::Filed { id, documents } => Ok(Imported {
-            id,
-            documents,
-            already_there: false,
-        }),
-        Outcome::AlreadyThere { id } => Ok(Imported {
-            id,
-            documents: 0,
-            already_there: true,
-        }),
+    let path = std::path::PathBuf::from(&path);
+    let outcomes = if path.is_dir() {
+        openplan_core::import::import_folder(&base, &author, &source, &path, &now)?
+    } else {
+        vec![import_path(&base, &author, &source, &path, &now)?]
+    };
+    let mut result = Imported {
+        filed: 0,
+        documents: 0,
+        already_there: 0,
+    };
+    for outcome in outcomes {
+        match outcome {
+            Outcome::Filed { documents, .. } => {
+                result.filed += 1;
+                result.documents += documents;
+            }
+            Outcome::AlreadyThere { .. } => result.already_there += 1,
+        }
     }
+    Ok(result)
 }
 
 #[derive(Serialize)]

@@ -787,7 +787,7 @@ export default function App() {
   }, [expanded]);
 
   useEffect(() => {
-    if (arrivals.length === 0) return;
+    if (arrivals.length === 0 || needsOnboarding) return;
     const [first] = arrivals;
     const who = SOURCE_LABELS[first.source] ?? first.source;
     notify(
@@ -795,7 +795,7 @@ export default function App() {
         ? `New plan from ${who}: ${first.title}`
         : `${arrivals.length} new plans`,
     );
-  }, [arrivals, notify]);
+  }, [arrivals, needsOnboarding, notify]);
 
   const toggleSidebar = useCallback(() => setSidebarOpen((o) => !o), []);
 

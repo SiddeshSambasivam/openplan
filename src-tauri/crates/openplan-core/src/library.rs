@@ -63,7 +63,7 @@ const MARKDOWN_EXTENSIONS: [&str; 3] = ["md", "markdown", "mdx"];
 const MAX_HIT_CHARS: usize = 240;
 const MAX_HITS: usize = 200;
 
-fn is_markdown(path: &Path) -> bool {
+pub(crate) fn is_markdown(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
         .map(|e| MARKDOWN_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))

@@ -141,6 +141,43 @@ pub fn import_path(
     Ok(Outcome::Filed { id, documents: 1 })
 }
 
+/// Files everything inside a folder of plans: each markdown file becomes a
+/// plan, each subfolder with an entry point becomes a set. A folder that is
+/// itself a set (it has an entry point) files as one plan. Subfolders that
+/// are neither are left alone rather than guessed at.
+pub fn import_folder(
+    base: &Base,
+    author: &Author,
+    source: &str,
+    dir: &Path,
+    now: &str,
+) -> Result<Vec<Outcome>, String> {
+    if library::set_entry(dir).is_some() {
+        return Ok(vec![import_path(base, author, source, dir, now)?]);
+    }
+    let entries = std::fs::read_dir(dir)
+        .map_err(|e| format!("Couldn't read {}: {e}", dir.display()))?;
+    let mut sorted: Vec<_> = entries.flatten().collect();
+    sorted.sort_by_key(|e| e.file_name().to_string_lossy().to_lowercase());
+
+    let mut outcomes = Vec::new();
+    for entry in sorted {
+        if entry.file_name().to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let path = entry.path();
+        let importable = match entry.file_type() {
+            Ok(t) if t.is_file() => library::is_markdown(&path),
+            Ok(t) if t.is_dir() => library::set_entry(&path).is_some(),
+            _ => false,
+        };
+        if importable {
+            outcomes.push(import_path(base, author, source, &path, now)?);
+        }
+    }
+    Ok(outcomes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,6 +205,48 @@ mod tests {
         assert!(matches!(first, Outcome::Filed { .. }));
         assert_eq!(second, Outcome::AlreadyThere { id: "auth-refactor".into() });
         let _ = std::fs::remove_file(&loose);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_folder_of_plans_files_each_of_them_not_the_folder() {
+        let base = temp_base("openplan-core-import-folder");
+        let src = base.root.parent().unwrap().join("openplan-core-import-folder-src");
+        let _ = std::fs::remove_dir_all(&src);
+        std::fs::create_dir_all(src.join("react-migration")).unwrap();
+        std::fs::create_dir_all(src.join("scratch")).unwrap();
+        std::fs::write(src.join("status-page.md"), "# Status page\n").unwrap();
+        std::fs::write(src.join("react-migration/README.md"), "# React migration\n").unwrap();
+        std::fs::write(src.join("react-migration/01-a.md"), "# A\n").unwrap();
+        std::fs::write(src.join("scratch/notes.txt"), "not a plan").unwrap();
+
+        let outcomes = import_folder(&base, &Author::user(), "import", &src, NOW).unwrap();
+
+        assert_eq!(outcomes.len(), 2, "{outcomes:?}");
+        let listed = crate::library::scan(&base);
+        let titles: Vec<&str> = listed.iter().map(|e| e.meta.title.as_str()).collect();
+        assert!(titles.contains(&"Status page"), "{titles:?}");
+        assert!(titles.contains(&"React migration"), "{titles:?}");
+        let set = listed.iter().find(|e| e.meta.title == "React migration").unwrap();
+        assert_eq!(set.documents.len(), 2, "the set kept its documents");
+        let _ = std::fs::remove_dir_all(&src);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_folder_that_is_itself_a_set_files_as_one_plan() {
+        let base = temp_base("openplan-core-import-folder-set");
+        let src = base.root.parent().unwrap().join("openplan-core-import-selfset");
+        let _ = std::fs::remove_dir_all(&src);
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("README.md"), "# One big plan\n").unwrap();
+        std::fs::write(src.join("01-a.md"), "# A\n").unwrap();
+
+        let outcomes = import_folder(&base, &Author::user(), "import", &src, NOW).unwrap();
+
+        assert_eq!(outcomes.len(), 1);
+        assert!(matches!(&outcomes[0], Outcome::Filed { documents, .. } if *documents == 2));
+        let _ = std::fs::remove_dir_all(&src);
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
