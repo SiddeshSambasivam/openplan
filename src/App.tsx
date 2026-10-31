@@ -2243,6 +2243,7 @@ export default function App() {
           location={tourLocation}
           onOpenView={openTourView}
           onClose={endTour}
+          navbarWidth={navbarWidth}
         />
       )}
 

@@ -335,7 +335,9 @@ function Thread({ latestId, children }: { latestId?: string; children: ReactNode
         className="alignment-thread min-h-0 flex-1 overflow-y-auto rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
         <div ref={topRef} className="h-px" aria-hidden />
-        <div className="flex flex-col gap-4 pb-2">{children}</div>
+        {/* The end leaves room for the paused tour's pill, which sits at
+            the lower left above the reply box. */}
+        <div className="flex flex-col gap-4 pb-10">{children}</div>
         <div ref={endRef} className="h-px" aria-hidden />
       </div>
       <ScrollArrow

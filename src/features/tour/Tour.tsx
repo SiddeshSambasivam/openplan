@@ -29,6 +29,8 @@ interface TourProps {
   /** Opens the board or the plan tab a step needs. */
   onOpenView: (step: TourStep) => void;
   onClose: () => void;
+  /** The navbar column's width, which the Resume pill keeps clear of. */
+  navbarWidth: number;
 }
 
 /**
@@ -37,7 +39,7 @@ interface TourProps {
  * nothing in it runs on a timer: it moves on clicks, keys, the try-it
  * events and the anchor's own changes.
  */
-export function Tour({ stages, location, onOpenView, onClose }: TourProps) {
+export function Tour({ stages, location, onOpenView, onClose, navbarWidth }: TourProps) {
   const [state, setState] = useState(() => startTour(stages));
   const stagesRef = useRef(stages);
   stagesRef.current = stages;
@@ -77,6 +79,8 @@ export function Tour({ stages, location, onOpenView, onClose }: TourProps) {
     return (
       <ResumePill
         index={state.index}
+        left={navbarWidth}
+        overReplyBox={location.view === "plan" && location.tab === "alignment"}
         onResume={() => dispatch({ type: "resume" })}
         onEnd={() => dispatch({ type: "skip" })}
       />
@@ -258,31 +262,46 @@ function TourStepView({
   );
 }
 
-/** The tour waits here while the person looks around. */
+/** The tour waits here while the person looks around: at the lower left of
+ * the main area, in the room lists and columns leave at their end. It moves
+ * with the navbar's column, and rises above the Alignment reply box. A
+ * navbar that floats open covers it. */
 function ResumePill({
   index,
+  left,
+  overReplyBox,
   onResume,
   onEnd,
 }: {
   index: number;
+  left: number;
+  overReplyBox: boolean;
   onResume: () => void;
   onEnd: () => void;
 }) {
   return (
-    <div className="fixed right-4 bottom-4 z-50 flex animate-in items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none">
-      <Button variant="ghost" size="xs" onClick={onResume}>
-        Resume tour, step {index + 1} of {TOUR_STEPS.length}
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        onClick={onEnd}
-        aria-label="End the tour"
-        title="End the tour"
-        className="text-muted-foreground"
-      >
-        <X />
-      </Button>
+    <div
+      className={cn(
+        "fixed bottom-4 left-4 z-30 transition-transform duration-180 ease-out",
+        overReplyBox && "-translate-y-14",
+      )}
+      style={{ transform: `translateX(${left}px)` }}
+    >
+      <div className="flex animate-in items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none">
+        <Button variant="ghost" size="xs" onClick={onResume}>
+          Resume tour, step {index + 1} of {TOUR_STEPS.length}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={onEnd}
+          aria-label="End the tour"
+          title="End the tour"
+          className="text-muted-foreground"
+        >
+          <X />
+        </Button>
+      </div>
     </div>
   );
 }
