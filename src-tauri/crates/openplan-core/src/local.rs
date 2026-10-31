@@ -5,7 +5,7 @@
 //! the client hands back nothing and every tool works against files alone.
 
 use crate::base::Base;
-use crate::import::iso_from_unix;
+use crate::import::now_iso;
 use crate::plan::{self, Status};
 use crate::repo::{self, Author};
 use crate::{fs, library, settings};
@@ -95,14 +95,6 @@ struct State {
 /// The lock guards the sessions; the condition variable is what lets a poll
 /// block instead of asking again on a timer.
 type Shared = Arc<(Mutex<State>, Condvar)>;
-
-pub(crate) fn now_iso() -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0) as i64;
-    iso_from_unix(secs)
-}
 
 // ---------------------------------------------------------------- the server
 
@@ -321,8 +313,9 @@ fn start_work(base: &Base, client: &str, plan_id: &str) -> bool {
         return false;
     };
     let mut parsed = plan::parse(&text, &entry.path);
-    parsed.meta.status = Status::InProgress;
-    parsed.meta.updated = Some(now_iso());
+    let now = now_iso();
+    parsed.meta.set_status(Status::InProgress, &now);
+    parsed.meta.updated = Some(now);
     if fs::atomic_write(&entry.path, &plan::serialize(&parsed)).is_err() {
         return false;
     }
@@ -595,10 +588,11 @@ mod tests {
                 status: Status::Draft,
                 plan_type: None,
                 source: "claude-code".to_string(),
-                project: None,
+                folders: Vec::new(),
                 pr: None,
                 created: Some("2026-09-22T09:00:00Z".to_string()),
                 updated: Some("2026-09-22T09:00:00Z".to_string()),
+                completed: None,
             },
             frontmatter: Vec::new(),
             body: "# Auth refactor\n".to_string(),

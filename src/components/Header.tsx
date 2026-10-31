@@ -14,9 +14,9 @@ import { isMac } from "../lib/platform";
 import type { FontSize } from "../lib/fontSize";
 import type { DocFile, MainView, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
-import type { Crumb, ProjectFilter } from "../lib/board";
-import { projectName } from "../lib/projects";
-import type { PlanSummary, ProjectInfo, Status } from "../lib/planBase";
+import type { Crumb } from "../lib/board";
+import type { FolderFilter } from "../lib/folders";
+import type { PlanSummary, Status } from "../lib/planBase";
 import { cn } from "../lib/utils";
 import { TooltipButton } from "./TooltipButton";
 import { FontSizeMenu } from "./FontSizeMenu";
@@ -32,6 +32,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+/* The choice is shown by highlighting the row, as the status picker does,
+   so the dot the radio item would otherwise reserve space for is dropped. */
+const FILTER_ITEM =
+  "pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground";
+
 const VIEW_LABELS: Record<Exclude<MainView, "plan">, string> = {
   board: "Board",
   list: "All plans",
@@ -45,13 +50,12 @@ interface HeaderProps {
   /** The open plan, for the status picker. */
   plan: PlanSummary | null;
   onStatusChange: (status: Status) => void;
-  /** Opens what the crumb sits under: the project, or the plan of a document. */
+  /** Opens what the crumb sits under: the plan of a document. */
   onOpenLead: () => void;
-  projects: ProjectInfo[];
-  project: ProjectFilter;
-  onSelectProject: (project: ProjectFilter) => void;
-  hideCompleted: boolean;
-  onToggleHideCompleted: () => void;
+  /** Every folder in the base, for the filter. */
+  folders: string[];
+  folder: FolderFilter;
+  onSelectFolder: (folder: FolderFilter) => void;
   doc: DocFile | null;
   wordCount: number | null;
   view: ViewMode;
@@ -85,23 +89,15 @@ interface HeaderProps {
   trafficLightGap: boolean;
 }
 
-/** The label of the project a view is filtered to. */
-function projectLabel(project: ProjectFilter): string {
-  if (project == null) return "All projects";
-  return projectName(project) ?? "No project";
-}
-
 export function Header({
   mainView,
   crumb,
   plan,
   onStatusChange,
   onOpenLead,
-  projects,
-  project,
-  onSelectProject,
-  hideCompleted,
-  onToggleHideCompleted,
+  folders,
+  folder,
+  onSelectFolder,
   doc,
   wordCount,
   view,
@@ -175,7 +171,7 @@ export function Header({
                   onClick={onOpenLead}
                   className="hidden max-w-40 shrink-0 cursor-default truncate rounded-md px-1.5 py-0.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:block"
                 >
-                  {crumb.lead.label}
+                  {crumb.lead}
                 </button>
                 <span aria-hidden className="hidden text-muted-foreground/50 md:inline">
                   /
@@ -207,53 +203,37 @@ export function Header({
               variant="outline"
               size="xs"
               className={cn(
-                "gap-1.5 font-normal text-muted-foreground",
-                project != null && "bg-accent text-accent-foreground",
+                "max-w-48 gap-1.5 font-normal text-muted-foreground",
+                folder != null && "bg-accent text-accent-foreground",
               )}
             >
-              {projectLabel(project)}
+              <span className="truncate">{folder ?? "All plans"}</span>
               <ChevronDown className="text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuRadioGroup
-              value={project ?? "all"}
-              onValueChange={(next) =>
-                onSelectProject(next === "all" ? null : next)
-              }
+              // Radio values are strings, so "every plan" is the one value
+              // a folder name can never be.
+              value={folder ?? ""}
+              onValueChange={(next) => onSelectFolder(next === "" ? null : next)}
             >
-              <DropdownMenuRadioItem value="all" className="pl-2 [&>span:first-child]:hidden">
-                All projects
+              <DropdownMenuRadioItem value="" className={FILTER_ITEM}>
+                All plans
               </DropdownMenuRadioItem>
-              {projects.map((info) => (
-                <DropdownMenuRadioItem
-                  key={info.project ?? ""}
-                  value={info.project ?? ""}
-                  className="pl-2 [&>span:first-child]:hidden"
-                >
-                  <span className="truncate">
-                    {projectName(info.project) ?? info.name}
-                  </span>
+              {folders.map((name) => (
+                <DropdownMenuRadioItem key={name} value={name} className={FILTER_ITEM}>
+                  <span className="truncate">{name}</span>
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
+            {folders.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                Put a plan in a folder from its page or its card.
+              </p>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
-      )}
-
-      {mainView === "board" && (
-        <Button
-          variant="outline"
-          size="xs"
-          onClick={onToggleHideCompleted}
-          aria-pressed={hideCompleted}
-          className={cn(
-            "font-normal text-muted-foreground",
-            hideCompleted && "bg-accent text-accent-foreground",
-          )}
-        >
-          Hide completed
-        </Button>
       )}
 
       {onPlan && plan && (

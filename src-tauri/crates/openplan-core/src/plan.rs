@@ -8,49 +8,73 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Where a plan stands. Stored, never derived: the one field anyone sets.
-/// Completed is the person's to set; agents get as far as in-review.
+/// Completed and archived are the person's to set; agents get as far as
+/// in-review.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum Status {
-    /// Filed; no session has started on it.
+    /// Filed and open for review; nobody has started on it.
     #[default]
     Draft,
+    /// The agent asks its questions and records the answers.
+    Alignment,
     /// A session is, or was, working on it.
     InProgress,
     /// The agent opened a PR; the plan waits on a person.
     InReview,
     /// The person said the work is done.
     Completed,
+    /// Done and put away.
+    Archived,
 }
 
 impl Status {
-    pub const ALL: [Status; 4] = [
+    /// In the order work moves through them.
+    pub const ALL: [Status; 6] = [
         Status::Draft,
+        Status::Alignment,
         Status::InProgress,
         Status::InReview,
         Status::Completed,
+        Status::Archived,
     ];
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Status::Draft => "draft",
+            Status::Alignment => "alignment",
             Status::InProgress => "in-progress",
             Status::InReview => "in-review",
             Status::Completed => "completed",
+            Status::Archived => "archived",
         }
     }
 
-    /// The four values this build writes, plus the vocabulary of the field as
-    /// it was before 0.2.0, so a base written by an older build still reads.
+    /// The values this build writes, plus the vocabulary of the field as it
+    /// was before 0.2.0, so a base written by an older build still reads.
     pub fn parse(value: &str) -> Option<Status> {
         match value.trim() {
             "draft" => Some(Status::Draft),
+            "alignment" => Some(Status::Alignment),
             "in-progress" | "active" => Some(Status::InProgress),
             "in-review" | "approved" => Some(Status::InReview),
-            "completed" | "done" | "archived" => Some(Status::Completed),
+            "completed" | "done" => Some(Status::Completed),
+            "archived" => Some(Status::Archived),
             _ => None,
         }
     }
+}
+
+/// A folder name as it is stored: one line of plain words. The characters
+/// that would end or split a YAML list item are dropped rather than quoted,
+/// so every tool that reads the file sees the same names.
+pub fn folder_name(text: &str) -> String {
+    text.chars()
+        .filter(|c| !matches!(c, ',' | '[' | ']' | '{' | '}' | '"' | '\'' | ':' | '#'))
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// What the app knows about a plan without reading its body.
@@ -64,11 +88,31 @@ pub struct PlanMeta {
     /// does not know; the standards say which ones agents should use.
     pub plan_type: Option<String>,
     pub source: String,
-    pub project: Option<String>,
-    /// The pull request the work went out in, set with in-review.
+    /// Labels the person puts on a plan to find it again. A plan can carry
+    /// several, or none.
+    pub folders: Vec<String>,
+    /// The pull request a plan from before 0.3.0 went out in. Read only:
+    /// the line stays as it was, and the work record is where PRs go now.
     pub pr: Option<String>,
     pub created: Option<String>,
     pub updated: Option<String>,
+    /// When the plan was marked completed. Cleared when it moves on.
+    pub completed: Option<String>,
+}
+
+impl PlanMeta {
+    /// Moves the plan, keeping `completed` in step: set the first time it
+    /// is completed, gone once it is anything else.
+    pub fn set_status(&mut self, status: Status, now: &str) {
+        self.completed = match status {
+            Status::Completed if self.status == Status::Completed => {
+                self.completed.take().or_else(|| Some(now.to_string()))
+            }
+            Status::Completed => Some(now.to_string()),
+            _ => None,
+        };
+        self.status = status;
+    }
 }
 
 /// A parsed plan. `frontmatter` keeps the raw lines so keys this build knows
@@ -129,22 +173,60 @@ fn split_commented_frontmatter(text: &str) -> Option<(&str, &str)> {
 }
 
 /// Deliberately not a YAML parser: plan frontmatter is flat `key: value`, and
-/// anything richer belongs in the body where a person will read it.
+/// anything richer belongs in the body where a person will read it. The one
+/// exception is a list written as `- item` lines under its key, which is
+/// folded into the `[a, b]` form so it survives a rewrite.
 fn parse_pairs(block: &str) -> Vec<(String, String)> {
-    block
-        .lines()
-        .filter_map(|line| {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                return None;
-            }
-            let (key, value) = line.split_once(':')?;
-            Some((
-                key.trim().to_string(),
-                value.trim().trim_matches('"').to_string(),
-            ))
-        })
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    let mut items: Vec<String> = Vec::new();
+    for line in block.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(item) = line.strip_prefix('-').filter(|_| !pairs.is_empty()) {
+            items.push(item.trim().trim_matches('"').to_string());
+            continue;
+        }
+        fold_items(&mut pairs, &mut items);
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        pairs.push((
+            key.trim().to_string(),
+            value.trim().trim_matches('"').to_string(),
+        ));
+    }
+    fold_items(&mut pairs, &mut items);
+    pairs
+}
+
+fn fold_items(pairs: &mut [(String, String)], items: &mut Vec<String>) {
+    if items.is_empty() {
+        return;
+    }
+    if let Some((_, value)) = pairs.last_mut().filter(|(_, v)| v.is_empty()) {
+        *value = flow_list(items);
+    }
+    items.clear();
+}
+
+/// The items of `[a, b]` or of plain `a, b`.
+fn list_items(value: &str) -> Vec<String> {
+    let inner = value.trim();
+    let inner = inner
+        .strip_prefix('[')
+        .and_then(|v| v.strip_suffix(']'))
+        .unwrap_or(inner);
+    inner
+        .split(',')
+        .map(|item| item.trim().trim_matches('"').trim().to_string())
+        .filter(|item| !item.is_empty())
         .collect()
+}
+
+fn flow_list(items: &[String]) -> String {
+    format!("[{}]", items.join(", "))
 }
 
 fn lookup<'a>(pairs: &'a [(String, String)], key: &str) -> Option<&'a str> {
@@ -162,10 +244,10 @@ fn status_from(pairs: &[(String, String)]) -> Status {
         return status;
     }
     let archived = lookup(pairs, "tags")
-        .map(|tags| tags.split(',').any(|t| t.trim() == "archived"))
+        .map(|tags| list_items(tags).iter().any(|t| t == "archived"))
         .unwrap_or(false);
     if archived {
-        Status::Completed
+        Status::Archived
     } else {
         Status::Draft
     }
@@ -215,10 +297,11 @@ pub fn parse(text: &str, path: &Path) -> Plan {
                     status: Status::Draft,
                     plan_type: None,
                     source: "manual".to_string(),
-                    project: None,
+                    folders: Vec::new(),
                     pr: None,
                     created: None,
                     updated: None,
+                    completed: None,
                 },
                 frontmatter: Vec::new(),
                 body: text.to_string(),
@@ -237,10 +320,11 @@ pub fn parse(text: &str, path: &Path) -> Plan {
         status: status_from(&pairs),
         plan_type: lookup(&pairs, "type").map(str::to_string),
         source: lookup(&pairs, "source").unwrap_or("manual").to_string(),
-        project: lookup(&pairs, "project").map(str::to_string),
+        folders: lookup(&pairs, "folders").map(list_items).unwrap_or_default(),
         pr: lookup(&pairs, "pr").map(str::to_string),
         created: lookup(&pairs, "created").map(str::to_string),
         updated: lookup(&pairs, "updated").map(str::to_string),
+        completed: lookup(&pairs, "completed").map(str::to_string),
     };
     Plan {
         meta,
@@ -253,36 +337,37 @@ pub fn parse(text: &str, path: &Path) -> Plan {
 
 /// Writes a plan back out. The body is reproduced byte for byte, and
 /// frontmatter keys this build does not understand are preserved in place.
+/// `project` and `pr` from before 0.3.0 are among them: kept, never written.
 pub fn serialize(plan: &Plan) -> String {
     let mut pairs = plan.frontmatter.clone();
-    let mut set = |key: &str, value: &str| match pairs.iter_mut().find(|(k, _)| k == key) {
-        Some((_, v)) => *v = value.to_string(),
-        None => pairs.push((key.to_string(), value.to_string())),
+    let mut set = |key: &str, value: Option<&str>| {
+        let at = pairs.iter().position(|(k, _)| k == key);
+        match (at, value) {
+            (Some(i), Some(value)) => pairs[i].1 = value.to_string(),
+            (None, Some(value)) => pairs.push((key.to_string(), value.to_string())),
+            (Some(i), None) => {
+                pairs.remove(i);
+            }
+            (None, None) => {}
+        }
     };
-    set("id", &plan.meta.id);
-    set("title", &plan.meta.title);
-    set("status", plan.meta.status.as_str());
-    if let Some(plan_type) = &plan.meta.plan_type {
-        set("type", plan_type);
+    let meta = &plan.meta;
+    set("id", Some(&meta.id));
+    set("title", Some(&meta.title));
+    set("status", Some(meta.status.as_str()));
+    if let Some(plan_type) = &meta.plan_type {
+        set("type", Some(plan_type));
     }
-    set("source", &plan.meta.source);
-    if let Some(project) = &plan.meta.project {
-        set("project", project);
+    set("source", Some(&meta.source));
+    let folders = (!meta.folders.is_empty()).then(|| flow_list(&meta.folders));
+    set("folders", folders.as_deref());
+    if let Some(created) = &meta.created {
+        set("created", Some(created));
     }
-    if let Some(pr) = &plan.meta.pr {
-        set("pr", pr);
+    if let Some(updated) = &meta.updated {
+        set("updated", Some(updated));
     }
-    if let Some(created) = &plan.meta.created {
-        set("created", created);
-    }
-    if let Some(updated) = &plan.meta.updated {
-        set("updated", updated);
-    }
-    if plan.meta.pr.is_none() {
-        // Reopening a plan takes its PR with it; a stale link would send
-        // someone to work that was already merged or closed.
-        pairs.retain(|(k, _)| k != "pr");
-    }
+    set("completed", meta.completed.as_deref());
 
     let mut out = String::new();
     if plan.html {
@@ -352,10 +437,131 @@ mod tests {
         assert_eq!(plan.meta.status, Status::InReview);
         assert_eq!(plan.meta.plan_type.as_deref(), Some("feature"));
         assert_eq!(plan.meta.source, "claude-code");
-        assert_eq!(plan.meta.project.as_deref(), Some("github.com/acme/api"));
         assert_eq!(plan.meta.pr.as_deref(), Some("https://github.com/acme/api/pull/4"));
         assert_eq!(plan.body, "# Body\n");
         assert!(!plan.derived);
+    }
+
+    #[test]
+    fn every_status_this_build_writes_reads_back() {
+        for status in Status::ALL {
+            let mut plan = parse_str("---\ntitle: X\n---\n# X\n");
+            plan.meta.status = status;
+
+            let out = serialize(&plan);
+
+            assert!(out.contains(&format!("status: {}\n", status.as_str())), "{out}");
+            assert_eq!(parse_str(&out).meta.status, status);
+        }
+    }
+
+    #[test]
+    fn the_six_statuses_run_in_the_order_work_moves() {
+        let words: Vec<&str> = Status::ALL.iter().map(Status::as_str).collect();
+
+        assert_eq!(
+            words,
+            ["draft", "alignment", "in-progress", "in-review", "completed", "archived"]
+        );
+    }
+
+    #[test]
+    fn folders_read_from_a_flow_list() {
+        let plan = parse_str("---\ntitle: X\nfolders: [Search, \"Q3 launch\"]\n---\n# X\n");
+
+        assert_eq!(plan.meta.folders, ["Search", "Q3 launch"]);
+    }
+
+    #[test]
+    fn folders_read_from_a_block_list() {
+        let plan = parse_str("---\ntitle: X\nfolders:\n  - Search\n  - Q3 launch\nsource: codex\n---\n# X\n");
+
+        assert_eq!(plan.meta.folders, ["Search", "Q3 launch"]);
+        assert_eq!(plan.meta.source, "codex");
+    }
+
+    #[test]
+    fn folders_are_written_as_a_flow_list_and_read_back() {
+        let block = parse_str("---\ntitle: X\nfolders:\n  - Search\n  - Infra\n---\n# X\n");
+
+        let out = serialize(&block);
+
+        assert!(out.contains("folders: [Search, Infra]\n"), "{out}");
+        assert!(!out.contains("- Search"), "the block form is replaced: {out}");
+        assert_eq!(parse_str(&out).meta.folders, ["Search", "Infra"]);
+    }
+
+    #[test]
+    fn a_plan_in_no_folder_writes_no_folders_line() {
+        let mut plan = parse_str("---\ntitle: X\nfolders: [Search]\n---\n# X\n");
+        plan.meta.folders.clear();
+
+        assert!(!serialize(&plan).contains("folders"));
+    }
+
+    #[test]
+    fn a_folder_name_loses_what_would_break_the_list() {
+        assert_eq!(folder_name("  Q3   launch "), "Q3 launch");
+        assert_eq!(folder_name("a, [b]: #c \"d\""), "a b c d");
+        assert_eq!(folder_name(" , "), "");
+    }
+
+    #[test]
+    fn completing_a_plan_records_when() {
+        let mut plan = parse_str("---\ntitle: X\nstatus: in-review\n---\n# X\n");
+
+        plan.meta.set_status(Status::Completed, "2026-10-28T10:00:00Z");
+
+        assert_eq!(plan.meta.completed.as_deref(), Some("2026-10-28T10:00:00Z"));
+        let out = serialize(&plan);
+        assert!(out.contains("completed: 2026-10-28T10:00:00Z\n"), "{out}");
+        assert_eq!(parse_str(&out).meta.completed.as_deref(), Some("2026-10-28T10:00:00Z"));
+    }
+
+    #[test]
+    fn completing_a_completed_plan_keeps_the_first_date() {
+        let mut plan = parse_str(
+            "---\ntitle: X\nstatus: completed\ncompleted: 2026-10-01T10:00:00Z\n---\n# X\n",
+        );
+
+        plan.meta.set_status(Status::Completed, "2026-10-28T10:00:00Z");
+
+        assert_eq!(plan.meta.completed.as_deref(), Some("2026-10-01T10:00:00Z"));
+    }
+
+    #[test]
+    fn moving_a_plan_off_completed_clears_the_date() {
+        for status in [Status::InProgress, Status::Archived, Status::Draft] {
+            let mut plan = parse_str(
+                "---\ntitle: X\nstatus: completed\ncompleted: 2026-10-01T10:00:00Z\n---\n# X\n",
+            );
+
+            plan.meta.set_status(status, "2026-10-28T10:00:00Z");
+
+            assert_eq!(plan.meta.completed, None, "{status:?}");
+            assert!(!serialize(&plan).contains("completed:"), "{status:?}");
+        }
+    }
+
+    #[test]
+    fn project_and_pr_are_kept_as_they_were_and_never_written() {
+        let text = "---\ntitle: X\nproject: github.com/acme/api\npr: https://github.com/acme/api/pull/4\n---\n# X\n";
+        let mut plan = parse_str(text);
+        plan.meta.pr = Some("https://github.com/acme/api/pull/9".into());
+
+        let out = serialize(&plan);
+
+        assert!(out.contains("project: github.com/acme/api\n"), "{out}");
+        assert!(out.contains("pr: https://github.com/acme/api/pull/4\n"), "{out}");
+        assert!(!out.contains("pull/9"), "{out}");
+    }
+
+    #[test]
+    fn a_pr_is_never_added_to_a_plan_that_had_none() {
+        let mut plan = parse_str("---\ntitle: X\n---\n# X\n");
+        plan.meta.pr = Some("https://github.com/acme/api/pull/9".into());
+
+        assert!(!serialize(&plan).contains("pr:"));
     }
 
     #[test]
@@ -384,7 +590,7 @@ mod tests {
     fn the_old_status_vocabulary_still_reads() {
         for (old, new) in [
             ("done", Status::Completed),
-            ("archived", Status::Completed),
+            ("archived", Status::Archived),
             ("approved", Status::InReview),
             ("active", Status::InProgress),
             ("in-progress", Status::InProgress),
@@ -403,13 +609,22 @@ mod tests {
     }
 
     #[test]
-    fn an_archived_tag_from_before_0_2_reads_as_completed_and_the_line_is_kept() {
+    fn an_archived_tag_from_before_0_2_reads_as_archived_and_the_line_is_kept() {
         let plan = parse_str("---\ntitle: X\ntags: infra, archived\nsource: claude-code\n---\n# X\n");
 
-        assert_eq!(plan.meta.status, Status::Completed);
+        assert_eq!(plan.meta.status, Status::Archived);
         let out = serialize(&plan);
         assert!(out.contains("tags: infra, archived\n"), "the line is not this build's to remove: {out}");
-        assert!(out.contains("status: completed\n"), "{out}");
+        assert!(out.contains("status: archived\n"), "{out}");
+    }
+
+    #[test]
+    fn an_archived_tag_in_a_list_reads_as_archived() {
+        let flow = parse_str("---\ntitle: X\ntags: [infra, archived]\n---\n# X\n");
+        let block = parse_str("---\ntitle: X\ntags:\n  - infra\n  - archived\n---\n# X\n");
+
+        assert_eq!(flow.meta.status, Status::Archived);
+        assert_eq!(block.meta.status, Status::Archived);
     }
 
     #[test]
@@ -435,27 +650,15 @@ mod tests {
     }
 
     #[test]
-    fn status_type_and_pr_round_trip() {
+    fn status_and_type_round_trip() {
         let mut plan = parse_str("---\ntitle: X\n---\n# X\n");
         plan.meta.status = Status::InReview;
         plan.meta.plan_type = Some("bug".into());
-        plan.meta.pr = Some("https://github.com/acme/api/pull/9".into());
 
         let back = parse_str(&serialize(&plan));
 
         assert_eq!(back.meta.status, Status::InReview);
         assert_eq!(back.meta.plan_type.as_deref(), Some("bug"));
-        assert_eq!(back.meta.pr.as_deref(), Some("https://github.com/acme/api/pull/9"));
-    }
-
-    #[test]
-    fn clearing_the_pr_removes_the_line() {
-        let mut plan = parse_str("---\ntitle: X\npr: https://example.test/pull/1\n---\n# X\n");
-        plan.meta.pr = None;
-
-        let out = serialize(&plan);
-
-        assert!(!out.contains("pr:"), "{out}");
     }
 
     #[test]

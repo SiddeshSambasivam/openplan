@@ -1,7 +1,6 @@
 import {
   ChevronRight,
   Columns3,
-  Folder,
   Inbox,
   List,
   Search,
@@ -11,14 +10,7 @@ import {
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "../lib/utils";
 import type { MainView } from "../lib/types";
-import type { ProjectFilter } from "@/lib/board";
-import {
-  searchPlans,
-  type PlanSummary,
-  type ProjectInfo,
-  type SearchHit,
-} from "@/lib/planBase";
-import { projectName } from "@/lib/projects";
+import { searchPlans, type PlanSummary, type SearchHit } from "@/lib/planBase";
 import { BrandMark } from "./BrandMark";
 import { MarqueeText } from "./MarqueeText";
 import { StatusGlyph } from "./StatusGlyph";
@@ -27,13 +19,10 @@ import { Input } from "@/components/ui/input";
 
 interface SidebarProps {
   plans: PlanSummary[];
-  projects: ProjectInfo[];
   /** The plans last opened, newest first. */
   recent: PlanSummary[];
   view: MainView;
   onSelectView: (view: MainView) => void;
-  project: ProjectFilter;
-  onSelectProject: (project: ProjectFilter) => void;
   /** How many plans wait on the person, shown beside For you. */
   forYouCount: number;
   activePlanPath: string | null;
@@ -87,12 +76,9 @@ function Group({
  * that concerns these rows. */
 export const Sidebar = memo(function Sidebar({
   plans,
-  projects,
   recent,
   view,
   onSelectView,
-  project,
-  onSelectProject,
   forYouCount,
   activePlanPath,
   onSelectPlan,
@@ -264,43 +250,6 @@ export const Sidebar = memo(function Sidebar({
                 forYouCount,
               )}
             </div>
-
-            {projects.length > 0 && (
-              <Group label="Projects">
-                <div className="flex flex-col gap-px">
-                  {projects.map((info) => {
-                    const key = info.project ?? "";
-                    const name = projectName(info.project) ?? info.name;
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => onSelectProject(key)}
-                        title={info.description ?? undefined}
-                        className={cn(
-                          rowClass,
-                          project === key &&
-                            "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
-                        )}
-                      >
-                        {info.avatarUrl ? (
-                          <img
-                            src={info.avatarUrl}
-                            alt=""
-                            className="size-3.5 shrink-0 rounded-sm object-cover"
-                          />
-                        ) : (
-                          <Folder className="size-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="flex-1 truncate">{name}</span>
-                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                          {info.plans}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Group>
-            )}
 
             {recent.length > 0 && (
               <Group label="Recent">

@@ -1,8 +1,8 @@
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
-import { statusGroups } from "@/lib/board";
+import { FOLDED, statusGroups } from "@/lib/board";
 import { entrance, useMountedKeys } from "@/lib/motion";
-import { STATUS_LABELS, type PlanSummary } from "@/lib/planBase";
+import { STATUS_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
 import { PlanRowFacts } from "./PlanFacts";
@@ -11,8 +11,6 @@ import { StatusGlyph } from "./StatusGlyph";
 interface PlanListProps {
   plans: PlanSummary[];
   activePath: string | null;
-  /** Owner avatars by project, for the plans that have one. */
-  avatars: Map<string, string>;
   /** Open threads by plan path, for the plans that have any. */
   openThreads: Map<string, number>;
   /** Live agent sessions by plan id, for the plans anyone is working on. */
@@ -217,7 +215,6 @@ function SetFolder({
 const PlanRow = memo(function PlanRow({
   plan,
   activePath,
-  avatarUrl,
   openThreads,
   sessions,
   expanded,
@@ -234,7 +231,6 @@ const PlanRow = memo(function PlanRow({
   plan: PlanSummary;
   /** Null unless this row's plan or one of its documents is open. */
   activePath: string | null;
-  avatarUrl: string | null;
   openThreads: number;
   sessions: number;
   expanded: boolean;
@@ -317,7 +313,6 @@ const PlanRow = memo(function PlanRow({
           )}
           <PlanRowFacts
             plan={plan}
-            avatarUrl={avatarUrl}
             open={openThreads}
             sessions={sessions}
           />
@@ -360,7 +355,6 @@ const PlanRow = memo(function PlanRow({
 export function PlanList({
   plans,
   activePath,
-  avatars,
   openThreads,
   sessions,
   onSelect,
@@ -375,18 +369,20 @@ export function PlanList({
   // A set follows whatever is being read until someone says otherwise, and
   // then it stays where they put it.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
-  // Finished work is kept, not shown: the group starts closed. Opening a
-  // completed plan opens the group once; after that the toggle is the
+  // Finished work is kept, not shown: its groups start closed. Opening a
+  // plan in one opens that group once; after that the toggle is the
   // person's, so a click always does what it says.
-  const [doneOpen, setDoneOpen] = useState<boolean | null>(null);
+  const [foldOpen, setFoldOpen] = useState<Partial<Record<Status, boolean>>>({});
   const [renaming, setRenaming] = useState<Renaming | null>(null);
-  const readingCompleted = sorted.some(
+  // A single plan's folder is the base's, so only a set is read through
+  // the documents inside its folder.
+  const reading = sorted.find(
     (plan) =>
-      plan.status === "completed" &&
-      (plan.path === activePath ||
+      plan.path === activePath ||
+      (plan.documents.length > 1 &&
         !!activePath?.startsWith(plan.path.slice(0, plan.path.lastIndexOf("/") + 1))),
   );
-  const shownDone = doneOpen ?? readingCompleted;
+  const shownFold = (status: Status) => foldOpen[status] ?? reading?.status === status;
 
   const toggleExpand = useCallback((plan: PlanSummary, next: boolean) => {
     setToggled((t) => ({ ...t, [plan.path]: next }));
@@ -420,7 +416,6 @@ export function PlanList({
         key={plan.path}
         plan={plan}
         activePath={holdsActive ? activePath : null}
-        avatarUrl={(plan.project && avatars.get(plan.project)) || null}
         openThreads={openThreads.get(plan.path) ?? 0}
         sessions={sessions.get(plan.id) ?? 0}
         expanded={expanded}
@@ -442,8 +437,8 @@ export function PlanList({
       {groups.map(({ status, plans: inState }) => {
         // Only finished work folds away; the states you are working in are
         // always open, so nothing live is ever a click from view.
-        const collapsible = status === "completed";
-        const shown = !collapsible || shownDone;
+        const collapsible = FOLDED.includes(status);
+        const shown = !collapsible || shownFold(status);
         const heading = (
           <>
             <StatusGlyph status={status} />
@@ -470,7 +465,7 @@ export function PlanList({
           <div key={status}>
             {collapsible ? (
               <button
-                onClick={() => setDoneOpen(!shown)}
+                onClick={() => setFoldOpen((open) => ({ ...open, [status]: !shown }))}
                 aria-expanded={shown}
                 className={cn(headingClass, "cursor-default hover:bg-sidebar-accent/60")}
               >

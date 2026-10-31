@@ -8,9 +8,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
+  STATUS_FLOW,
   STATUS_HINTS,
   STATUS_LABELS,
-  STATUS_ORDER,
   type Status,
 } from "@/lib/planBase";
 import { StatusGlyph } from "./StatusGlyph";
@@ -42,7 +42,7 @@ export function StatusPicker({ status, onChange }: StatusPickerProps) {
           value={status}
           onValueChange={(next) => onChange(next as Status)}
         >
-          {STATUS_ORDER.map((option) => (
+          {STATUS_FLOW.map((option) => (
             <DropdownMenuRadioItem
               key={option}
               value={option}

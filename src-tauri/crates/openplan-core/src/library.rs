@@ -425,7 +425,7 @@ mod tests {
 
         assert_eq!(of("mine"), Status::Draft);
         assert_eq!(of("theirs"), Status::InProgress);
-        assert_eq!(of("done"), Status::Completed);
+        assert_eq!(of("done"), Status::Archived);
         let _ = std::fs::remove_dir_all(&base.root);
     }
 }

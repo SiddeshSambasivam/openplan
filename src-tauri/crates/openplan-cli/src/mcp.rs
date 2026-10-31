@@ -6,11 +6,11 @@
 //! the surface grows past tools.
 
 use openplan_core::base::Base;
-use openplan_core::import::iso_from_unix;
+use openplan_core::import::now_iso;
 use openplan_core::local::{self, Event};
 use openplan_core::plan::{self, slugify, Plan, PlanMeta, Status};
 use openplan_core::repo::{self, Author};
-use openplan_core::{comments, fs, library, project, settings, standards};
+use openplan_core::{comments, fs, library, settings, standards};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
 use std::sync::{Arc, Mutex};
@@ -36,14 +36,6 @@ fn author_from_client(client_name: &str) -> String {
     }
 }
 
-fn now_iso() -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0) as i64;
-    iso_from_unix(secs)
-}
-
 /// The tools, described for the mode this machine writes plans in. Read at
 /// tools/list time so a change in settings reaches the next session.
 fn tool_list(authoring: &str) -> Value {
@@ -67,21 +59,20 @@ fn tool_list(authoring: &str) -> Value {
                 "properties": {
                     "title": { "type": "string", "description": "One line, reading as a change" },
                     "body": { "type": "string", "description": body },
-                    "type": { "type": "string", "enum": ["feature", "bug", "migration", "research", "audit"], "description": "What kind of work this is. It decides which sections the plan needs and how the app lays it out." },
-                    "project": { "type": "string", "description": "The git remote of the repo you are working in, as owner/repo or its URL. Leave it out only when there is no repo." }
+                    "type": { "type": "string", "enum": ["feature", "bug", "migration", "research", "audit"], "description": "What kind of work this is. It decides which sections the plan needs and how the app lays it out." }
                 },
                 "required": ["title", "body"]
             }
         },
         {
             "name": "list_plans",
-            "description": "The plans in the user's plan base, with where each one stands: draft (filed, not started), in-progress (a session is working on it), in-review (a PR is open and a person is looking), or completed (the person said it is done).",
+            "description": "The plans in the user's plan base, with where each one stands: draft (filed and open for review), alignment (you ask the person your questions and record the answers), in-progress (a session is working on it), in-review (a PR is open and a person is looking), completed (the person said it is done), or archived (done and put away).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "status": {
                         "type": "string",
-                        "enum": ["draft", "in-progress", "in-review", "completed"],
+                        "enum": ["draft", "alignment", "in-progress", "in-review", "completed", "archived"],
                         "description": "Only plans in this state"
                     }
                 }
@@ -89,14 +80,12 @@ fn tool_list(authoring: &str) -> Value {
         },
         {
             "name": "set_status",
-            "description": "Move a plan along. Set in-progress when you start implementing it. Set in-review when you open the pull request, and pass the PR link. Only the person marks a plan completed, so that value is refused. Never set a status to file a plan away; if a plan is superseded, say so in the new plan's body instead.",
+            "description": "Move a plan along. Set alignment on a draft when the person asks you to align on it. Set in-progress when you start implementing it. Set in-review when you open the pull request. Only the person marks a plan completed or archived, so those values are refused. Never set a status to file a plan away; if a plan is superseded, say so in the new plan's body instead.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "id": { "type": "string" },
-                    "status": { "type": "string", "enum": ["draft", "in-progress", "in-review"] },
-                    "pr": { "type": "string", "description": "The pull request URL. Required with in-review." },
-                    "project": { "type": "string", "description": "The git remote of the repo you are working in, as owner/repo or its URL. Pass it when the plan does not name one yet." }
+                    "status": { "type": "string", "enum": ["draft", "alignment", "in-progress", "in-review"] }
                 },
                 "required": ["id", "status"]
             }
@@ -145,18 +134,6 @@ fn tool_list(authoring: &str) -> Value {
             }
         },
         {
-            "name": "describe_project",
-            "description": "Say in one line what a repo is. Call this when create_plan tells you the project has no description yet. It replaces whatever the project said before.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "project": { "type": "string", "description": "The git remote, as owner/repo or its URL" },
-                    "description": { "type": "string", "description": "One line: what the repo is, in plain words" }
-                },
-                "required": ["project", "description"]
-            }
-        },
-        {
             "name": "get_standards",
             "description": "How plans are written here. Read before writing one.",
             "inputSchema": { "type": "object", "properties": {} }
@@ -177,11 +154,6 @@ fn create_plan(base: &Base, author: &str, authoring: &str, args: &Value) -> Valu
     else {
         return text_result("create_plan needs the plan's body.", true);
     };
-    let project = args
-        .get("project")
-        .and_then(Value::as_str)
-        .map(project::normalize)
-        .filter(|p| !p.is_empty());
     let id = slugify(title);
     let html = authoring == "html";
     let extension = if html { "html" } else { "md" };
@@ -202,10 +174,11 @@ fn create_plan(base: &Base, author: &str, authoring: &str, args: &Value) -> Valu
             status: Status::Draft,
             plan_type: args.get("type").and_then(Value::as_str).map(str::to_string),
             source: author.to_string(),
-            project: project.clone(),
+            folders: Vec::new(),
             pr: None,
             created: Some(now.clone()),
             updated: Some(now),
+            completed: None,
         },
         frontmatter: Vec::new(),
         body: format!("{}\n", body.trim_end()),
@@ -232,36 +205,7 @@ fn create_plan(base: &Base, author: &str, authoring: &str, args: &Value) -> Valu
             ));
         }
     }
-    let undescribed = project
-        .as_ref()
-        .is_some_and(|p| !project::read_descriptions(base).contains_key(p));
-    if undescribed {
-        reply.push_str(
-            " This project has no description yet. Call describe_project with one line about what the repo is.",
-        );
-    }
     text_result(reply, false)
-}
-
-fn describe_project(base: &Base, author: &str, args: &Value) -> Value {
-    let (Some(named), Some(description)) = (
-        args.get("project").and_then(Value::as_str).filter(|p| !p.trim().is_empty()),
-        args.get("description").and_then(Value::as_str).filter(|d| !d.trim().is_empty()),
-    ) else {
-        return text_result("describe_project needs a project and a one-line description.", true);
-    };
-    let named = project::normalize(named);
-    if let Err(e) = project::set_description(base, &named, description) {
-        return text_result(e, true);
-    }
-    if let Err(e) = repo::commit_all(
-        &base.root,
-        &Author::agent_for(author, &openplan_core::settings::current_identity()),
-        &format!("agent({author}): describe {named}"),
-    ) {
-        return text_result(e, true);
-    }
-    text_result(format!("{named} is described."), false)
 }
 
 fn list_plans(base: &Base, args: &Value) -> Value {
@@ -269,7 +213,7 @@ fn list_plans(base: &Base, args: &Value) -> Value {
     if let Some(wanted) = args.get("status").and_then(Value::as_str) {
         let Some(wanted) = Status::parse(wanted) else {
             return text_result(
-                "status must be draft, in-progress, in-review, or completed.",
+                "status must be draft, alignment, in-progress, in-review, completed, or archived.",
                 true,
             );
         };
@@ -281,68 +225,46 @@ fn list_plans(base: &Base, args: &Value) -> Value {
     entries.sort_by(|a, b| b.meta.updated.cmp(&a.meta.updated));
     let lines: Vec<String> = entries
         .iter()
-        .map(|e| {
-            let belongs = e
-                .meta
-                .project
-                .as_deref()
-                .map(|p| format!(" ({})", project::short_name(p)))
-                .unwrap_or_default();
-            format!(
-                "[{}] {} {}{belongs}",
-                e.meta.status.as_str(),
-                e.meta.id,
-                e.meta.title
-            )
-        })
+        .map(|e| format!("[{}] {} {}", e.meta.status.as_str(), e.meta.id, e.meta.title))
         .collect();
     text_result(lines.join("\n"), false)
+}
+
+/// The statuses an agent may set. The person finishes and archives plans,
+/// and alignment opens from a draft: past that, going back is theirs too.
+fn agent_may_set(from: Status, to: Status) -> Result<(), &'static str> {
+    match to {
+        Status::Completed | Status::Archived => Err(
+            "Only the person marks a plan completed or archived. Set in-review when the PR is open; they take it from there.",
+        ),
+        Status::Alignment if !matches!(from, Status::Draft | Status::Alignment) => Err(
+            "Alignment opens from a draft. Once work has started, the person reopens it from the app.",
+        ),
+        _ => Ok(()),
+    }
 }
 
 fn set_status(base: &Base, author: &str, args: &Value) -> Value {
     let Some(id) = args.get("id").and_then(Value::as_str) else {
         return text_result("set_status needs an id.", true);
     };
-    let status = match args.get("status").and_then(Value::as_str).map(Status::parse) {
-        Some(Some(Status::Completed)) => {
-            return text_result(
-                "Only the person marks a plan completed. Set in-review and pass the PR; they take it from there.",
-                true,
-            )
-        }
-        Some(Some(status)) => status,
-        _ => return text_result("status must be draft, in-progress, or in-review.", true),
+    let Some(status) = args.get("status").and_then(Value::as_str).and_then(Status::parse) else {
+        return text_result("status must be draft, alignment, in-progress, or in-review.", true);
     };
-    let pr = args
-        .get("pr")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|p| !p.is_empty())
-        .map(str::to_string);
-    if status == Status::InReview && pr.is_none() {
-        return text_result("in-review needs the pull request link, as pr.", true);
-    }
     let Some(entry) = library::scan(base).into_iter().find(|e| e.meta.id == id) else {
         return text_result(format!("No plan called {id}."), true);
     };
+    if let Err(refusal) = agent_may_set(entry.meta.status, status) {
+        return text_result(refusal, true);
+    }
     let text = match fs::read_to_string(&entry.path) {
         Ok(text) => text,
         Err(e) => return text_result(e, true),
     };
     let mut parsed = plan::parse(&text, &entry.path);
-    parsed.meta.status = status;
-    if pr.is_some() {
-        parsed.meta.pr = pr;
-    }
-    if let Some(named) = args
-        .get("project")
-        .and_then(Value::as_str)
-        .map(project::normalize)
-        .filter(|p| !p.is_empty())
-    {
-        parsed.meta.project = Some(named);
-    }
-    parsed.meta.updated = Some(now_iso());
+    let now = now_iso();
+    parsed.meta.set_status(status, &now);
+    parsed.meta.updated = Some(now);
     if let Err(e) = fs::atomic_write(&entry.path, &plan::serialize(&parsed)) {
         return text_result(e, true);
     }
@@ -576,7 +498,6 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                     "get_comments" => Ok(get_comments(base, &args)),
                     "reply_comment" => Ok(reply_comment(base, &author, &args)),
                     "resolve_comment" => Ok(resolve_comment(base, &author, &args)),
-                    "describe_project" => Ok(describe_project(base, &author, &args)),
                     "get_standards" => Ok(get_standards()),
                     other => Err((-32602, format!("No such tool: {other}"))),
                 }

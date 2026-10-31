@@ -1,35 +1,36 @@
 import { Bot, Folder, MessageSquareText, User } from "lucide-react";
 import { ClaudeCodeIcon, CodexIcon, CursorIcon } from "./AgentIcons";
+import { Badge } from "@/components/ui/badge";
 import { shortDate } from "@/lib/board";
 import { SOURCE_LABELS, type PlanSummary } from "@/lib/planBase";
-import { projectName } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 
-/** The repository a plan belongs to: its owner's avatar when we have one,
- * and the name people call it. */
-export function ProjectTag({
-  project,
-  avatarUrl,
+/** The folders a plan is in, as small badges. Past `max`, the rest are
+ * counted rather than shown, so a row keeps its height. */
+export function FolderBadges({
+  folders,
+  max = folders.length,
   className,
 }: {
-  project: string | null;
-  avatarUrl?: string | null;
+  folders: string[];
+  max?: number;
   className?: string;
 }) {
-  const name = projectName(project);
-  if (!name) return null;
+  if (folders.length === 0) return null;
+  const hidden = folders.length - max;
   return (
-    <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt=""
-          className="size-3.5 shrink-0 rounded-sm object-cover"
-        />
-      ) : (
-        <Folder className="size-3.5 shrink-0 text-muted-foreground" />
+    <span
+      title={folders.join(", ")}
+      className={cn("flex min-w-0 flex-wrap items-center gap-1", className)}
+    >
+      {folders.slice(0, max).map((folder) => (
+        <Badge key={folder} variant="secondary" className="max-w-32 font-normal">
+          <span className="truncate">{folder}</span>
+        </Badge>
+      ))}
+      {hidden > 0 && (
+        <span className="shrink-0 tabular-nums text-muted-foreground">+{hidden}</span>
       )}
-      <span className="truncate">{name}</span>
     </span>
   );
 }
@@ -71,21 +72,19 @@ export function HandledBy({
  * things about a plan. */
 export function PlanRowFacts({
   plan,
-  avatarUrl,
   open,
   sessions,
 }: {
   plan: PlanSummary;
-  avatarUrl: string | null;
   open: number;
   sessions: number;
 }) {
   return (
     <>
-      <ProjectTag
-        project={plan.project}
-        avatarUrl={avatarUrl}
-        className="hidden w-36 shrink-0 md:flex"
+      <FolderBadges
+        folders={plan.folders}
+        max={1}
+        className="hidden w-36 shrink-0 flex-nowrap md:flex"
       />
       <LiveMark sessions={sessions} />
       <HandledBy source={plan.source} className="hidden md:grid" />

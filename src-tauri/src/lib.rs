@@ -1,6 +1,5 @@
 mod onboarding;
 mod plans;
-mod projects;
 mod review;
 mod sessions;
 
@@ -237,6 +236,7 @@ pub fn run() {
             plans::set_authoring,
             plans::search_plans,
             plans::set_plan_status,
+            plans::set_folders,
             plans::commit_base,
             plans::plan_history,
             plans::plan_diff,
@@ -247,7 +247,6 @@ pub fn run() {
             plans::save_comment_threads,
             plans::plan_at_revision,
             plans::restore_plan_revision,
-            projects::list_projects,
             review::review_summaries,
             sessions::live_sessions,
             sessions::send_comments,

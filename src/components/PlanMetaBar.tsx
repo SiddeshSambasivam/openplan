@@ -1,13 +1,13 @@
-import { ExternalLink, History } from "lucide-react";
+import { ExternalLink, Folder, History } from "lucide-react";
 import {
   ClaudeCodeIcon,
   CodexIcon,
   CursorIcon,
 } from "@/components/AgentIcons";
-import { LiveMark } from "@/components/PlanFacts";
+import { FolderBadges, LiveMark } from "@/components/PlanFacts";
 import { SOURCE_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
-import { projectName } from "@/lib/projects";
 import { Button } from "@/components/ui/button";
+import { FolderPicker } from "./FolderPicker";
 import { StatusPicker } from "./StatusPicker";
 
 /** Absolute dates: a plan is a record, and "3 days ago" stops being useful the
@@ -28,6 +28,9 @@ interface PlanMetaBarProps {
   /** Agent sessions working on this plan right now. */
   sessions: number;
   onStatusChange: (status: Status) => void;
+  /** Every folder in the base, to choose from. */
+  folders: string[];
+  onFoldersChange: (folders: string[]) => void;
   onOpenHistory: () => void;
 }
 
@@ -37,6 +40,8 @@ export function PlanMetaBar({
   plan,
   sessions,
   onStatusChange,
+  folders,
+  onFoldersChange,
   onOpenHistory,
 }: PlanMetaBarProps) {
   const updated = formatDate(plan.updated ?? plan.created);
@@ -57,10 +62,10 @@ export function PlanMetaBar({
           <LiveMark sessions={sessions} />
         </>
       )}
-      {plan.project && (
+      {plan.folders.length > 0 && (
         <>
           <span aria-hidden>·</span>
-          <span className="truncate">{projectName(plan.project)}</span>
+          <FolderBadges folders={plan.folders} />
         </>
       )}
       {updated && (
@@ -85,6 +90,17 @@ export function PlanMetaBar({
       )}
 
       <span className="ml-auto flex items-center gap-1">
+        <FolderPicker
+          folders={plan.folders}
+          known={folders}
+          onChange={onFoldersChange}
+          trigger={
+            <Button variant="ghost" size="xs" className="gap-1.5">
+              <Folder />
+              Folders
+            </Button>
+          }
+        />
         <Button variant="ghost" size="xs" onClick={onOpenHistory} className="gap-1.5">
           <History />
           History

@@ -4,7 +4,7 @@
 //! write.
 
 use crate::fs::{atomic_write, friendly_read_error, friendly_write_error};
-use crate::local::now_iso;
+use crate::import::now_iso;
 use crate::sidecar::sidecar_path;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
