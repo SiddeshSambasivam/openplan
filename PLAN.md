@@ -900,7 +900,7 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [x] P7.9 Rendering: LaTeX, video, sandboxed `html` fences with the height message,
       the media setting **(T: fence extraction and CSP)**
 - [x] P7.10 Onboarding without the import step; version 0.3.0
-- [ ] P7.11 Shortcut registry feeding keys, `kbd` tooltips and a command palette on
+- [x] P7.11 Shortcut registry feeding keys, `kbd` tooltips and a command palette on
       shadcn `command`; the `?` shortcut sheet; measured on the 2MB plan **(T)**
 - [x] P7.12 Shell: Linear-style navbar with open, minimized and hidden modes
       (`cmd+b` open or hidden, `cmd+shift+b` minimized, edge hover reveals it when
@@ -963,7 +963,9 @@ through `openplan install claude-code` (which now writes the two hooks).
 11. Shortcuts (P7.11). `?` lists every binding. `cmd+k` opens the palette, finds a
     plan by a fuzzy title and opens it. Every action button shows its key in its
     tooltip. `cmd+1` to `cmd+4`, `[` and `]`, `cmd+shift+a`, `cmd+shift+s` and
-    `cmd+enter` do what the sheet says. None fire while typing in a field.
+    `cmd+enter` do what the sheet says. None fire while typing in a field, except
+    `cmd+e` and `cmd+s` from the editor. Check `cmd+h` in the real window: Tauri's
+    default macOS menu may take ⌘H to hide the app before the page sees it.
 12. 720x480 and both themes (NFR-1). Nothing clips or scrolls sideways; the navbar
     floats below 900px; the switch in settings is legible in dark mode.
 13. Idle cost (NFR-8). App open, a session connected, nothing happening: CPU near
@@ -1116,6 +1118,10 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | Navbar section labels are small, muted, sentence case with a chevron; one accent on the current view row, a folder filter in force shows as medium weight with an open-folder icon | Matches the Linear reference, and a filtered board never shows two accents |
 | 2026-10-29 | The navbar column never animates `width`; mode changes land in one frame and only the floating panel moves, with transform. `BoardView` is memoized | Width is a layout property (NFR-2). Toggling the navbar re-rendered the board for about 16ms with 60 plans, 0 after memoizing |
 | 2026-10-29 | The empty state is a continuous scene (sheets falling into a tray on 7.3s, 9.7s and 12.1s clocks, a breathing tray, a swelling halo), transform and opacity only, paused whenever the window is hidden or unfocused | Sid: a looping animation that does not read as a loop, like GitHub's error page. Durations that share no factor line up only once in minutes. Pausing off-focus keeps the idle budget (NFR-8), and the reduced-motion guard stills it |
+| 2026-10-29 | One shortcut registry (`src/lib/shortcuts.ts`) binds every key through one listener; keys never fire while typing except Escape, `mod+e` and `mod+s`; an action with no handler in the current state passes the key through | `mod+e` has to leave the editor and `mod+s` save from it; passing through is how `mod+f` still reaches CodeMirror's own find while editing |
+| 2026-10-29 | One Escape handler closes the app's panels topmost first (find, history, comments, floating outline, revealed navbar); menus and dialogs close themselves and a handled event is skipped | Separate Escape listeners per panel closed two things at once |
+| 2026-10-29 | The command palette is shadcn `command` on `cmdk` (the one new dependency, for its fuzzy filter); it lists five recent plans untyped and the top 20 title matches typed, plus content matches from the on-demand search; it and the shortcut sheet mount only while open | Mounting every plan made opening the palette grow with the base (NFR-1); the overlays re-render only themselves |
+| 2026-10-29 | Tooltips with keys go on every icon and action button; rows that open a plan, breadcrumbs, section toggles and inline form buttons carry none | A tooltip on a list row says what the row already says |
 
 ---
 
