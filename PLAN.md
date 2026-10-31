@@ -899,6 +899,11 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [ ] P7.10 Onboarding without the import step; version 0.3.0
 - [ ] P7.11 Shortcut registry feeding keys, `kbd` tooltips and a command palette on
       shadcn `command`; the `?` shortcut sheet; measured on the 2MB plan **(T)**
+- [ ] P7.12 Shell: Linear-style navbar with open, minimized and hidden modes
+      (`cmd+b` open or hidden, `cmd+shift+b` minimized, edge hover reveals it when
+      hidden); labelled sections (Views, Folders, Recent); a basic Folders section;
+      an empty state instead of the welcome document; Inter as the body typeface,
+      vendored **(T: mode cycling and the sections' pure helpers)**
 - [ ] **GATE 7 — Sid manual QA & approval** (draft to alignment in Claude Code
       desktop; todos moving live; a PR recorded with the plan in its body; folders
       and archive; video and LaTeX; every action by shortcut with the key in its
@@ -1029,6 +1034,10 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 | 2026-10-28 | Frontmatter block lists are rewritten as flow lists, and `tags:` reads through the same list parser | The parser folded block lists under an empty key, so an unknown block list used to vanish on rewrite |
 | 2026-10-28 | Folder names are trimmed, whitespace collapsed, and `, [ ] { } " ' : #` dropped; matching ignores case | They are written as a YAML flow list, and the picker warns while typing rather than quoting |
 | 2026-10-28 | Completed and Archived sit folded in one rail at the end of the board, open per visit; the "Hide completed" toggle is gone | Two folded groups replaced one hidden one, and a rail keeps four open columns at 1280px |
+| 2026-10-28 | The shell is a Linear-style navbar with three modes, open, minimized (icon rail) and hidden (full screen), with `cmd+b` toggling open and hidden and `cmd+shift+b` the rail; sections carry labels; folders are a plain list in the navbar | Sid, with Linear screenshots: labelled sections, a basic folder system, full screen and minimized modes, `cmd+b` for the navbar |
+| 2026-10-28 | The main area opens on an empty state, not the welcome document | Sid: empty state by default. The welcome document is removed from the app, the browser demo keeps an inline sample |
+| 2026-10-28 | Body typeface is Inter (variable, vendored in `public/fonts`, OFL) with Linear's feature settings; the wordmark keeps EB Garamond | Sid asked for a typeface that reads as premium. Inter is what the reference screenshots use, and vendoring keeps the app offline (NFR-5) |
+| 2026-10-28 | The shell step runs after the align flow and before the shortcut pass | The tooltip and shortcut audit has to cover the final navbar, and both steps rewrite `App.tsx` |
 
 ---
 
