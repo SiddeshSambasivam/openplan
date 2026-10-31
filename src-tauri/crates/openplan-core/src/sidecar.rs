@@ -10,7 +10,7 @@ const SIDECAR_SUFFIX: &str = "oplan-comments.json";
 /// retired the next time the plan's comments are saved.
 const LEGACY_SIDECAR_SUFFIX: &str = "omd-comments.json";
 
-fn sidecar_path(doc_path: &Path, suffix: &str) -> Result<PathBuf, String> {
+pub(crate) fn sidecar_path(doc_path: &Path, suffix: &str) -> Result<PathBuf, String> {
     let dir = doc_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
