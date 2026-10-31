@@ -91,7 +91,6 @@ export function ListView({
   const treeCtx = {
     activeId,
     expanded,
-    forceExpandAll: false,
     onToggleDir,
     onSelect,
   };
