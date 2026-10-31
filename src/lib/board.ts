@@ -67,6 +67,33 @@ export function forYou(
   return { review, answered };
 }
 
+/** The plans in the order a view shows them, top to bottom and column by
+ * column, which is the order `[` and `]` step through. */
+export function viewOrder(
+  view: "board" | "list" | "for-you",
+  plans: PlanSummary[],
+  summaries: ReviewSummary[],
+): PlanSummary[] {
+  if (view === "for-you") {
+    const { review, answered } = forYou(plans, summaries);
+    return [...review, ...answered];
+  }
+  const groups = view === "board" ? boardColumns(plans) : statusGroups(plans);
+  return groups.flatMap((group) => group.plans);
+}
+
+/** The plan one step along from the open one. With none open, or one the
+ * order does not hold, the step starts from the near end. */
+export function steppedPlan(
+  order: PlanSummary[],
+  openPath: string | null,
+  step: 1 | -1,
+): PlanSummary | null {
+  const at = order.findIndex((plan) => plan.path === openPath);
+  if (at === -1) return (step === 1 ? order[0] : order[order.length - 1]) ?? null;
+  return order[at + step] ?? null;
+}
+
 export interface Crumb {
   /** The plan a document belongs to. Null for the plan itself. */
   lead: string | null;
