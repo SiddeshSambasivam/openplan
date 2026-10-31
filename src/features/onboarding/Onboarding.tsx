@@ -222,7 +222,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
               className="flex animate-in items-center gap-4 font-serif text-5xl tracking-[-0.01em] fade-in slide-in-from-bottom-4 duration-700"
               style={rise(0)}
             >
-              <BrandMark className="size-11 shrink-0" />
+              <BrandMark className="size-8 shrink-0" />
               OpenPlan
             </h1>
             <p
