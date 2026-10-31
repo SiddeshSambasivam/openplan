@@ -86,7 +86,9 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     assert!(text.contains("tags: auth, needs-review"), "{text}");
 
     // The user leaves a review comment the way the app writes one...
-    let base_root = home.join(".openplan");
+    // Whichever build this is, the server puts its base where that
+    // build looks for it.
+    let base_root = home.join(openplan_core::profile::base_dir_name());
     let plan_path = base_root.join("plans/auth-refactor.md");
     openplan_core::comments::write_threads(
         &plan_path,
@@ -134,7 +136,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     server.wait().unwrap();
 
     // What reached disk is a plan the app would list, attributed in history.
-    let base = openplan_core::base::Base { root: home.join(".openplan") };
+    let base = openplan_core::base::Base { root: base_root.clone() };
     let entries = openplan_core::library::scan(&base);
     assert_eq!(entries.len(), 1);
     let history =

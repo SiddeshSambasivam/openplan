@@ -9,6 +9,7 @@ pub mod import;
 pub mod integrations;
 pub mod library;
 pub mod plan;
+pub mod profile;
 pub mod repo;
 pub mod settings;
 pub mod standards;

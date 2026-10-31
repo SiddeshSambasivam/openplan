@@ -38,7 +38,7 @@ impl Base {
 }
 
 pub fn default_base_path(home: &Path) -> PathBuf {
-    home.join(BASE_DIR_NAME)
+    home.join(crate::profile::base_dir_name())
 }
 
 /// Creates whatever is missing and leaves whatever is already there alone, so
@@ -96,7 +96,7 @@ mod tests {
     fn the_default_base_is_hidden_in_the_home_directory() {
         assert_eq!(
             default_base_path(Path::new("/Users/sid")),
-            Path::new("/Users/sid/.openplan")
+            Path::new("/Users/sid").join(crate::profile::base_dir_name())
         );
     }
 

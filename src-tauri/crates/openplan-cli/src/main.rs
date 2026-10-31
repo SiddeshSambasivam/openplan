@@ -1,5 +1,4 @@
 use openplan_cli::{run, Context};
-use openplan_core::repo::Author;
 use openplan_core::settings;
 
 fn main() {

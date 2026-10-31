@@ -78,7 +78,7 @@ pub fn me() -> Author {
 pub fn settings_path() -> Result<PathBuf, String> {
     let dir = dirs::config_dir()
         .ok_or_else(|| "Couldn't find this system's configuration directory.".to_string())?;
-    Ok(dir.join("openplan").join("settings.json"))
+    Ok(dir.join(crate::profile::name()).join("settings.json"))
 }
 
 /// `None` when OpenPlan has never run here, which is not an error.
@@ -259,11 +259,11 @@ mod tests {
 
         let base = resolve_base(&file, &home).unwrap();
 
-        assert_eq!(base.root, home.join(".openplan"));
+        assert_eq!(base.root, home.join(crate::profile::base_dir_name()));
         assert!(base.plans_dir().is_dir());
         assert_eq!(
             read_settings(&file).unwrap().unwrap().base_path,
-            home.join(".openplan")
+            home.join(crate::profile::base_dir_name())
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -352,7 +352,7 @@ mod tests {
 
         assert_eq!(base.root, elsewhere);
         assert!(elsewhere.join("plans").is_dir());
-        assert!(!home.join(".openplan").exists(), "the default was created anyway");
+        assert!(!home.join(crate::profile::base_dir_name()).exists(), "the default was created anyway");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
