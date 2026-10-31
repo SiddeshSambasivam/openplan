@@ -2,7 +2,7 @@
 //! under their own login, and writes what moved to the work record. Only on
 //! the person's word or a session leaving, never on a timer.
 
-use openplan_core::{repo, work};
+use openplan_core::{plan, repo, work};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::Duration;
@@ -42,6 +42,9 @@ const CALL_LIMIT: Duration = Duration::from_secs(5);
 type Reader = fn(&[String]) -> Option<Vec<(String, work::PrState)>>;
 
 fn refresh(path: &Path, root: &Path, read: Reader) -> Result<PrRefresh, String> {
+    if is_demo(path) {
+        return Ok(PrRefresh { checked: 0, changed: 0, available: true });
+    }
     let urls: Vec<String> = work::read(path)?
         .map(|record| work::unmerged_prs(&record))
         .unwrap_or_default()
@@ -60,6 +63,11 @@ fn refresh(path: &Path, root: &Path, read: Reader) -> Result<PrRefresh, String> 
         let _ = repo::commit_all(root, &repo::Author::app(), &format!("pr state: {name}"));
     }
     Ok(PrRefresh { checked: states.len(), changed, available: true })
+}
+
+/// A demo plan's PRs are made up, so the CLI is never asked about them.
+fn is_demo(path: &Path) -> bool {
+    std::fs::read_to_string(path).is_ok_and(|text| plan::parse(&text, path).meta.demo)
 }
 
 /// The CLI's own answer for each url, after one sign-in check.
@@ -337,6 +345,20 @@ mod tests {
 
         assert_eq!(refreshed, PrRefresh { checked: 0, changed: 0, available: false });
         assert_eq!(work::read(&path).unwrap().unwrap().prs[0].state, PrState::Open);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_demo_plan_never_asks_the_cli() {
+        let (root, path) = plan_with_prs("openplan-app-refresh-demo", &[(OPEN, "open")]);
+        std::fs::write(&path, "---\ndemo: true\n---\n# Plan\n").unwrap();
+        fn never(_: &[String]) -> Option<Vec<(String, PrState)>> {
+            panic!("the CLI was asked")
+        }
+
+        let refreshed = refresh(&path, &root, never).unwrap();
+
+        assert_eq!(refreshed, PrRefresh { checked: 0, changed: 0, available: true });
         let _ = std::fs::remove_dir_all(&root);
     }
 
