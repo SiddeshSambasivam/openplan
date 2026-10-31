@@ -6,6 +6,9 @@ import {
   FolderBadges,
   HandledBy,
   LiveMark,
+  NewBadge,
+  PrCount,
+  RepoLine,
   ThreadCount,
   TodoProgress,
 } from "@/components/PlanFacts";
@@ -18,18 +21,22 @@ import {
   type ReviewSummary,
   type StatusGroup,
 } from "@/lib/board";
+import type { CardDisplay } from "@/lib/cardDisplay";
 import { entrance, useMountedKeys } from "@/lib/motion";
+import { useNewPlans } from "@/lib/newPlans";
 import { STATUS_HINTS, STATUS_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
-import type { TodoCount } from "@/lib/work";
+import type { PlanProgress } from "@/lib/work";
 
 interface BoardViewProps {
   plans: PlanSummary[];
   summaries: ReviewSummary[];
   /** Live agent sessions by plan id. */
   sessions: Map<string, number>;
-  /** Todo progress by plan path, for the plans with a work record. */
-  progress: Map<string, TodoCount>;
+  /** What the work record says, by plan path, for the plans with one. */
+  progress: Map<string, PlanProgress>;
+  /** Which facts a card shows. */
+  display: CardDisplay;
   /** Every folder in the base, for the card menu. */
   folders: string[];
   onFoldersChange: (plan: PlanSummary, folders: string[]) => void;
@@ -46,7 +53,9 @@ function Card({
   plan,
   open,
   sessions,
-  count,
+  work,
+  display,
+  fresh,
   index,
   mountedWith,
   actions,
@@ -54,7 +63,10 @@ function Card({
   plan: PlanSummary;
   open: number;
   sessions: number;
-  count?: TodoCount;
+  work?: PlanProgress;
+  display: CardDisplay;
+  /** Filed in the last few minutes: the card carries a New tag. */
+  fresh: boolean;
   /** Where the card sits in its column, which sets its entrance delay. */
   index: number;
   /** False for a card filed after the column was drawn: it fades in place. */
@@ -68,22 +80,38 @@ function Card({
     <div style={enter.style} className={cn("group relative", enter.className)}>
       <button
         onClick={() => actions.onOpen(plan)}
+        title={display.clampTitle ? plan.title : undefined}
         className="motion-card flex w-full cursor-default flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left hover:border-ring"
       >
-        <span className="pr-6 text-sm leading-snug font-medium text-balance text-foreground">
+        <span
+          className={cn(
+            "text-sm leading-snug font-medium text-balance text-foreground",
+            fresh ? "pr-11" : "pr-6",
+            display.clampTitle && "line-clamp-2",
+          )}
+        >
           {plan.title}
         </span>
-        <FolderBadges folders={plan.folders} />
-        <span className="flex items-center gap-2 text-xs text-muted-foreground">
-          <LiveMark sessions={sessions} />
-          <HandledBy source={plan.source} />
+        {display.repos && <RepoLine repos={work?.repos ?? []} className="text-xs" />}
+        {display.folders && <FolderBadges folders={plan.folders} />}
+        {/* Wraps rather than clips once a narrow column runs out of room. */}
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          {display.sessions && <LiveMark sessions={sessions} />}
+          {display.source && <HandledBy source={plan.source} />}
           <ThreadCount open={open} />
-          <TodoProgress progress={count} />
-          <span className="ml-auto shrink-0 tabular-nums">
-            {shortDate(plan.updated ?? plan.created)}
-          </span>
+          {display.progress && <TodoProgress progress={work} />}
+          {display.prs && <PrCount prs={work?.prs} />}
+          {display.date && (
+            <span className="ml-auto shrink-0 tabular-nums">
+              {shortDate(plan.updated ?? plan.created)}
+            </span>
+          )}
         </span>
       </button>
+      {/* The tag gives way to the folder menu, which opens in its place. */}
+      {fresh && (
+        <NewBadge className="pointer-events-none absolute top-2.5 right-2 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0" />
+      )}
       <FolderPicker
         folders={plan.folders}
         known={actions.folders}
@@ -109,13 +137,18 @@ function Column({
   summaries,
   sessions,
   progress,
+  display,
+  fresh,
   actions,
   onFold,
 }: {
   group: StatusGroup;
   summaries: Map<string, ReviewSummary>;
   sessions: Map<string, number>;
-  progress: Map<string, TodoCount>;
+  progress: Map<string, PlanProgress>;
+  display: CardDisplay;
+  /** The paths of the plans that carry a New tag. */
+  fresh: Set<string>;
   actions: CardActions;
   /** Set for a column that folds away. */
   onFold?: () => void;
@@ -155,7 +188,9 @@ function Column({
             plan={plan}
             open={summaries.get(plan.path)?.open ?? 0}
             sessions={sessions.get(plan.id) ?? 0}
-            count={progress.get(plan.path)}
+            work={progress.get(plan.path)}
+            display={display}
+            fresh={fresh.has(plan.path)}
             index={index}
             mountedWith={mounted.has(plan.path)}
             actions={actions}
@@ -227,11 +262,13 @@ export const BoardView = memo(function BoardView({
   summaries,
   sessions,
   progress,
+  display,
   folders,
   onFoldersChange,
   onOpen,
 }: BoardViewProps) {
   const columns = useMemo(() => boardColumns(plans), [plans]);
+  const fresh = useNewPlans(plans);
   const byPath = useMemo(
     () => new Map(summaries.map((summary) => [summary.path, summary])),
     [summaries],
@@ -264,6 +301,8 @@ export const BoardView = memo(function BoardView({
         summaries={byPath}
         sessions={sessions}
         progress={progress}
+        display={display}
+        fresh={fresh}
         actions={actions}
         onFold={
           FOLDED.includes(group.status)

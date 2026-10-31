@@ -4,18 +4,21 @@ import { FolderTree } from "@/components/FolderTree";
 import { PlanList } from "@/components/PlanList";
 import { TooltipButton } from "@/components/TooltipButton";
 import type { ReviewSummary } from "@/lib/board";
+import type { CardDisplay } from "@/lib/cardDisplay";
 import type { PlanSummary } from "@/lib/planBase";
 import type { FileLibraryItem, LibraryItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import type { TodoCount } from "@/lib/work";
+import type { PlanProgress } from "@/lib/work";
 
 interface ListViewProps {
   plans: PlanSummary[];
   summaries: ReviewSummary[];
   /** Live agent sessions by plan id. */
   sessions: Map<string, number>;
-  /** Todo progress by plan path, for the plans with a work record. */
-  progress: Map<string, TodoCount>;
+  /** What the work record says, by plan path, for the plans with one. */
+  progress: Map<string, PlanProgress>;
+  /** Which facts a row shows. */
+  display: CardDisplay;
   activePlanPath: string | null;
   onSelectPlan: (plan: PlanSummary) => void;
   onSelectDocument: (plan: PlanSummary, document: string) => void;
@@ -77,6 +80,7 @@ export function ListView({
   summaries,
   sessions,
   progress,
+  display,
   activePlanPath,
   onSelectPlan,
   onSelectDocument,
@@ -108,6 +112,7 @@ export function ListView({
         openThreads={openThreads}
         sessions={sessions}
         progress={progress}
+        display={display}
         onSelect={onSelectPlan}
         onSelectDocument={onSelectDocument}
         onRename={onRenamePlan}

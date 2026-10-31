@@ -72,6 +72,7 @@ import {
   type NavbarState,
 } from "./lib/navbar";
 import { isFontSize, FONT_SIZE_SCALES, type FontSize } from "./lib/fontSize";
+import { loadCardDisplay, saveCardDisplay, type CardDisplay } from "./lib/cardDisplay";
 import type {
   DocFile,
   FolderNode,
@@ -104,11 +105,12 @@ import {
 } from "./lib/planBase";
 import { forYou, planCrumb, steppedPlan, viewOrder, type ReviewSummary } from "./lib/board";
 import { useShortcuts, type ShortcutHandlers } from "./lib/shortcuts";
-import { listWorkProgress, offersCompletion, type TodoCount } from "./lib/work";
+import { listWorkProgress, offersCompletion, type PlanProgress } from "./lib/work";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
 import { filterByFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
 import { BoardView } from "./features/board/BoardView";
+import { DisplayMenu } from "./features/board/DisplayMenu";
 import { ForYouView } from "./features/board/ForYouView";
 import { ListView } from "./features/board/ListView";
 import { cn } from "./lib/utils";
@@ -190,6 +192,11 @@ export default function App() {
       return "small";
     }
   });
+  const [cardDisplay, setCardDisplay] = useState<CardDisplay>(loadCardDisplay);
+  const changeCardDisplay = useCallback((next: CardDisplay) => {
+    setCardDisplay(next);
+    saveCardDisplay(next);
+  }, []);
   const [outlineOpen, setOutlineOpen] = useState(() => {
     try {
       return localStorage.getItem(STORE_OUTLINE) !== "closed";
@@ -256,7 +263,7 @@ export default function App() {
       .catch(() => setSummaries([]));
   }, [plans]);
   // Todo progress for every card, read the same way: one call per change.
-  const [workProgress, setWorkProgress] = useState<Map<string, TodoCount>>(new Map());
+  const [workProgress, setWorkProgress] = useState<Map<string, PlanProgress>>(new Map());
   useEffect(() => {
     void listWorkProgress(plans.map((plan) => plan.path))
       .then((found) => setWorkProgress(new Map(found.map((p) => [p.path, p]))))
@@ -1538,6 +1545,11 @@ export default function App() {
           folders={knownFolders}
           folder={folder}
           onSelectFolder={setChosenFolder}
+          viewTools={
+            mainView === "board" && (
+              <DisplayMenu display={cardDisplay} onChange={changeCardDisplay} />
+            )
+          }
           doc={activeDoc}
           wordCount={activeDoc ? wordCount : null}
           view={view}
@@ -1571,6 +1583,7 @@ export default function App() {
               summaries={summaries}
               sessions={sessions}
               progress={workProgress}
+              display={cardDisplay}
               folders={knownFolders}
               onFoldersChange={changeFolders}
               onOpen={selectPlan}
@@ -1585,6 +1598,7 @@ export default function App() {
               summaries={summaries}
               sessions={sessions}
               progress={workProgress}
+              display={cardDisplay}
               activePlanPath={activePlanPath}
               onSelectPlan={selectPlan}
               onSelectDocument={selectDocument}
@@ -1607,6 +1621,7 @@ export default function App() {
               summaries={summaries}
               sessions={sessions}
               progress={workProgress}
+              display={cardDisplay}
               onOpen={selectPlan}
             />
           </div>

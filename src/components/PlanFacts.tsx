@@ -1,11 +1,29 @@
-import { Bot, Folder, MessageSquareText, User } from "lucide-react";
+import {
+  Bot,
+  Folder,
+  FolderGit2,
+  GitMerge,
+  GitPullRequest,
+  MessageSquareText,
+  User,
+} from "lucide-react";
+import { Fragment } from "react";
 import { ClaudeCodeIcon, CodexIcon, CursorIcon } from "./AgentIcons";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { shortDate } from "@/lib/board";
+import type { CardDisplay } from "@/lib/cardDisplay";
 import { SOURCE_LABELS, type PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
-import { progressText, type TodoCount } from "@/lib/work";
+import {
+  progressText,
+  prSummaryText,
+  repoLabel,
+  type PlanProgress,
+  type PrSummary,
+  type Repo,
+  type TodoCount,
+} from "@/lib/work";
 
 /** The folders a plan is in, as small badges. Past `max`, the rest are
  * counted rather than shown, so a row keeps its height. */
@@ -76,29 +94,93 @@ export function PlanRowFacts({
   plan,
   open,
   sessions,
-  progress,
+  work,
+  display,
 }: {
   plan: PlanSummary;
   open: number;
   sessions: number;
-  progress?: TodoCount;
+  work?: PlanProgress;
+  display: CardDisplay;
 }) {
   return (
     <>
-      <FolderBadges
-        folders={plan.folders}
-        max={1}
-        className="hidden w-36 shrink-0 flex-nowrap md:flex"
-      />
-      <LiveMark sessions={sessions} />
-      <HandledBy source={plan.source} className="hidden md:grid" />
+      {/* Fixed columns, held open when empty, so the rows line up. */}
+      {display.repos && (
+        <span className="hidden w-40 shrink-0 lg:flex">
+          <RepoLine repos={work?.repos ?? []} />
+        </span>
+      )}
+      {display.folders && (
+        <span className="hidden w-36 shrink-0 md:flex">
+          <FolderBadges folders={plan.folders} max={1} className="flex-nowrap" />
+        </span>
+      )}
+      {display.sessions && <LiveMark sessions={sessions} />}
+      {display.source && <HandledBy source={plan.source} className="hidden md:grid" />}
       <ThreadCount open={open} />
-      <TodoProgress progress={progress} />
-      <span className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
-        {shortDate(plan.updated ?? plan.created)}
-      </span>
+      {display.progress && <TodoProgress progress={work} />}
+      {display.prs && <PrCount prs={work?.prs} />}
+      {display.date && (
+        <span className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
+          {shortDate(plan.updated ?? plan.created)}
+        </span>
+      )}
     </>
   );
+}
+
+/** The repos the plan works in, on one line: `owner/repo` with the branch
+ * muted beside it. */
+export function RepoLine({
+  repos,
+  className,
+}: {
+  repos: Repo[];
+  className?: string;
+}) {
+  if (repos.length === 0) return null;
+  const said = repos
+    .map((repo) => [repoLabel(repo), repo.branch].filter(Boolean).join(" on "))
+    .join(", ");
+  return (
+    <span
+      title={said}
+      className={cn("flex min-w-0 items-center gap-1.5 text-muted-foreground", className)}
+    >
+      <FolderGit2 className="size-3 shrink-0" />
+      <span className="truncate">
+        {repos.map((repo, index) => (
+          <Fragment key={repo.path}>
+            {index > 0 && ", "}
+            <span className="text-foreground">{repoLabel(repo)}</span>
+            {repo.branch && ` ${repo.branch}`}
+          </Fragment>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+/** How many PRs the agent recorded. The icon turns to a merge once every
+ * one reads merged. */
+export function PrCount({ prs }: { prs?: PrSummary }) {
+  if (!prs || prs.total <= 0) return null;
+  const Icon = prs.merged === prs.total ? GitMerge : GitPullRequest;
+  return (
+    <span
+      title={prSummaryText(prs)}
+      className="flex shrink-0 items-center gap-1 tabular-nums"
+    >
+      <Icon className="size-3" />
+      {prs.total}
+    </span>
+  );
+}
+
+/** A plan filed in the last few minutes. */
+export function NewBadge({ className }: { className?: string }) {
+  return <Badge className={cn("px-1.5 py-0", className)}>New</Badge>;
 }
 
 /** Agents working on this plan right now. Nothing is shown when nobody is.
