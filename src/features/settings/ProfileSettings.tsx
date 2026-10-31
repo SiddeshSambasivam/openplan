@@ -6,17 +6,21 @@ import { isTauri, pickImage } from "@/lib/platform";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { RoleSettings } from "./RoleSettings";
 
 const HINT = "mt-1 text-xs leading-5 text-muted-foreground";
 
-/** The person's picture, display name and email. The picture saves as soon
- * as it is picked; the name and email wait for Save. */
+/** The person's picture, display name, email and role. The picture and
+ * the role save as soon as they are picked; the name and email wait for
+ * Save. */
 export function ProfileSettings({
   identity,
   onIdentityChange,
+  revealRole,
 }: {
   identity: Identity | null;
   onIdentityChange: (identity: Identity) => void;
+  revealRole: boolean;
 }) {
   const [name, setName] = useState(identity?.name ?? "");
   const [email, setEmail] = useState(identity?.email ?? "");
@@ -143,6 +147,8 @@ export function ProfileSettings({
         </div>
         {formError && <p className="text-xs text-destructive">{formError}</p>}
       </form>
+
+      <RoleSettings reveal={revealRole} />
     </>
   );
 }

@@ -1,4 +1,5 @@
 import {
+  Bot,
   Download,
   FileText,
   Folder,
@@ -38,12 +39,15 @@ import { UPDATES_WORK } from "@/lib/useUpdates";
 import { TooltipButton } from "@/components/TooltipButton";
 import { cn } from "@/lib/utils";
 import type { Identity } from "@/lib/comments";
+import { onRoleSettingsRequest } from "@/lib/settingsRequests";
+import { AgentSettings } from "./AgentSettings";
 import { ImportPlans } from "./ImportPlans";
 import { ProfileSettings } from "./ProfileSettings";
 
 const SECTIONS = [
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "general", label: "General", icon: SlidersHorizontal },
+  { id: "agents", label: "Agents", icon: Bot },
   { id: "standards", label: "Standards", icon: FileText },
   { id: "base", label: "Plan base", icon: Folder },
   { id: "import", label: "Import plans", icon: Download },
@@ -78,6 +82,24 @@ function Row({
   );
 }
 
+/** General's "Take the tour", shown only when the app can start it. */
+export function TourRow({ onTakeTour }: { onTakeTour?: () => void }) {
+  if (!onTakeTour) return null;
+  return (
+    <>
+      <h2 className="pt-5 pb-1 text-sm font-semibold">Getting started</h2>
+      <Row
+        label="Tour of OpenPlan"
+        hint="Walks you through the board and a plan on the demo plans. Any you deleted come back."
+      >
+        <Button variant="outline" size="sm" onClick={onTakeTour}>
+          Take the tour
+        </Button>
+      </Row>
+    </>
+  );
+}
+
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -105,6 +127,8 @@ interface SettingsDialogProps {
   onCheckForUpdates: () => void;
   /** Installs the version a check found, saving unsaved edits first. */
   onUpdate: () => void;
+  /** Starts the tour. Without it, General offers no tour. */
+  onTakeTour?: () => void;
 }
 
 /** A whole number up to `max`, or null while the field holds something else. */
@@ -180,12 +204,29 @@ export function SettingsDialog({
   update,
   onCheckForUpdates,
   onUpdate,
+  onTakeTour,
 }: SettingsDialogProps) {
   const [version, setVersion] = useState<string | null>(null);
   const [standards, setStandards] = useState<Standards | null>(null);
   const [draft, setDraft] = useState("");
   const [saved, setSaved] = useState(false);
   const [authoring, setAuthoringMode] = useState<Authoring>("markdown");
+  // Set by a request for the Role row, until the person leaves Profile.
+  const [revealRole, setRevealRole] = useState(false);
+
+  useEffect(
+    () =>
+      onRoleSettingsRequest(() => {
+        onSectionChange("profile");
+        onOpenChange(true);
+        setRevealRole(true);
+      }),
+    [onSectionChange, onOpenChange],
+  );
+
+  useEffect(() => {
+    if (!open || section !== "profile") setRevealRole(false);
+  }, [open, section]);
 
   useEffect(() => {
     if (!open || version != null) return;
@@ -250,7 +291,11 @@ export function SettingsDialog({
 
           <div className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
             {section === "profile" && (
-              <ProfileSettings identity={identity} onIdentityChange={onIdentityChange} />
+              <ProfileSettings
+                identity={identity}
+                onIdentityChange={onIdentityChange}
+                revealRole={revealRole}
+              />
             )}
 
             {section === "general" && (
@@ -338,6 +383,23 @@ export function SettingsDialog({
                     />
                   </Row>
                 </div>
+
+                <TourRow onTakeTour={onTakeTour} />
+              </>
+            )}
+
+            {section === "agents" && (
+              <>
+                <h2 className="text-sm font-semibold">Agents</h2>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Set up OpenPlan in the agents you use, so they can file plans here and read your
+                  standards.
+                </p>
+                {isTauri ? (
+                  <AgentSettings />
+                ) : (
+                  <p className="mt-4 text-xs text-muted-foreground">Available in the desktop app.</p>
+                )}
               </>
             )}
 

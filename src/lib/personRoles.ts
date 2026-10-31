@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import table from "../../src-tauri/crates/openplan-core/src/person_roles.json";
+import type { Invoke } from "./onboarding";
 import { isTauri } from "./platform";
 import { DEFAULT_PANEL, PERSONAS, spokenList, type Role } from "./work";
 
@@ -40,11 +41,28 @@ export function panelFor(id: string | null | undefined): Role[] {
   return role ? role.panel.map((member) => member.role) : DEFAULT_PANEL;
 }
 
+/** The role in the person's settings, null for none, or undefined when it
+ * cannot be read. */
+export async function readRole(): Promise<string | null | undefined> {
+  if (!isTauri) return undefined;
+  const settings = await invoke<{ role?: string | null }>("app_settings").catch(() => null);
+  return settings ? (settings.role ?? null) : undefined;
+}
+
 /** The person's panel, from their settings. */
 export async function readPanel(): Promise<Role[]> {
-  if (!isTauri) return DEFAULT_PANEL;
-  const settings = await invoke<{ role?: string | null }>("app_settings").catch(() => null);
-  return panelFor(settings?.role);
+  return panelFor(await readRole());
+}
+
+/** Saves the person's role. None puts back the panel people had before
+ * roles. */
+export async function saveRole(call: Invoke, role: PersonRoleId | null): Promise<void> {
+  await call("set_role", { role });
+}
+
+/** Only a person known to have no role is asked to pick one. */
+export function showsRoleHint(role: string | null | undefined): boolean {
+  return role === null;
 }
 
 /** One line under the panel that says who goes into depth. */

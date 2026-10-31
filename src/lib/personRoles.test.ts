@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { panelCaption, panelFor, PERSON_ROLES, personRole } from "./personRoles";
+import { panelCaption, panelFor, PERSON_ROLES, personRole, saveRole, showsRoleHint } from "./personRoles";
 import { DEFAULT_PANEL, ROLES } from "./work";
 
 describe("PERSON_ROLES", () => {
@@ -68,5 +68,39 @@ describe("panelCaption", () => {
     expect(panelCaption("other")).toBe(
       "Mila, Theo, Iris and Kai ask the essentials, in plain words.",
     );
+  });
+});
+
+describe("saveRole", () => {
+  it("saves a picked role, and clears it with none", async () => {
+    const calls: [string, unknown][] = [];
+    const call = async (command: string, args?: Record<string, unknown>) => {
+      calls.push([command, args]);
+      return null;
+    };
+
+    await saveRole(call, "designer");
+    await saveRole(call, null);
+
+    expect(calls).toEqual([
+      ["set_role", { role: "designer" }],
+      ["set_role", { role: null }],
+    ]);
+  });
+
+  it("passes on a save that fails", async () => {
+    const call = async () => {
+      throw "Couldn't write your settings.";
+    };
+    await expect(saveRole(call, "lead")).rejects.toBe("Couldn't write your settings.");
+  });
+});
+
+describe("showsRoleHint", () => {
+  it("asks only a person with no role, and not before the role is read", () => {
+    expect(showsRoleHint(null)).toBe(true);
+    expect(showsRoleHint("designer")).toBe(false);
+    expect(showsRoleHint("a-role-from-a-newer-version")).toBe(false);
+    expect(showsRoleHint(undefined)).toBe(false);
   });
 });
