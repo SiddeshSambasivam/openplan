@@ -1,4 +1,4 @@
-import { ChevronLeft, Folder } from "lucide-react";
+import { ChevronLeft, ChevronRight, Folder } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { FolderPicker } from "@/components/FolderPicker";
 import { StatusGlyph } from "@/components/StatusGlyph";
@@ -146,8 +146,9 @@ function Column({
         )}
       </h3>
       {/* Each column carries its own overflow, so a long one scrolls
-          without taking the others with it. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 pb-2">
+          without taking the others with it. The padding keeps a lifted or
+          focused card inside the clip. */}
+      <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pt-1 pb-2">
         {group.plans.map((plan, index) => (
           <Card
             key={plan.path}
@@ -165,22 +166,54 @@ function Column({
   );
 }
 
-/** Finished work, folded to a narrow strip at the end of the board. */
-function FoldedColumn({ group, onOpen }: { group: StatusGroup; onOpen: () => void }) {
-  const label = STATUS_LABELS[group.status];
+/** The folded columns, behind one collapsible at the end of the board.
+ * Opening it lists them, and picking one brings that column back. */
+function HiddenColumns({
+  groups,
+  onShow,
+}: {
+  groups: StatusGroup[];
+  onShow: (status: Status) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = groups.reduce((sum, group) => sum + group.plans.length, 0);
   return (
-    <TooltipButton
-      variant="outline"
-      onClick={onOpen}
-      tooltip={`Show ${label}`}
-      aria-label={`Show ${label}, ${group.plans.length} plans`}
-      className="h-auto w-10 flex-col justify-start gap-2 py-3 font-normal"
-    >
-      <StatusGlyph status={group.status} />
-      <span className="text-xs tabular-nums text-muted-foreground">
-        {group.plans.length}
-      </span>
-    </TooltipButton>
+    <section className="flex w-36 shrink-0 flex-col">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="justify-start gap-2 px-1 font-medium text-muted-foreground"
+      >
+        <ChevronRight
+          className={cn("transition-transform duration-150", open && "rotate-90")}
+        />
+        Hidden
+        <span className="font-normal tabular-nums">{count}</span>
+      </Button>
+      {open && (
+        <ul className="animate-in fade-in-0 mt-1 flex flex-col gap-1 duration-150">
+          {groups.map((group) => (
+            <li key={group.status}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onShow(group.status)}
+                title={STATUS_HINTS[group.status]}
+                className="w-full justify-start gap-2 px-1 font-normal"
+              >
+                <StatusGlyph status={group.status} />
+                {STATUS_LABELS[group.status]}
+                <span className="ml-auto tabular-nums text-muted-foreground">
+                  {group.plans.length}
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -213,33 +246,14 @@ export function BoardView({
     );
   }
 
-  // Folded columns next to each other share one narrow rail, so finished
-  // work costs the board one strip of width rather than one per status.
-  const pieces: ReactNode[] = [];
-  let rail: StatusGroup[] = [];
-  const closeRail = () => {
-    if (rail.length === 0) return;
-    pieces.push(
-      <div key={`rail-${rail[0].status}`} className="flex shrink-0 flex-col gap-2">
-        {rail.map((group) => (
-          <FoldedColumn
-            key={group.status}
-            group={group}
-            onOpen={() => setUnfolded((open) => [...open, group.status])}
-          />
-        ))}
-      </div>,
-    );
-    rail = [];
-  };
-  for (const group of columns) {
-    const foldable = FOLDED.includes(group.status);
-    if (foldable && !unfolded.includes(group.status)) {
-      rail.push(group);
-      continue;
-    }
-    closeRail();
-    pieces.push(
+  // Finished work sits behind one Hidden control at the end of the board,
+  // so it costs the open columns nothing until someone asks for it.
+  const hidden = columns.filter(
+    (group) => FOLDED.includes(group.status) && !unfolded.includes(group.status),
+  );
+  const pieces: ReactNode[] = columns
+    .filter((group) => !hidden.includes(group))
+    .map((group) => (
       <Column
         key={group.status}
         group={group}
@@ -248,14 +262,21 @@ export function BoardView({
         progress={progress}
         actions={actions}
         onFold={
-          foldable
+          FOLDED.includes(group.status)
             ? () => setUnfolded((open) => open.filter((s) => s !== group.status))
             : undefined
         }
+      />
+    ));
+  if (hidden.length > 0) {
+    pieces.push(
+      <HiddenColumns
+        key="hidden"
+        groups={hidden}
+        onShow={(status) => setUnfolded((open) => [...open, status])}
       />,
     );
   }
-  closeRail();
 
   return (
     // Below the width the columns need, the board scrolls sideways rather
