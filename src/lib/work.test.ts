@@ -13,6 +13,7 @@ import {
   repoLabel,
   progressText,
   answerFromDraft,
+  newQuestionIds,
   pendingQuestions,
   pendingQuestionsLabel,
   questionsByRound,
@@ -136,6 +137,30 @@ describe("pendingQuestions", () => {
   it("has none without an alignment or a record", () => {
     expect(pendingQuestions(record([]))).toEqual([]);
     expect(pendingQuestions(null)).toEqual([]);
+  });
+});
+
+describe("newQuestionIds", () => {
+  it("has none on the first read", () => {
+    expect(newQuestionIds(null, [question("q1", "tests")])).toEqual([]);
+  });
+
+  it("lists the unanswered questions that were not there before", () => {
+    const before = [question("q1", "tests")];
+    const after = [
+      question("q1", "tests"),
+      question("q2", "scale"),
+      question("q3", "tests", { answer: { kind: "text", text: "Small" } }),
+    ];
+
+    expect(newQuestionIds(before, after)).toEqual(["q2"]);
+  });
+
+  it("has none when only answers change", () => {
+    const before = [question("q1", "tests")];
+    const after = [question("q1", "tests", { answer: { kind: "text", text: "Small" } })];
+
+    expect(newQuestionIds(before, after)).toEqual([]);
   });
 });
 

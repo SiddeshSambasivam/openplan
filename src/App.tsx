@@ -127,6 +127,7 @@ import {
   showsWorkPanel,
   type PlanProgress,
 } from "./lib/work";
+import { useAttentionRequest } from "./features/plan/useAttentionRequest";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
 import { WORK_PANEL_PX, WorkPanel } from "./features/plan/PlanWork";
 import { PlanTabStrip } from "./features/plan/PlanTabStrip";
@@ -677,7 +678,16 @@ export default function App() {
     };
   }, []);
 
-  const workRecord = useWorkRecord(activePlan?.path ?? null);
+  // Questions an agent posts while the plan is open bring the person to them.
+  const requestAttention = useAttentionRequest();
+  const showNewQuestions = useCallback(
+    (path: string) => {
+      setPlanTabs((tabs) => withTab(tabs, path, "alignment"));
+      requestAttention();
+    },
+    [requestAttention],
+  );
+  const workRecord = useWorkRecord(activePlan?.path ?? null, showNewQuestions);
   const offerCompletion =
     activePlan != null && offersCompletion(activePlan.status, workRecord?.prs);
   const prState = usePrStateRefresh({

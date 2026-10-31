@@ -243,6 +243,17 @@ export function pendingQuestions(record: WorkRecord | null): Question[] {
   return record?.alignment?.questions.filter((question) => !question.answer) ?? [];
 }
 
+/** The ids of unanswered questions in `after` that `before` did not have.
+ * `before` is null on the first read, which has none: questions count as
+ * new only once there is a read to compare with. */
+export function newQuestionIds(before: Question[] | null, after: Question[]): string[] {
+  if (before == null) return [];
+  const known = new Set(before.map((question) => question.id));
+  return after
+    .filter((question) => !question.answer && !known.has(question.id))
+    .map((question) => question.id);
+}
+
 export interface RoundGroup {
   round: number;
   questions: Question[];

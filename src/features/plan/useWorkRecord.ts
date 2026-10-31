@@ -1,25 +1,43 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isTauri } from "@/lib/platform";
-import { readWorkRecord, type WorkRecord } from "@/lib/work";
+import { newQuestionIds, readWorkRecord, type Question, type WorkRecord } from "@/lib/work";
 
 /**
  * A plan's work record, kept in step with its sidecar. Agents write it
  * through the MCP server, so it is read again on every base change, the way
  * comments are. Nothing polls.
+ *
+ * `onNewQuestions` runs when a read finds unanswered questions the last read
+ * of the same plan did not have. The first read after opening a plan only
+ * sets what counts as known.
  */
-export function useWorkRecord(path: string | null): WorkRecord | null {
+export function useWorkRecord(
+  path: string | null,
+  onNewQuestions?: (path: string) => void,
+): WorkRecord | null {
   const [record, setRecord] = useState<WorkRecord | null>(null);
+  const onNewQuestionsRef = useRef(onNewQuestions);
+  onNewQuestionsRef.current = onNewQuestions;
 
   useEffect(() => {
     setRecord(null);
     if (!isTauri || !path) return;
     let unlisten: (() => void) | undefined;
     let cancelled = false;
+    let known: Question[] | null = null;
+    const received = (next: WorkRecord | null) => {
+      if (cancelled) return;
+      const questions = next?.alignment?.questions ?? [];
+      const fresh = newQuestionIds(known, questions);
+      known = questions;
+      setRecord(next);
+      if (fresh.length > 0) onNewQuestionsRef.current?.(path);
+    };
     // A record that cannot be read shows as no record rather than an error
-    // over the plan.
+    // over the plan. It leaves the known questions as they were.
     const read = () =>
       void readWorkRecord(path)
-        .then((next) => !cancelled && setRecord(next))
+        .then(received)
         .catch(() => !cancelled && setRecord(null));
     read();
     void (async () => {
