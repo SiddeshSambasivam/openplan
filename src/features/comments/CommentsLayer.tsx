@@ -110,14 +110,16 @@ export function CommentsLayer({
   }, [articleRef, measure]);
 
   return (
-    <div aria-hidden className="absolute inset-0 z-10">
+    // The wrapper must let the article underneath keep receiving the mouse;
+    // only the drawn boxes themselves are clickable.
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-10">
       {boxes.map((box, i) =>
         box.kind === "text" ? (
           <button
             key={i}
             onClick={() => onOpenThread(box.threadId)}
             tabIndex={-1}
-            className="absolute cursor-default rounded-[2px]"
+            className="pointer-events-auto absolute cursor-default rounded-[2px]"
             style={{
               top: box.top,
               left: box.left,
@@ -134,7 +136,7 @@ export function CommentsLayer({
             onClick={() => onOpenThread(box.threadId)}
             tabIndex={-1}
             aria-hidden
-            className="absolute w-[3px] cursor-default rounded-full"
+            className="pointer-events-auto absolute w-[3px] cursor-default rounded-full"
             style={{
               top: box.top,
               left: Math.max(0, box.left - 14),

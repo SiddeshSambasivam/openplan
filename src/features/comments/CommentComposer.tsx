@@ -7,9 +7,10 @@ interface Draft {
   quote: string;
   lineStart: number;
   lineEnd: number;
-  /** Where the composer sits, in the scroll container's content space. */
+  /** Below the highlight, in the scroll container's content space. */
   top: number;
-  left: number;
+  /** Horizontal middle of the highlight's last line. */
+  centerX: number;
 }
 
 /**
@@ -52,12 +53,16 @@ export function CommentComposer({
           setTrigger(null);
           return;
         }
-        const rect = selection.getRangeAt(0).getBoundingClientRect();
+        // The last client rect is the selection's final line; the button
+        // hangs centered right under it.
+        const rects = selection.getRangeAt(0).getClientRects();
+        const last = rects[rects.length - 1];
+        if (!last) return;
         const base = container.getBoundingClientRect();
         setTrigger({
           ...range,
-          top: rect.bottom - base.top + container.scrollTop + 6,
-          left: rect.left - base.left + container.scrollLeft,
+          top: last.bottom - base.top + container.scrollTop + 6,
+          centerX: last.left + last.width / 2 - base.left + container.scrollLeft,
         });
       }, 0);
     };
@@ -84,12 +89,19 @@ export function CommentComposer({
     setText("");
   };
 
+  // Keeps a box of the given width inside the container, whatever the
+  // window size.
+  const clampedLeft = (centerX: number, width: number) => {
+    const max = (containerRef.current?.clientWidth ?? width) - width - 8;
+    return Math.min(Math.max(centerX - width / 2, 8), Math.max(max, 8));
+  };
+
   if (composing) {
     return (
       <div
         ref={boxRef}
         className="absolute z-30 w-72 animate-in rounded-lg border border-border bg-popover p-2 shadow-lg fade-in slide-in-from-bottom-1 duration-150"
-        style={{ top: composing.top, left: Math.min(composing.left, 480) }}
+        style={{ top: composing.top, left: clampedLeft(composing.centerX, 288) }}
       >
         <textarea
           autoFocus
@@ -124,13 +136,13 @@ export function CommentComposer({
   if (!trigger) return null;
   return (
     <div
-      className="absolute z-30 animate-in fade-in duration-150"
-      style={{ top: trigger.top, left: Math.min(trigger.left, 560) }}
+      className="absolute z-30 -translate-x-1/2 animate-in fade-in duration-150"
+      style={{ top: trigger.top, left: trigger.centerX }}
     >
       <Button
         size="xs"
         variant="outline"
-        className="gap-1.5 bg-popover shadow-md"
+        className="gap-1.5 bg-popover shadow-md dark:bg-popover dark:hover:bg-accent"
         onClick={() => {
           setComposing(trigger);
           setTrigger(null);
