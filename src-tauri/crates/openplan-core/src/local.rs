@@ -190,7 +190,9 @@ impl Server {
                 sent += 1;
             }
         }
-        if sent == 0 {
+        // A status change is stale by the time a session arrives, and the plan
+        // file already says where it stands.
+        if sent == 0 && !matches!(event, Event::Status { .. }) {
             state.held.entry(plan_id.to_string()).or_default().push(event);
         }
         waiting.notify_all();
@@ -1020,6 +1022,22 @@ mod tests {
         let second = open(&server, "claude-code");
         second.take_plan("sync");
         assert_eq!(pending_at(server.port, "claude-code", Some(second.id())), Vec::<Event>::new());
+
+        server.shutdown();
+    }
+
+    #[test]
+    fn a_status_change_nobody_heard_is_not_kept_for_later() {
+        let server = Server::start(|_| {}).unwrap();
+        let status = Event::Status {
+            plan: "sync".to_string(),
+            status: "in-review".to_string(),
+        };
+        assert_eq!(server.send("sync", status), 0);
+
+        let later = open(&server, "claude-code");
+        later.take_plan("sync");
+        assert_eq!(pending_at(server.port, "claude-code", Some(later.id())), Vec::<Event>::new());
 
         server.shutdown();
     }
