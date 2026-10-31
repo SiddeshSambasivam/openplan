@@ -8,7 +8,6 @@ import {
   type DiffLine,
   type Revision,
 } from "@/lib/planBase";
-import { Button } from "@/components/ui/button";
 import { TooltipButton } from "@/components/TooltipButton";
 import { cn } from "@/lib/utils";
 
@@ -62,15 +61,6 @@ export function HistoryPanel({
     };
   }, [path, selected]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   if (!open) return null;
 
   const restore = async () => {
@@ -86,14 +76,17 @@ export function HistoryPanel({
         <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
           History
         </p>
-        <Button
+        <TooltipButton
           variant="ghost"
           size="icon-xs"
           onClick={onClose}
+          shortcut="escape"
+          tooltip="Close"
+          tooltipAlign="end"
           aria-label="Close history"
         >
           <X />
-        </Button>
+        </TooltipButton>
       </div>
 
       {revisions.length === 0 ? (

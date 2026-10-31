@@ -38,7 +38,7 @@ export const SHORTCUTS = [
   { id: "forYou", label: "For you", keys: "mod+3", group: "Views" },
   {
     id: "plan",
-    label: "Open plan",
+    label: "Current plan",
     keys: "mod+4",
     group: "Views",
     when: "The open plan, or the last one you read",
@@ -118,8 +118,15 @@ export function keysLabel(keys: string, platform: Platform): string {
   return formatKeys(keys, platform).join(platform === "mac" ? "" : "+");
 }
 
-export function shortcutKeys(id: ActionId): string[] {
-  return formatKeys(shortcut(id).keys, PLATFORM);
+/** Actions by group, in the order the registry lists them. */
+export function groupShortcuts(actions: readonly Shortcut[]): [string, Shortcut[]][] {
+  const groups = new Map<string, Shortcut[]>();
+  for (const action of actions) {
+    const group = groups.get(action.group);
+    if (group) group.push(action);
+    else groups.set(action.group, [action]);
+  }
+  return [...groups.entries()];
 }
 
 export function parseKeys(keys: string): { mod: boolean; shift: boolean; key: string } {

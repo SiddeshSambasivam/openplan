@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import {
   MIN_OUTLINE_ITEMS,
   outlineIndentPx,
@@ -29,15 +28,6 @@ export function Outline({
   overlay,
   onClose,
 }: OutlineProps) {
-  useEffect(() => {
-    if (!overlay || !open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [overlay, open, onClose]);
-
   if (items.length < MIN_OUTLINE_ITEMS) return null;
 
   const goTo = (id: string) => {

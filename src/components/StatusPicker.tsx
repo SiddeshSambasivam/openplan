@@ -6,7 +6,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import {
   personCanSet,
   STATUS_FLOW,
@@ -15,28 +14,33 @@ import {
   type Status,
 } from "@/lib/planBase";
 import { StatusGlyph } from "./StatusGlyph";
+import { TooltipButton } from "./TooltipButton";
 
 interface StatusPickerProps {
   status: Status;
   onChange: (status: Status) => void;
+  /** Set where the status key should open this picker. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** Where the plan stands, and the one control that moves it. */
-export function StatusPicker({ status, onChange }: StatusPickerProps) {
+export function StatusPicker({ status, onChange, open, onOpenChange }: StatusPickerProps) {
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button
+        <TooltipButton
           variant="ghost"
           size="xs"
-          title={STATUS_HINTS[status]}
+          shortcut="status"
+          tooltipAlign="start"
           aria-label={`Status: ${STATUS_LABELS[status]}`}
           className="-ml-1.5 gap-1.5 text-foreground"
         >
           <StatusGlyph status={status} tick />
           {STATUS_LABELS[status]}
           <ChevronDown className="size-3 text-muted-foreground" />
-        </Button>
+        </TooltipButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">
         <DropdownMenuRadioGroup

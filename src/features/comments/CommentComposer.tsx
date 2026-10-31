@@ -2,6 +2,7 @@ import { MessageSquarePlus } from "lucide-react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { selectionRange } from "@/lib/anchors";
 import { Button } from "@/components/ui/button";
+import { TooltipButton } from "@/components/TooltipButton";
 
 interface Draft {
   quote: string;
@@ -70,16 +71,18 @@ export function CommentComposer({
     return () => document.removeEventListener("mouseup", onMouseUp);
   }, [enabled, articleRef, containerRef, lineOffset]);
 
+  // Captured, and marked handled, so the same Escape does not also close
+  // the panel underneath.
   useEffect(() => {
     if (!composing) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setComposing(null);
-        setText("");
-      }
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setComposing(null);
+      setText("");
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [composing]);
 
   const submit = () => {
@@ -139,9 +142,10 @@ export function CommentComposer({
       className="absolute z-30 -translate-x-1/2 animate-in fade-in duration-150"
       style={{ top: trigger.top, left: trigger.centerX }}
     >
-      <Button
+      <TooltipButton
         size="xs"
         variant="outline"
+        tooltip="Comment on the selected text"
         className="gap-1.5 bg-popover shadow-md dark:bg-popover dark:hover:bg-accent"
         onClick={() => {
           setComposing(trigger);
@@ -151,7 +155,7 @@ export function CommentComposer({
       >
         <MessageSquarePlus />
         Comment
-      </Button>
+      </TooltipButton>
     </div>
   );
 }

@@ -21,6 +21,9 @@ interface FolderPickerProps {
   trigger: ReactElement;
   /** Shown on hover, for a trigger that is only an icon. */
   tooltip?: ReactNode;
+  /** Set where the folders key should open this picker. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** Where the person puts a plan in folders and takes it out of them: the
@@ -31,6 +34,8 @@ export function FolderPicker({
   onChange,
   trigger,
   tooltip,
+  open,
+  onOpenChange,
 }: FolderPickerProps) {
   const [typed, setTyped] = useState("");
   const { names, addable } = folderChoices(known, folders, typed);
@@ -44,7 +49,13 @@ export function FolderPicker({
 
   const anchor = <PopoverTrigger asChild>{trigger}</PopoverTrigger>;
   return (
-    <Popover onOpenChange={(open) => !open && setTyped("")}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setTyped("");
+        onOpenChange?.(next);
+      }}
+    >
       {tooltip ? (
         <Tooltip>
           <TooltipTrigger asChild>{anchor}</TooltipTrigger>

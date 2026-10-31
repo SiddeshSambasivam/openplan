@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatKeys,
+  groupShortcuts,
   isTypingTarget,
   keysLabel,
   parseKeys,
@@ -129,5 +130,18 @@ describe("the registry", () => {
   it("refuses a key string it does not know", () => {
     expect(() => parseKeys("hyper+b")).toThrow();
     expect(() => parseKeys("mod+")).toThrow();
+  });
+});
+
+describe("groupShortcuts", () => {
+  it("keeps the registry's order of groups and of actions inside them", () => {
+    const groups = groupShortcuts(SHORTCUTS);
+    expect(groups.map(([group]) => group)).toEqual(["General", "Views", "Plan", "Review"]);
+    expect(groups.flatMap(([, actions]) => actions)).toEqual([...SHORTCUTS]);
+  });
+
+  it("drops a group with nothing left in it", () => {
+    const some = SHORTCUTS.filter((action) => action.group !== "Views");
+    expect(groupShortcuts(some).map(([group]) => group)).toEqual(["General", "Plan", "Review"]);
   });
 });

@@ -9,9 +9,8 @@ import {
   Search,
   Settings,
   SquarePen,
-  X,
 } from "lucide-react";
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import { cn } from "../lib/utils";
 import type { MainView } from "../lib/types";
 import type { FolderFilter } from "../lib/folders";
@@ -21,25 +20,26 @@ import {
   toggleSection,
   type SectionId,
 } from "../lib/navbar";
-import { searchPlans, type PlanSummary, type SearchHit } from "@/lib/planBase";
+import type { PlanSummary } from "@/lib/planBase";
+import { shortcut as registryEntry, type ActionId } from "@/lib/shortcuts";
 import { BrandMark } from "./BrandMark";
 import { MarqueeText } from "./MarqueeText";
+import { ShortcutLabel } from "./ShortcutKeys";
 import { StatusGlyph } from "./StatusGlyph";
 import { TooltipButton } from "./TooltipButton";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SidebarProps {
   /** The rail shows each row as an icon with its label in a tooltip. */
   rail: boolean;
-  /** Asked for by the rail's search button: search needs the open navbar. */
-  onRequestOpen: () => void;
+  /** The search button opens the command palette. */
+  onOpenPalette: () => void;
   /** The person's name, or null before onboarding has asked for it. */
   name: string | null;
   /** The base's folder name, shown beside the person's name. */
   baseName: string | null;
-  plans: PlanSummary[];
+  /** How many plans the base holds, shown beside All plans. */
+  planCount: number;
   /** Every folder in the base, sorted by name. */
   folders: string[];
   folder: FolderFilter;
@@ -63,10 +63,10 @@ const NEW_PLAN_HINT = "New plans come from your agents. Ask one to file a plan."
  * that concerns these rows. */
 export const Sidebar = memo(function Sidebar({
   rail,
-  onRequestOpen,
+  onOpenPalette,
   name,
   baseName,
-  plans,
+  planCount,
   folders,
   folder,
   onSelectFolder,
@@ -83,27 +83,18 @@ export const Sidebar = memo(function Sidebar({
   useEffect(() => saveCollapsedSections(collapsed), [collapsed]);
   const toggle = (id: SectionId) => setCollapsed((old) => toggleSection(old, id));
 
-  const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
-  const hitsByPlan = usePlanSearch(query.trim());
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const showSearch = searching && !rail;
-
-  const openSearch = () => {
-    if (rail) onRequestOpen();
-    setSearching(true);
-    searchInputRef.current?.focus();
-  };
-  const closeSearch = () => {
-    setQuery("");
-    setSearching(false);
-  };
-
-  const viewRow = (target: MainView, icon: ReactNode, label: string, count?: number) => (
+  const viewRow = (
+    target: MainView,
+    shortcut: ActionId,
+    icon: ReactNode,
+    label: string,
+    count?: number,
+  ) => (
     <NavRow
       rail={rail}
       icon={icon}
       label={label}
+      shortcut={shortcut}
       count={count}
       active={view === target}
       onClick={() => onSelectView(target)}
@@ -162,12 +153,12 @@ export const Sidebar = memo(function Sidebar({
         <TooltipButton
           variant="ghost"
           size="icon-sm"
-          onClick={showSearch ? closeSearch : openSearch}
-          tooltip="Search plans"
+          onClick={onOpenPalette}
+          shortcut="palette"
+          tooltip="Search plans and commands"
           tooltipSide={rail ? "right" : "bottom"}
-          aria-label="Search plans"
-          aria-expanded={showSearch}
-          className={cn("text-muted-foreground", showSearch && "bg-sidebar-accent text-sidebar-foreground")}
+          aria-label="Search plans and commands"
+          className="text-muted-foreground"
         >
           <Search />
         </TooltipButton>
@@ -176,80 +167,33 @@ export const Sidebar = memo(function Sidebar({
         </Hint>
       </div>
 
-      {showSearch && (
-        <div className="relative flex shrink-0 items-center px-3 pt-1 pb-1 animate-in fade-in-0 duration-150">
-          <Search className="pointer-events-none absolute left-5.5 size-3.5 text-muted-foreground" />
-          <Input
-            ref={searchInputRef}
-            autoFocus
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Escape") return;
-              e.stopPropagation();
-              if (query) setQuery("");
-              else closeSearch();
-            }}
-            placeholder="Search"
-            aria-label="Search plans"
-            className="h-8 pr-7 pl-8"
-          />
-          {query && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => {
-                setQuery("");
-                searchInputRef.current?.focus();
-              }}
-              aria-label="Clear search"
-              className="absolute right-4.5 text-muted-foreground"
-            >
-              <X />
-            </Button>
-          )}
-        </div>
-      )}
-
       <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-2">
-        {showSearch && query.trim() ? (
-          <SearchResults
-            query={query.trim()}
-            hitsByPlan={hitsByPlan}
-            plans={plans}
-            onSelectPlan={onSelectPlan}
-          />
-        ) : (
-          <>
-            <Section id="views" label="Views" rail={rail} collapsed={collapsed} onToggle={toggle}>
-              {viewRow("board", <Columns3 className={ICON} />, "Board")}
-              {viewRow("list", <List className={ICON} />, "All plans", plans.length)}
-              {viewRow("for-you", <Inbox className={ICON} />, "For you", forYouCount)}
-            </Section>
+        <Section id="views" label="Views" rail={rail} collapsed={collapsed} onToggle={toggle}>
+          {viewRow("board", "board", <Columns3 className={ICON} />, "Board")}
+          {viewRow("list", "list", <List className={ICON} />, "All plans", planCount)}
+          {viewRow("for-you", "forYou", <Inbox className={ICON} />, "For you", forYouCount)}
+        </Section>
 
-            <Section id="folders" label="Folders" rail={rail} collapsed={collapsed} onToggle={toggle}>
-              {folderRow(null, "All plans")}
-              {folders.map((name) => folderRow(name, name))}
-            </Section>
+        <Section id="folders" label="Folders" rail={rail} collapsed={collapsed} onToggle={toggle}>
+          {folderRow(null, "All plans")}
+          {folders.map((name) => folderRow(name, name))}
+        </Section>
 
-            {recent.length > 0 && (
-              <Section id="recent" label="Recent" rail={rail} collapsed={collapsed} onToggle={toggle}>
-                {recent.map((plan) => (
-                  <NavRow
-                    key={plan.path}
-                    rail={rail}
-                    icon={<StatusGlyph status={plan.status} />}
-                    label={plan.title}
-                    active={plan.path === activePlanPath && view === "plan"}
-                    onClick={() => onSelectPlan(plan)}
-                  >
-                    <MarqueeText text={plan.title} className="flex-1" />
-                  </NavRow>
-                ))}
-              </Section>
-            )}
-          </>
+        {recent.length > 0 && (
+          <Section id="recent" label="Recent" rail={rail} collapsed={collapsed} onToggle={toggle}>
+            {recent.map((plan) => (
+              <NavRow
+                key={plan.path}
+                rail={rail}
+                icon={<StatusGlyph status={plan.status} />}
+                label={plan.title}
+                active={plan.path === activePlanPath && view === "plan"}
+                onClick={() => onSelectPlan(plan)}
+              >
+                <MarqueeText text={plan.title} className="flex-1" />
+              </NavRow>
+            ))}
+          </Section>
         )}
       </nav>
 
@@ -258,6 +202,7 @@ export const Sidebar = memo(function Sidebar({
           rail={rail}
           icon={<Settings className={ICON} />}
           label="Settings"
+          shortcut="settings"
           onClick={onOpenSettings}
         />
       </div>
@@ -275,13 +220,15 @@ const ACTIVE = "bg-sidebar-accent font-medium text-sidebar-accent-foreground";
 
 /**
  * One navbar row. The rail keeps the icon and moves the label into a
- * tooltip. `chosen` marks a filter in force without competing with the
- * accent on the view it filters.
+ * tooltip, which also carries the row's key. In the open navbar only a row
+ * with a key has a tooltip. `chosen` marks a filter in force without
+ * competing with the accent on the view it filters.
  */
 function NavRow({
   rail,
   icon,
   label,
+  shortcut,
   count,
   active = false,
   chosen = false,
@@ -291,6 +238,7 @@ function NavRow({
   rail: boolean;
   icon: ReactNode;
   label: string;
+  shortcut?: ActionId;
   count?: number;
   active?: boolean;
   chosen?: boolean;
@@ -322,9 +270,9 @@ function NavRow({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{row}</TooltipTrigger>
-      {rail && (
+      {(rail || shortcut) && (
         <TooltipContent side="right" sideOffset={6}>
-          {label}
+          <ShortcutLabel label={label} keys={shortcut && registryEntry(shortcut).keys} />
         </TooltipContent>
       )}
     </Tooltip>
@@ -410,82 +358,4 @@ function Hint({
       </TooltipContent>
     </Tooltip>
   );
-}
-
-function SearchResults({
-  query,
-  hitsByPlan,
-  plans,
-  onSelectPlan,
-}: {
-  query: string;
-  hitsByPlan: [string, SearchHit[]][];
-  plans: PlanSummary[];
-  onSelectPlan: (plan: PlanSummary) => void;
-}) {
-  const hitCount = hitsByPlan.reduce((sum, [, group]) => sum + group.length, 0);
-  return (
-    <div className="pt-2 pb-2">
-      <p className="px-2 pb-1 text-xs font-medium text-muted-foreground">
-        In plans
-        <span className="ml-1.5 tabular-nums opacity-60">{hitCount}</span>
-      </p>
-      {hitsByPlan.length === 0 ? (
-        <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-          Nothing matches &ldquo;{query}&rdquo;.
-        </p>
-      ) : (
-        hitsByPlan.map(([path, group]) => (
-          <div key={path} className="pb-1.5">
-            <button
-              onClick={() => {
-                const plan = plans.find((p) => p.path === path);
-                if (plan) onSelectPlan(plan);
-              }}
-              className={cn(ROW, "w-full truncate px-2 py-1 text-left")}
-            >
-              {group[0].title}
-            </button>
-            {group.slice(0, 4).map((hit) => (
-              <p key={hit.line} className="truncate px-2 py-0.5 pl-4 text-[11px] text-muted-foreground">
-                <span className="tabular-nums opacity-60">{hit.line}</span> {hit.text}
-              </p>
-            ))}
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-/** Searching reads the base on demand; the pause keeps a fast typist from
- * starting a scan per keystroke. */
-function usePlanSearch(query: string): [string, SearchHit[]][] {
-  const [hits, setHits] = useState<SearchHit[]>([]);
-  useEffect(() => {
-    if (!query) {
-      setHits([]);
-      return;
-    }
-    let stale = false;
-    const timer = setTimeout(() => {
-      void searchPlans(query).then((found) => {
-        if (!stale) setHits(found);
-      });
-    }, 150);
-    return () => {
-      stale = true;
-      clearTimeout(timer);
-    };
-  }, [query]);
-
-  return useMemo(() => {
-    const grouped = new Map<string, SearchHit[]>();
-    for (const hit of hits) {
-      const group = grouped.get(hit.path);
-      if (group) group.push(hit);
-      else grouped.set(hit.path, [hit]);
-    }
-    return [...grouped.entries()];
-  }, [hits]);
 }
