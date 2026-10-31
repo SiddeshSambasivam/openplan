@@ -175,8 +175,12 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 | FR-14 | **Settings page**: a single settings surface (Claude Code-style) for user preferences — light/dark theme, font type + font size, layout/width (compact/spaced/full) — plus the power-user items already assigned there (base location/relocation, remotes, re-run discovery). Header keeps only quick toggles; settings is canonical. Preferences persist across launches. |
 | FR-16 | **Status board** (0.2.0): plans move through Draft, In progress, In review, Completed. A board view groups by status; a list view groups or sorts by status, project, or updated; "For you" lists what waits on the person (In review, or an agent's reply is the last message in an open thread they started). Completed folds away. |
 | FR-17 | **Loopback server** (0.2.0): while the app is open it listens on 127.0.0.1 only. The stdio MCP server connects when it is up: it registers the session and the plan it works on (that is what "2 sessions" means and what moves a plan to In progress), and receives comments as they are sent. With the app closed everything still works against files. Not a daemon: it lives and dies with the window. |
-| FR-18 | **Projects** (0.2.0): a project is the git remote (owner/repo) of the directory an agent filed or updated the plan from, recorded by the agent. Nothing to set up. The app groups by it, filters the board and list to it, shows the owner's GitHub avatar (fetched once, cached on disk), and a one-line description the first agent that files into it writes. |
+| FR-18 | ~~**Projects**~~ (0.2.0, removed in 0.3.0 by FR-21): a project is the git remote (owner/repo) of the directory an agent filed or updated the plan from, recorded by the agent. Nothing to set up. The app groups by it, filters the board and list to it, shows the owner's GitHub avatar (fetched once, cached on disk), and a one-line description the first agent that files into it writes. |
 | FR-19 | **Authoring modes** (0.2.0): a setting, markdown or HTML, that `get_standards` and the `create_plan` description follow automatically. Markdown is token-efficient; HTML gives rich, reviewable pages. Both are plans under the same contract, comments included. |
+| FR-20 | **Alignment** (0.3.0): a stage between draft and in-progress. The person finishes reviewing by setting Alignment; the agent asks its questions in the harness, with a recommended option and a "Let the agent decide" option on each, and records questions and answers through `record_alignment`. `set_status` refuses in-progress until every question is answered and at least one todo exists. Mandatory for every plan type. |
+| FR-21 | **Work record** (0.3.0): `.<name>.oplan-work.json` beside the plan holds repos (with branches, or a plain folder when there is no repo), the alignment, decisions, todos and PRs. Agents write it through `add_todos`, `update_todo`, `add_decisions`, `record_pr`, `set_repos`. The plan page renders todos live with who moved each one and when; `pr_body` returns the reviewer's version of the plan for the PR description. Projects (FR-18) are removed. |
+| FR-22 | **Folders and archive** (0.3.0): a plan carries zero or more folders in frontmatter, set by the person; the board filters by them and shows every plan by default. Archived is a status, set by the person or by the app N days after completed (setting, default 7, checked on launch and board show, never on a timer). Harness delivery adds a Stop and a UserPromptSubmit hook for Claude Code and Cursor, and the app says after Send whether the session heard or will hear on its next keystroke. |
+| FR-23 | **Rich pages and interaction** (0.3.0): LaTeX, video files inside the plan set, and `html` fences in a sandboxed frame with scripts and no network, behind a media setting served through `get_standards`. Every action has a shortcut from one registry and a tooltip showing the key. |
 | FR-15 | **Search, global and local**: local find-in-document (exists — keep) plus **global search across all plans in the base** (title + content, results grouped by plan, jump-to-match). On-demand scan in Rust when invoked — **no persistent index, no background indexing** (NFR-8); the base is small enough that a cold scan is instant. |
 
 ### Non-functional
@@ -400,6 +404,13 @@ session registers work on it through the loopback server (FR-17) or an agent cal
 the person; `set_status` refuses it. Reading a pre-0.2.0 file: `tags: archived` reads
 as completed, the old `status:` vocabulary maps (`done`/`archived` to completed,
 `approved` to in-review), and the `tags:` line is kept as an uninterpreted key.
+
+**0.3.0 (FR-20 to FR-22).** `status` adds `alignment` and `archived`. Frontmatter
+adds `folders` (a list) and `completed` (set with the status, drives auto-archive) and
+stops writing `project` and `pr`; both are kept as unknown keys when read, and `pr` is
+copied into the work record on the first agent write. Session presence no longer
+changes status. The work record schema and the guarded transitions are in the filed
+plan "OpenPlan 0.3.0" in the base.
 
 **HTML plans (FR-19).** `<id>.html` is a plan exactly as `<id>.md` is: the same
 frontmatter in an HTML comment at the top of the file, the same sidecar, the same
@@ -862,6 +873,37 @@ Known and decided, not bugs: HTML plans carry no comments, because anchors are
 markdown source lines; and a comment reaches the agent on its next tool call
 rather than at once, because MCP gives a server no way to speak first.
 
+### Phase 7 — 0.3.0: alignment, work record, folders, rich pages
+Entity model agreed with Sid 2026-10-28. Specification and decisions D1 to D13: the
+filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GATE 6 waiver (§9).
+- [ ] P7.1 Contract: `Status` gains alignment and archived; frontmatter gains
+      `folders` and `completed`, stops writing `project` and `pr`; legacy reads **(T)**
+- [ ] P7.2 Work record: schema, atomic read-modify-write under the base lock,
+      `pr` migrated on first write **(T)**
+- [ ] P7.3 MCP: `update_plan`, `record_alignment`, `add_decisions`, `add_todos`,
+      `update_todo`, `record_pr`, `pr_body`, `set_repos`; `create_plan` takes
+      `repos`; guards on `set_status`; presence no longer sets status **(T)**
+- [ ] P7.4 Delete projects: `project.rs`, `projects.json`, `describe_project`,
+      `list_projects`, avatars, project filter; folders replace them in every view
+- [ ] P7.5 Plan page: alignment Q&A, decision cards, live todo checklist, repos and
+      PRs block; board card progress **(T: record parsing and progress)**
+- [ ] P7.6 Align event through the loopback server; the picker's Alignment entry;
+      the delivery line after Send; auto-archive on launch and board show with the
+      days setting **(T)**
+- [ ] P7.7 Installers: Claude Code and Cursor Stop and UserPromptSubmit hooks,
+      `openplan pending`, managed block text **(T)**
+- [ ] P7.8 Standards: question bank per type, alignment procedure, media rule,
+      confirmation-on-merge rule
+- [ ] P7.9 Rendering: LaTeX, video, sandboxed `html` fences with the height message,
+      the media setting **(T: fence extraction and CSP)**
+- [ ] P7.10 Onboarding without the import step; version 0.3.0
+- [ ] P7.11 Shortcut registry feeding keys, `kbd` tooltips and a command palette on
+      shadcn `command`; the `?` shortcut sheet; measured on the 2MB plan **(T)**
+- [ ] **GATE 7 — Sid manual QA & approval** (draft to alignment in Claude Code
+      desktop; todos moving live; a PR recorded with the plan in its body; folders
+      and archive; video and LaTeX; every action by shortcut with the key in its
+      tooltip; idle CPU ~0%)
+
 ---
 
 ## 9. Decision log
@@ -971,6 +1013,16 @@ rather than at once, because MCP gives a server no way to speak first.
 | 2026-09-22 | A comment sidecar is a change the interface re-reads but never one the watcher records | A pending thread is written to the sidecar at once and committed when its review is sent. Recording it on sight would publish it early and leave the review's own entry with nothing to commit |
 | 2026-09-22 | Each atomic write names its own temp file, by process and a counter, rather than one name per target | Two writers to one file shared the temp name, so the first rename left the second with nothing to rename and the write failed with an error about a missing folder. Found by the test for the launch race |
 | 2026-09-22 | The idle CPU burn (NFR-8) was the same defect, not an animation: resolving the base per command also set the base directory's permissions, which the watcher saw, which refreshed the interface, which resolved the base again | Measured on the release build against a 50-plan base: 24% CPU by `top` and 40% of a core by accounting, with the git index rewritten about once a second and a new display-link thread every third of a second. Resolving once leaves it at 0.0%, and the scan work grows with the base, which is why a small base only showed a few percent |
+| 2026-10-28 | **0.3.0 entity model**: the plan stays the one entity; a work record sidecar holds repos, alignment, decisions, todos and PRs; projects are removed, folders group plans and repos belong to a plan | Sid: keep it simple, the plan is fundamental, folders are grouping, repos attach to the plan. Items need stable ids, timestamps and an author, which a body checklist cannot carry |
+| 2026-10-28 | Alignment is a mandatory stage between draft and in-progress. The person opens it from the picker, the agent asks in the harness's own question UI and records the answers through MCP; `set_status` refuses in-progress until every question is answered and a todo exists | Sid: the onus of alignment is on the agent, and it should take under 15 minutes. The harness already has a question UI, so the app only renders the record |
+| 2026-10-28 | Session presence no longer changes status (supersedes the 2026-09-22 presence row); every transition is an explicit, guarded call | Presence would skip alignment. The session count still shows who is live |
+| 2026-10-28 | Archived is a status, with auto-archive N days after completed (default 7) checked on launch and board show, never on a timer | Sid: it marks work nobody needs to think about again. A timer is the periodic wake NFR-8 forbids |
+| 2026-10-28 | Completed stays the person's; the app offers it when every recorded PR reads merged, and the managed block tells the agent to ask for confirmation | PR state is reported by the agent, not verified by the app, which makes no network calls |
+| 2026-10-28 | Scripts run inside `html` fences in a frame with `allow-scripts`, an opaque origin and a no-network CSP; video is a file in the plan set, rendered by Remotion in the agent's workspace | Sid wants short videos that show how something works. A file plays with no scripts and in any viewer; the sandbox covers the interactive pieces. IPC isolation to be verified per webview |
+| 2026-10-28 | Hooks: Stop and UserPromptSubmit for Claude Code and Cursor, next tool call for Codex, and the app says after Send which case applies | No harness wakes an idle interactive session from outside. Saying so beats pretending |
+| 2026-10-28 | `update_plan` is added | The draft stage is iteration. Without it agents file duplicates, which is where the base's v2 and v3 plans came from |
+| 2026-10-28 | One shortcut registry feeds every key, its `kbd` tooltip and the command palette | Sid: a shortcut and a tooltip with the key on every action. A key defined in two places drifts |
+| 2026-10-28 | **GATE 6 waived and Phase 7 (0.3.0) starts** | Sid, 2026-10-28: "Gate waived", after the rule was pointed out. Recorded per §2 Process. GATE 7 remains |
 
 ---
 
