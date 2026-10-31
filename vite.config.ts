@@ -13,4 +13,7 @@ export default defineConfig({
     strictPort: true,
     watch: { ignored: ["**/src-tauri/**"] },
   },
+  // Agent worktrees are checked out under .claude/, and their copies of the
+  // suite must not be counted as this tree's.
+  test: { exclude: ["**/node_modules/**", "**/dist/**", "**/.claude/**"] },
 });
