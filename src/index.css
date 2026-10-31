@@ -669,6 +669,35 @@
   animation: persona-pulse 1.6s ease-in-out infinite;
 }
 
+/* Three dots that rise in turn beside a persona who is typing. They move
+   only while that persona's avatar is live. */
+.typing-dots {
+  display: inline-flex;
+  gap: 2px;
+}
+.typing-dots > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-muted-foreground);
+  opacity: 0.4;
+}
+.persona[data-live] ~ .typing-dots > span {
+  animation: typing-dot 1.2s infinite;
+}
+.persona[data-live] ~ .typing-dots > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.persona[data-live] ~ .typing-dots > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes typing-dot {
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
 @keyframes persona-hop {
   35% {
     transform: translateY(-0.28em) scale(1.04, 0.96);
@@ -998,6 +1027,37 @@
 }
 .plan-section[data-kind="approach"] .markdown-body :where(tr:last-child td),
 .plan-section[data-kind="steps"] .markdown-body :where(tr:last-child td) {
+  border-bottom: 0;
+}
+
+/* An alignment question's illustration: small type, and a table that
+   spans the box with rules between rows only. */
+.alignment-illustration.markdown-body {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+.alignment-illustration > :first-child {
+  margin-top: 0;
+}
+.alignment-illustration > :last-child {
+  margin-bottom: 0;
+}
+.alignment-illustration :where(table) {
+  display: table;
+  width: 100%;
+  margin: 0;
+  font-size: 1em;
+  font-variant-numeric: tabular-nums;
+}
+.alignment-illustration :where(th, td) {
+  padding: 5px 10px 5px 0;
+  vertical-align: top;
+}
+.alignment-illustration :where(th) {
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+}
+.alignment-illustration :where(tr:last-child td) {
   border-bottom: 0;
 }
 

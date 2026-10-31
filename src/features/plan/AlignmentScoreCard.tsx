@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AlignmentArea, AlignmentScore } from "@/lib/alignmentScore";
@@ -7,9 +7,11 @@ import { cn } from "@/lib/utils";
 import { PERSONAS } from "@/lib/work";
 import { PersonaAvatar } from "./PersonaAvatar";
 
-const RING_RADIUS = 24;
-const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 const COUNT_MS = 600;
+/* The ring's two halves, drawn from the top: down the left side, and down
+ * the right side. Each turns into view inside its own half. */
+const LEFT_HALF = "M29 53 A24 24 0 0 1 29 5";
+const RIGHT_HALF = "M29 5 A24 24 0 0 1 29 53";
 
 /** The alignment score as a ring, what it is made of, and a chip per area. */
 export function AlignmentScoreCard({ score }: { score: AlignmentScore }) {
@@ -18,32 +20,21 @@ export function AlignmentScoreCard({ score }: { score: AlignmentScore }) {
   return (
     <section
       aria-label="Alignment score"
-      className="flex flex-wrap items-center gap-3.5 rounded-lg border border-border bg-card p-3"
+      className="flex flex-wrap items-center gap-3.5 rounded-lg border border-border bg-muted/50 px-3.5 py-3"
     >
-      <div role="img" aria-label={`Alignment score ${score.total} out of 100`} className="relative size-14 shrink-0">
-        <svg viewBox="0 0 58 58" className="size-full -rotate-90">
-          <circle cx="29" cy="29" r={RING_RADIUS} fill="none" strokeWidth="5" className="stroke-muted" />
-          <circle
-            cx="29"
-            cy="29"
-            r={RING_RADIUS}
-            fill="none"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeDasharray={RING_LENGTH}
-            strokeDashoffset={RING_LENGTH * (1 - score.total / 100)}
-            className={cn("stroke-foreground", score.total === 0 && "opacity-0")}
-          />
-        </svg>
-        <span className="absolute inset-0 grid place-items-center text-base font-semibold tabular-nums">
-          {shown}
+      <div role="img" aria-label={`Alignment score ${score.total} out of 100`} className="relative size-14.5 shrink-0">
+        <ScoreRing value={shown} />
+        <span className="absolute inset-0 grid place-items-center text-lg font-semibold tabular-nums">
+          {Math.round(shown)}
         </span>
       </div>
-      <div className="flex min-w-40 flex-col gap-0.5 text-xs text-muted-foreground">
-        <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+      <div className="flex min-w-37.5 flex-col gap-0.5 text-xs leading-normal text-muted-foreground">
+        <p className="flex items-center gap-2 text-sm leading-normal font-semibold text-foreground">
           Alignment
           {score.total === 100 && (
-            <Badge className="border-transparent bg-success/15 text-success">Fully aligned</Badge>
+            <Badge className="rounded-full border-transparent bg-success/15 px-2 font-semibold text-success">
+              Fully aligned
+            </Badge>
           )}
         </p>
         <p>
@@ -96,7 +87,7 @@ function Chip({ tip, className, children }: { tip: string; className?: string; c
         <TooltipTrigger asChild>
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border border-border bg-background py-0.5 pr-2 pl-1 text-xs text-muted-foreground",
+              "inline-flex items-center gap-1.5 rounded-full border border-border bg-background py-0.75 pr-2.25 pl-1 text-xs text-muted-foreground",
               className,
             )}
           >
@@ -111,9 +102,42 @@ function Chip({ tip, className, children }: { tip: string; className?: string; c
   );
 }
 
-/** Counts the number from the last score to this one. The ring takes its
- * new length at once, since only transform and opacity may animate. A
- * reader who asks for less motion sees the number at once. */
+/** The share filled from the top, clockwise. Each half is an arc that turns
+ * into its own half of the ring, so the fill moves by rotation alone. A dot
+ * gives the start its round cap, which the clip would cut. */
+function ScoreRing({ value }: { value: number }) {
+  const id = useId();
+  const turn = (Math.min(Math.max(value, 0), 100) / 100) * 360;
+  return (
+    <svg viewBox="0 0 58 58" className="size-full" aria-hidden>
+      <defs>
+        <clipPath id={`${id}-right`}>
+          <rect x="29" width="29" height="58" />
+        </clipPath>
+        <clipPath id={`${id}-left`}>
+          <rect width="29" height="58" />
+        </clipPath>
+      </defs>
+      <circle cx="29" cy="29" r="24" fill="none" strokeWidth="5" className="stroke-muted" />
+      {turn > 0 && (
+        <g fill="none" strokeWidth="5" strokeLinecap="round" className="stroke-foreground">
+          <circle cx="29" cy="5" r="2.5" className="fill-foreground stroke-none" />
+          <g clipPath={`url(#${id}-right)`}>
+            <path d={LEFT_HALF} transform={`rotate(${Math.min(turn, 180)} 29 29)`} />
+          </g>
+          {turn > 180 && (
+            <g clipPath={`url(#${id}-left)`}>
+              <path d={RIGHT_HALF} transform={`rotate(${turn - 180} 29 29)`} />
+            </g>
+          )}
+        </g>
+      )}
+    </svg>
+  );
+}
+
+/** Counts from the last score to this one, for the number and the ring. A
+ * reader who asks for less motion sees the new score at once. */
 function useCountUp(target: number): number {
   const [shown, setShown] = useState(target);
   const from = useRef(target);
@@ -127,7 +151,7 @@ function useCountUp(target: number): number {
     const began = performance.now();
     let frame = requestAnimationFrame(function step(now) {
       const done = Math.min(1, (now - began) / COUNT_MS);
-      setShown(Math.round(start + (target - start) * (1 - (1 - done) ** 3)));
+      setShown(start + (target - start) * (1 - (1 - done) ** 3));
       if (done < 1) frame = requestAnimationFrame(step);
     });
     return () => cancelAnimationFrame(frame);

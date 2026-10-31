@@ -261,6 +261,12 @@ export function questionsByRound(questions: Question[]): RoundGroup[] {
   return groups.sort((a, b) => a.round - b.round);
 }
 
+/** What the line between rounds says. The latest round says which review
+ * it answers. */
+export function roundTitle(round: number, latest: boolean): string {
+  return latest ? `Round ${round} · after your ${ordinal(round)} review` : `Round ${round}`;
+}
+
 /** Each role as the person on the team who asks. */
 export const PERSONAS: Record<Role, { name: string; title: string }> = {
   product: { name: "Mila", title: "Product owner" },
@@ -411,4 +417,25 @@ const PR_REVIEWS: Record<Pr["review"], PrBadge> = {
  * Only what needs the person's attention stands out. */
 export function prBadges(pr: Pr): PrBadge[] {
   return [PR_STATES[pr.state], PR_CHECKS[pr.checks], PR_REVIEWS[pr.review]];
+}
+
+const ORDINALS = [
+  "first",
+  "second",
+  "third",
+  "fourth",
+  "fifth",
+  "sixth",
+  "seventh",
+  "eighth",
+  "ninth",
+  "tenth",
+];
+
+/** "first" to "tenth", then "11th", "22nd". */
+function ordinal(n: number): string {
+  if (n >= 1 && n <= ORDINALS.length) return ORDINALS[n - 1];
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  const suffix = teen ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${suffix}`;
 }

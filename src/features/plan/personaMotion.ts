@@ -108,12 +108,12 @@ function schedule(): void {
 
 /** Sometimes twice. */
 function blink(avatar: HTMLElement): void {
-  const once = () => {
+  const once = (ms: number) => {
     avatar.setAttribute("data-blink", "");
-    setTimeout(() => avatar.removeAttribute("data-blink"), 110);
+    setTimeout(() => avatar.removeAttribute("data-blink"), ms);
   };
-  once();
-  if (Math.random() < 0.25) setTimeout(once, 230);
+  once(110);
+  if (Math.random() < 0.25) setTimeout(() => once(100), 230);
 }
 
 /** The face slides across the sphere and narrows toward its edge, and the

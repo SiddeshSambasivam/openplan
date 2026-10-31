@@ -37,10 +37,14 @@ function panel(work: WorkRecord | null, minimized = false): string {
   );
 }
 
-function alignmentTab(work: WorkRecord | null): string {
+function alignmentTab(work: WorkRecord | null, onBuild?: () => void): string {
   return renderToStaticMarkup(
     <TooltipProvider>
-      <AlignmentTab record={work} plan={{ path: "/base/p.md", id: "p", dark: false, media: false }} />
+      <AlignmentTab
+        record={work}
+        plan={{ path: "/base/p.md", id: "p", dark: false, media: false }}
+        onBuild={onBuild}
+      />
     </TooltipProvider>,
   );
 }
@@ -224,7 +228,7 @@ describe("AlignmentTab", () => {
     expect(html).toContain("Send answers");
   });
 
-  it("reads oldest round first, with who asks and who had nothing to ask", () => {
+  it("reads oldest round first, and says who had nothing to ask in the latest round", () => {
     const html = alignmentTab(
       record({
         alignment: {
@@ -258,13 +262,13 @@ describe("AlignmentTab", () => {
     );
 
     expect(html).toContain("Round 1");
-    expect(html).toContain("Round 2");
+    expect(html).toContain("Round 2 · after your second review");
     expect(html).toContain("Mila");
     expect(html).toContain("On-call");
     expect(html.indexOf("Which plans get it?")).toBeLessThan(
       html.indexOf("What happens when the write fails?"),
     );
-    expect(html).toContain("Theo, Iris and Kai had nothing to ask this round.");
+    expect(html).not.toContain("Theo, Iris and Kai had nothing to ask this round.");
     expect(html).toContain("Mila, Theo and Iris had nothing to ask this round.");
     expect(html).toContain('aria-label="1 waiting"');
   });
@@ -337,5 +341,26 @@ describe("AlignmentTab", () => {
     expect(alignmentTab(record({ decisions: [decision] }))).toContain(
       "No alignment yet.",
     );
+  });
+
+  it("offers Build beside Send while the work can still start", () => {
+    const work = record({
+      alignment: {
+        askedAt: "2026-10-28T09:00:00Z",
+        questions: [
+          {
+            id: "q1",
+            aspect: "scale",
+            role: "engineering",
+            question: "How many plans?",
+            options: [{ id: "a", label: "Fifty" }],
+            mustAnswer: false,
+          },
+        ],
+      },
+    });
+
+    expect(alignmentTab(work, () => {})).toMatch(/>Build<\/button>/);
+    expect(alignmentTab(work)).not.toMatch(/>Build<\/button>/);
   });
 });

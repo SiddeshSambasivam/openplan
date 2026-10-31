@@ -1980,6 +1980,7 @@ export default function App() {
                 onEnterEdit={toggleEdit}
                 onRetry={() => setReloadKey((k) => k + 1)}
                 onRemove={() => removeItem(activeDoc.id)}
+                onBuild={canBuild ? build : undefined}
               />
             ) : (
               <EmptyState />

@@ -16,6 +16,7 @@ import {
   pendingQuestions,
   pendingQuestionsLabel,
   questionsByRound,
+  roundTitle,
   showsWorkPanel,
   unusedRoles,
   unusedRolesText,
@@ -155,6 +156,19 @@ describe("questionsByRound", () => {
 
   it("has no groups without questions", () => {
     expect(questionsByRound([])).toEqual([]);
+  });
+});
+
+describe("roundTitle", () => {
+  it("says which review the latest round came after", () => {
+    expect(roundTitle(3, true)).toBe("Round 3 · after your third review");
+    expect(roundTitle(1, true)).toBe("Round 1 · after your first review");
+    expect(roundTitle(12, true)).toBe("Round 12 · after your 12th review");
+    expect(roundTitle(22, true)).toBe("Round 22 · after your 22nd review");
+  });
+
+  it("names an earlier round by its number alone", () => {
+    expect(roundTitle(2, false)).toBe("Round 2");
   });
 });
 

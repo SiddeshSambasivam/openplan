@@ -202,14 +202,16 @@ function PanelBody({ record, onMinimize }: { record: WorkRecord; onMinimize: () 
 export function AlignmentTab({
   record,
   plan,
+  onBuild,
 }: {
   record: WorkRecord | null;
   plan: AlignmentContext;
+  onBuild?: () => void;
 }) {
   const decisions = record?.decisions ?? [];
   return (
     <div className="flex flex-col gap-8">
-      <AlignmentQuestions key={plan.path} record={record} plan={plan} />
+      <AlignmentQuestions key={plan.path} record={record} plan={plan} onBuild={onBuild} />
       {decisions.length > 0 && <RecordedDecisions decisions={decisions} />}
     </div>
   );

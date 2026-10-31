@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alignmentScore, areaKey, buildTooltip } from "./alignmentScore";
+import { alignmentScore, areaKey, buildTooltip, sendBarBuild } from "./alignmentScore";
 import type { Answer, Question, WorkRecord } from "./work";
 
 const question = (id: string, aspect: string, extra: Partial<Question> = {}): Question => ({
@@ -154,5 +154,28 @@ describe("buildTooltip", () => {
     expect(buildTooltip(record([question("q1", "scope", { answer: pick })]))).toBeUndefined();
     expect(buildTooltip(record([]))).toBeUndefined();
     expect(buildTooltip(null)).toBeUndefined();
+  });
+});
+
+describe("sendBarBuild", () => {
+  it("counts draft replies, since this Build sends them first", () => {
+    const score = alignmentScore(
+      [question("q1", "scope"), question("q2", "error handling"), question("q3", "scale")],
+      { q1: pick },
+    );
+
+    expect(sendBarBuild(score)).toEqual({
+      tooltip: "Starts the work. The agent asks about error handling and scale first.",
+      sent: "Build sent. The agent asks about error handling and scale before it starts.",
+    });
+  });
+
+  it("says the agent starts at once when every area is settled", () => {
+    const score = alignmentScore([question("q1", "scope")], { q1: pick });
+
+    expect(sendBarBuild(score)).toEqual({
+      tooltip: "Starts the work.",
+      sent: "Build sent. Everything is settled, so the agent starts now.",
+    });
   });
 });
