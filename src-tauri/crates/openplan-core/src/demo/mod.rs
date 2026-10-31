@@ -230,7 +230,7 @@ mod tests {
 
         let record = record(&by_stage(&paths, Status::Alignment));
         let questions = &record.alignment.as_ref().unwrap().questions;
-        let roles: Vec<Value> = questions.iter().map(|q| serde_json::to_value(q.role).unwrap()).collect();
+        let roles: Vec<Value> = questions.iter().map(|q| serde_json::to_value(&q.role).unwrap()).collect();
         assert_eq!(roles, panel.map(Value::from), "in the panel's order");
         let ids: Vec<&str> = questions.iter().map(|q| q.id.as_str()).collect();
         assert_eq!(ids, ["q1", "q2", "q3", "q4"]);
