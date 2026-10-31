@@ -119,7 +119,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let decided = ask(r##"{"jsonrpc":"2.0","id":33,"method":"tools/call","params":{"name":"add_decisions","arguments":{"id":"auth-refactor","decisions":[{"context":"Where tokens live","options":["cookie","header"],"decision":"Tokens travel in a header.","why":"The API has no cookies.","fromQuestion":"q1"}]}}}"##);
     assert_eq!(decided["result"]["content"][0]["text"], "Recorded D1.", "{decided}");
 
-    let todos = ask(r##"{"jsonrpc":"2.0","id":34,"method":"tools/call","params":{"name":"add_todos","arguments":{"id":"auth-refactor","todos":["Move tokens to a header","Test the refresh path"]}}}"##);
+    let todos = ask(r##"{"jsonrpc":"2.0","id":34,"method":"tools/call","params":{"name":"add_todos","arguments":{"id":"auth-refactor","todos":["Move tokens to a header",{"title":"Test the refresh path","detail":"Cover an expired token and a revoked one."}]}}}"##);
     assert_eq!(todos["result"]["content"][0]["text"], "Added t1 and t2.", "{todos}");
 
     let repos = ask(r##"{"jsonrpc":"2.0","id":35,"method":"tools/call","params":{"name":"set_repos","arguments":{"id":"auth-refactor","repos":[{"path":"~/work/api","remote":"github.com/acme/api","branch":"feat/header-tokens"}]}}}"##);
@@ -194,6 +194,10 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     // build looks for it.
     let base_root = home.join(openplan_core::profile::base_dir_name());
     let plan_path = base_root.join("plans/auth-refactor.md");
+    let record = openplan_core::work::read(&plan_path).unwrap().unwrap();
+    assert_eq!(record.todos[0].detail, None, "a plain line is still a todo");
+    assert_eq!(record.todos[1].text, "Test the refresh path");
+    assert_eq!(record.todos[1].detail.as_deref(), Some("Cover an expired token and a revoked one."));
     let mut written = openplan_core::comments::CommentThread {
         id: "t1".to_string(),
         quote: "why".to_string(),

@@ -140,7 +140,10 @@ pub struct Decision {
 #[serde(rename_all = "camelCase")]
 pub struct Todo {
     pub id: String,
+    /// One line naming the change.
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
     pub state: TodoState,
     pub by: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -148,6 +151,19 @@ pub struct Todo {
     pub at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+}
+
+/// A todo as an agent sends it. A plain line is the form from before todos
+/// had a detail, and still reads.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum NewTodo {
+    Line(String),
+    Titled {
+        title: String,
+        #[serde(default)]
+        detail: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -237,26 +253,33 @@ pub fn modify(
     Ok(record)
 }
 
-/// Appends one open todo per text, numbered after the highest existing id.
+/// Appends one open todo each, numbered after the highest existing id.
 pub fn add_todos(
     record: &mut WorkRecord,
-    texts: &[String],
+    todos: &[NewTodo],
     by: &str,
     session: Option<&str>,
 ) -> Vec<Todo> {
     let first = next_number(record.todos.iter().map(|t| t.id.as_str()), "t");
     let at = now_iso();
-    let added: Vec<Todo> = texts
+    let added: Vec<Todo> = todos
         .iter()
         .zip(first..)
-        .map(|(text, n)| Todo {
-            id: format!("t{n}"),
-            text: text.clone(),
-            state: TodoState::Open,
-            by: by.to_string(),
-            session: session.map(str::to_string),
-            at: at.clone(),
-            reason: None,
+        .map(|(todo, n)| {
+            let (text, detail) = match todo.clone() {
+                NewTodo::Line(text) => (text, None),
+                NewTodo::Titled { title, detail } => (title, detail),
+            };
+            Todo {
+                id: format!("t{n}"),
+                text,
+                detail,
+                state: TodoState::Open,
+                by: by.to_string(),
+                session: session.map(str::to_string),
+                at: at.clone(),
+                reason: None,
+            }
         })
         .collect();
     record.todos.extend(added.iter().cloned());
@@ -526,6 +549,10 @@ mod tests {
         items.iter().map(|s| s.to_string()).collect()
     }
 
+    fn lines(items: &[&str]) -> Vec<NewTodo> {
+        items.iter().map(|s| NewTodo::Line(s.to_string())).collect()
+    }
+
     fn question(id: &str, answer: Option<Answer>) -> Question {
         Question {
             id: id.to_string(),
@@ -590,7 +617,7 @@ mod tests {
         .unwrap();
 
         let record = modify(&doc, |r| {
-            add_todos(r, &texts(&["Test it"]), "codex", None);
+            add_todos(r, &lines(&["Test it"]), "codex", None);
             Ok(())
         })
         .unwrap();
@@ -708,10 +735,10 @@ mod tests {
     #[test]
     fn todo_ids_continue_from_the_highest_existing() {
         let mut record = WorkRecord::default();
-        add_todos(&mut record, &texts(&["a", "b"]), "claude-code", Some("s1"));
+        add_todos(&mut record, &lines(&["a", "b"]), "claude-code", Some("s1"));
         record.todos.remove(0);
 
-        let added = add_todos(&mut record, &texts(&["c", "d"]), "codex", None);
+        let added = add_todos(&mut record, &lines(&["c", "d"]), "codex", None);
 
         let ids: Vec<_> = added.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, ["t3", "t4"]);
@@ -721,9 +748,30 @@ mod tests {
     }
 
     #[test]
+    fn a_todo_is_a_plain_line_or_a_title_with_its_detail() {
+        let sent: Vec<NewTodo> = serde_json::from_value(serde_json::json!([
+            "Write the guard",
+            { "title": "Test the guard", "detail": "Cover every refused move." }
+        ]))
+        .unwrap();
+        let mut record = WorkRecord::default();
+
+        let added = add_todos(&mut record, &sent, "claude-code", None);
+
+        assert_eq!((added[0].text.as_str(), added[0].detail.as_deref()), ("Write the guard", None));
+        assert_eq!(
+            (added[1].text.as_str(), added[1].detail.as_deref()),
+            ("Test the guard", Some("Cover every refused move."))
+        );
+        let json = serde_json::to_value(&record.todos).unwrap();
+        assert!(json[0].get("detail").is_none(), "{json}");
+        assert_eq!(json[1]["detail"], "Cover every refused move.");
+    }
+
+    #[test]
     fn updating_a_todo_moves_it_and_says_who() {
         let mut record = WorkRecord::default();
-        add_todos(&mut record, &texts(&["a"]), "claude-code", None);
+        add_todos(&mut record, &lines(&["a"]), "claude-code", None);
 
         let todo = update_todo(&mut record, "t1", TodoState::Done, None, "codex").unwrap();
 
@@ -795,7 +843,7 @@ mod tests {
         let mut record = WorkRecord::default();
         add_todos(
             &mut record,
-            &texts(&["a", "b", "c", "d"]),
+            &lines(&["a", "b", "c", "d"]),
             "claude-code",
             None,
         );
@@ -918,7 +966,7 @@ mod tests {
         assert_eq!(progress(&record), (0, 0));
         add_todos(
             &mut record,
-            &texts(&["a", "b", "c", "d"]),
+            &lines(&["a", "b", "c", "d"]),
             "claude-code",
             None,
         );
@@ -942,7 +990,7 @@ mod tests {
         let doc = dir.join("plan.md");
 
         let err = modify(&doc, |r| {
-            add_todos(r, &texts(&["a"]), "claude-code", None);
+            add_todos(r, &lines(&["a"]), "claude-code", None);
             Err("no".to_string())
         })
         .unwrap_err();
@@ -962,7 +1010,7 @@ mod tests {
             .unwrap();
 
         modify(&doc, |r| {
-            add_todos(r, &texts(&["a"]), "claude-code", None);
+            add_todos(r, &lines(&["a"]), "claude-code", None);
             Ok(())
         })
         .unwrap();
@@ -983,7 +1031,7 @@ mod tests {
                 std::thread::spawn(move || {
                     for _ in 0..50 {
                         modify(&doc, |r| {
-                            add_todos(r, &["x".to_string()], by, None);
+                            add_todos(r, &lines(&["x"]), by, None);
                             Ok(())
                         })
                         .unwrap();
@@ -1013,7 +1061,7 @@ mod tests {
             branch: Some("feat/cards".to_string()),
         };
         modify(&worked, |r| {
-            add_todos(r, &texts(&["a", "b"]), "claude-code", None);
+            add_todos(r, &lines(&["a", "b"]), "claude-code", None);
             set_repos(r, vec![repo.clone()]);
             record_pr(r, pr("https://github.com/owner/openplan/pull/1", PrState::Merged));
             record_pr(r, pr("https://github.com/owner/openplan/pull/2", PrState::Draft));

@@ -721,8 +721,8 @@ mod tests {
     }
 
     fn with_todos(mut record: WorkRecord, texts: &[&str]) -> WorkRecord {
-        let texts: Vec<String> = texts.iter().map(|t| t.to_string()).collect();
-        work::add_todos(&mut record, &texts, "claude-code", None);
+        let todos: Vec<work::NewTodo> = texts.iter().map(|t| work::NewTodo::Line(t.to_string())).collect();
+        work::add_todos(&mut record, &todos, "claude-code", None);
         record
     }
 

@@ -6,7 +6,7 @@ use crate::mcp::{commit, find_entry, move_plan, text_result};
 use openplan_core::base::Base;
 use openplan_core::library::PlanEntry;
 use openplan_core::plan::{self, Status};
-use openplan_core::work::{self, Answer, Decision, Pr, Question, Repo, TodoState, WorkRecord};
+use openplan_core::work::{self, Answer, Decision, NewTodo, Pr, Question, Repo, TodoState, WorkRecord};
 use openplan_core::fs;
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
@@ -87,12 +87,22 @@ pub fn tools() -> Vec<Value> {
         }),
         json!({
             "name": "add_todos",
-            "description": "Add todos to a plan, one reviewable unit of work each, and get their ids back. Never replaces the list. A comment that asks for new work becomes a todo. On an in-review plan this moves it back to in-progress.",
+            "description": "Add todos to a plan, one reviewable unit of work each, and get their ids back. Each todo has a title, one line of about 60 characters that names the change, and a detail that holds the rest. Never replaces the list. A comment that asks for new work becomes a todo. On an in-review plan this moves it back to in-progress.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "id": id,
-                    "todos": { "type": "array", "items": { "type": "string" }, "description": "Each one an action that names what it touches" }
+                    "todos": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": { "type": "string", "description": "One line of about 60 characters naming the change, such as \"Retry failed uploads in sync.rs\"" },
+                                "detail": { "type": "string", "description": "The rest: what it touches, how, and how it is checked" }
+                            },
+                            "required": ["title"]
+                        }
+                    }
                 },
                 "required": ["id", "todos"]
             }
@@ -246,14 +256,14 @@ pub fn add_todos(base: &Base, author: &str, session: Option<&str>, args: &Value)
         Ok(entry) => entry,
         Err(reply) => return reply,
     };
-    let texts: Vec<String> = match parse_list(args, "todos", &[]) {
-        Ok(texts) if !texts.is_empty() => texts,
+    let todos: Vec<NewTodo> = match parse_list(args, "todos", &[]) {
+        Ok(todos) if !todos.is_empty() => todos,
         Ok(_) => return text_result("add_todos needs at least one todo.", true),
         Err(e) => return text_result(e, true),
     };
     let mut ids = Vec::new();
     if let Err(e) = change_record(&entry, |record| {
-        ids = work::add_todos(record, &texts, author, session).into_iter().map(|t| t.id).collect();
+        ids = work::add_todos(record, &todos, author, session).into_iter().map(|t| t.id).collect();
         Ok(())
     }) {
         return text_result(e, true);
@@ -571,6 +581,7 @@ mod tests {
         Todo {
             id: id.to_string(),
             text: text.to_string(),
+            detail: None,
             state,
             by: "claude-code".to_string(),
             session: None,
@@ -691,6 +702,17 @@ mod tests {
         assert!(question["properties"]["options"]["items"]["properties"]["tradeoff"]["description"].is_string());
         let description = tool["description"].as_str().unwrap();
         assert!(description.contains("context") && description.contains("tradeoff"), "{description}");
+    }
+
+    #[test]
+    fn add_todos_asks_for_a_one_line_title_and_a_detail() {
+        let tool = tools().into_iter().find(|t| t["name"] == "add_todos").unwrap();
+        let todo = &schema_of("add_todos")["properties"]["todos"]["items"];
+
+        assert_eq!(todo["required"], json!(["title"]));
+        assert!(todo["properties"]["detail"]["description"].is_string());
+        let description = tool["description"].as_str().unwrap();
+        assert!(description.contains("60 characters") && description.contains("detail"), "{description}");
     }
 
     #[test]
