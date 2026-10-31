@@ -61,6 +61,7 @@ import type {
 import { splitFrontmatter } from "./lib/frontmatter";
 import { isHtmlPath } from "./lib/htmlDoc";
 import { useOutline } from "./lib/useOutline";
+import { useLiveSessions } from "./lib/liveSessions";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
   commitBase,
@@ -291,6 +292,7 @@ export default function App() {
   const [summaries, setSummaries] = useState<ReviewSummary[]>([]);
 
   const { base, plans, refresh: refreshPlans, arrivals } = usePlanBase();
+  const sessions = useLiveSessions();
 
   // The projects and the open threads are read with the plans, on the same
   // base-changed event: nothing polls, and a build without these commands
@@ -1515,6 +1517,7 @@ export default function App() {
               plans={shownPlans}
               summaries={summaries}
               avatars={avatars}
+              sessions={sessions}
               hideCompleted={hideCompleted}
               onOpen={selectPlan}
             />
@@ -1527,6 +1530,7 @@ export default function App() {
               plans={shownPlans}
               summaries={summaries}
               avatars={avatars}
+              sessions={sessions}
               activePlanPath={activePlanPath}
               onSelectPlan={selectPlan}
               onSelectDocument={selectDocument}
@@ -1548,6 +1552,7 @@ export default function App() {
               plans={shownPlans}
               summaries={summaries}
               avatars={avatars}
+              sessions={sessions}
               onOpen={selectPlan}
             />
           </div>
@@ -1580,6 +1585,7 @@ export default function App() {
               >
                 <PlanMetaBar
                   plan={activePlan}
+                  sessions={sessions.get(activePlan.id) ?? 0}
                   onStatusChange={changeStatus}
                   onOpenHistory={() => setHistoryOpen(true)}
                 />

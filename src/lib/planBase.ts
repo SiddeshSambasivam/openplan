@@ -151,6 +151,31 @@ export async function reviewSummaries(): Promise<ReviewSummary[]> {
   return invoke<ReviewSummary[]>("review_summaries");
 }
 
+/** An agent session working right now, and the plans it said it is on. */
+export interface LiveSession {
+  id: string;
+  /** The agent that connected: claude-code, codex, cursor. */
+  client: string;
+  /** Plan ids, not paths. */
+  plans: string[];
+  since: string;
+}
+
+export async function liveSessions(): Promise<LiveSession[]> {
+  if (!isTauri) return [];
+  return invoke<LiveSession[]>("live_sessions");
+}
+
+/** Sends named threads to the sessions working on that plan. Returns how many
+ * got them, which is zero when nobody is working on it. */
+export async function sendComments(
+  path: string,
+  threadIds: string[],
+): Promise<number> {
+  if (!isTauri) return 0;
+  return invoke<number>("send_comments", { path, threadIds });
+}
+
 export async function searchPlans(query: string): Promise<SearchHit[]> {
   if (!isTauri) return [];
   return invoke<SearchHit[]>("search_plans", { query });

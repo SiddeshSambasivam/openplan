@@ -9,6 +9,8 @@ interface ForYouViewProps {
   plans: PlanSummary[];
   summaries: ReviewSummary[];
   avatars: Map<string, string>;
+  /** Live agent sessions by plan id. */
+  sessions: Map<string, number>;
   onOpen: (plan: PlanSummary) => void;
 }
 
@@ -18,6 +20,7 @@ function Group({
   plans,
   avatars,
   openThreads,
+  sessions,
   onOpen,
 }: {
   icon: ReactNode;
@@ -25,6 +28,7 @@ function Group({
   plans: PlanSummary[];
   avatars: Map<string, string>;
   openThreads: Map<string, number>;
+  sessions: Map<string, number>;
   onOpen: (plan: PlanSummary) => void;
 }) {
   if (plans.length === 0) return null;
@@ -51,6 +55,7 @@ function Group({
                   plan={plan}
                   avatarUrl={(plan.project && avatars.get(plan.project)) || null}
                   open={openThreads.get(plan.path) ?? 0}
+                  sessions={sessions.get(plan.id) ?? 0}
                 />
               </span>
             </button>
@@ -66,6 +71,7 @@ export function ForYouView({
   plans,
   summaries,
   avatars,
+  sessions,
   onOpen,
 }: ForYouViewProps) {
   const groups = useMemo(() => forYou(plans, summaries), [plans, summaries]);
@@ -96,6 +102,7 @@ export function ForYouView({
             plans={groups.review}
             avatars={avatars}
             openThreads={openThreads}
+            sessions={sessions}
             onOpen={onOpen}
           />
           <Group
@@ -106,6 +113,7 @@ export function ForYouView({
             plans={groups.answered}
             avatars={avatars}
             openThreads={openThreads}
+            sessions={sessions}
             onOpen={onOpen}
           />
         </>

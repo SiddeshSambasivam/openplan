@@ -806,7 +806,7 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 - [x] P6.3 Standards: unslop writing rules built in and in the installers' managed
       block; plan types with required sections, warned on by `create_plan`;
       authoring mode setting served by `get_standards` and the tool description **(T)**
-- [ ] P6.4 Loopback server in the app; MCP server registers sessions and plans,
+- [x] P6.4 Loopback server in the app; MCP server registers sessions and plans,
       receives comments; session presence drives In progress and the live count
       **(T: server and client against a local port)**
 - [x] P6.5 Shell: nav (Board, All plans, For you, Projects, Recent), top bar with
@@ -907,6 +907,16 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 | 2026-09-22 | A decision card wraps the whole `D<n>` run, heading and all, instead of lifting the id and the labels into a grid | The card's own label column would have to rebuild the paragraph the comments anchor to. Real plans write the labels four different ways, so the grid would fit one of them and break the rest |
 | 2026-09-22 | An HTML plan's frame gets a viewport-height minimum and scrolls inside the article, rather than growing to its content | `sandbox=""` is what keeps scripts, network and forms out, and it also blocks `contentDocument`, so the height cannot be read. A fixed minimum is the honest version of the same page |
 | 2026-09-22 | Comments are hidden for HTML plans, and the editor opens them as plain text | Anchors are markdown source lines (§6.2b), which an HTML page does not have. The editor package ships no HTML grammar and one is not worth adding |
+| 2026-09-22 | The loopback server is plain HTTP/1.1 over `std::net`, hand-rolled, with no new dependency | The whole surface is five routes and one-line JSON bodies. A server crate would bring an async runtime the app does not otherwise have, for code that fits in one file |
+| 2026-09-22 | The server and its client live in `openplan-core`, not in the Tauri layer; the app only starts it and exposes two commands | The CLI's real-binary test can then run an actual server in process, which is the only way to prove the two halves agree. It also keeps the file contract and the live channel in the same crate |
+| 2026-09-22 | The app advertises itself in `app.json` beside the settings file, holding the port and the pid; the file is removed on exit | Per profile, so a dev build and an installed one never find each other. Written where both halves already agree to look, so no second lookup rule exists |
+| 2026-09-22 | The client's liveness test is the handshake, not the pid; the pid is recorded for whoever reads the file | Checking a pid from std alone is not portable, and a reply that parses as our session id is the stronger check anyway: it fails a live app whose server is gone, and a port some other program recycled |
+| 2026-09-22 | Session presence is in memory only, and a session that vanishes is dropped when its held-open socket fails or, failing that, on the next request past a generous idle limit | Nothing about who is working now survives a restart, so there is nothing to persist. A timer thread to expire sessions would be exactly the periodic wake NFR-8 forbids |
+| 2026-09-22 | A session registers a plan through `read_plan`, `get_comments` or `set_status`, never `create_plan` | Filing a plan is not working on it. A plan stays a draft until somebody opens it, which is what makes In progress mean something |
+| 2026-09-22 | MCP has no server-initiated conversation message, so a comment reaches the agent on the next tool result; a Claude Code hook can deliver it sooner later if that proves too slow | The protocol gives a server no way to speak first. The next tool call is the earliest guaranteed moment, and it needs nothing installed. A hook is per-client work worth doing only if the wait is felt |
+| 2026-09-22 | NFR-9's "no listening ports" continues to bind the MCP server; the port belongs to the app window | The stdio server still listens on nothing. The app binds loopback only, for as long as its window is open, which is the reading FR-17 already states |
+| 2026-09-22 | The base is resolved once in the app's setup and handed to everything that needs it | Resolving it commits the base, so two callers resolving it for themselves race on git's index lock and one of them silently gives up. Found with the app running, not in tests |
+| 2026-09-22 | Test fixtures name their temp directory per process | Every checkout on a machine shares one temp directory, so a fixed name lets one run delete another run's base while it is being used. That is what the intermittent failures across the suite were |
 
 ---
 

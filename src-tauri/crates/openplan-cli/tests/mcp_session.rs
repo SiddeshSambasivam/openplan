@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 
 #[test]
 fn an_agent_can_file_a_plan_and_read_it_back() {
-    let home = std::env::temp_dir().join("openplan-mcp-session");
+    let home = std::env::temp_dir().join(format!("openplan-mcp-session-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&home);
     std::fs::create_dir_all(&home).unwrap();
 
@@ -204,7 +204,7 @@ fn config_dir(home: &std::path::Path) -> std::path::PathBuf {
 #[cfg(unix)]
 #[test]
 fn in_html_mode_the_plan_on_disk_is_an_html_document() {
-    let home = std::env::temp_dir().join("openplan-mcp-session-html");
+    let home = std::env::temp_dir().join(format!("openplan-mcp-session-html-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&home);
     let settings = config_dir(&home).join(openplan_core::profile::name());
     std::fs::create_dir_all(&settings).unwrap();
@@ -274,5 +274,126 @@ fn in_html_mode_the_plan_on_disk_is_an_html_document() {
     assert_eq!(rendered.meta.title, "Rendered plan");
     assert_eq!(rendered.path.extension().unwrap(), "html");
 
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+/// With the app open, the same server registers the session, says which plan
+/// it is on, and carries the person's comments into the next tool result.
+#[cfg(unix)]
+#[test]
+fn a_session_registers_with_the_app_and_hears_about_comments() {
+    use openplan_core::local::{CommentNote, Event, Server};
+
+    let home = std::env::temp_dir().join(format!("openplan-mcp-session-live-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&home);
+    let base_path = home.join(openplan_core::profile::base_dir_name());
+    let base = openplan_core::base::ensure_base(&base_path).unwrap();
+    openplan_core::repo::init(&base.root).unwrap();
+    openplan_core::repo::commit_all(
+        &base.root,
+        &openplan_core::repo::Author::user(),
+        "init: plan base",
+    )
+    .unwrap();
+
+    // The app is up before the session starts, which is how the client finds it.
+    let server = Server::start(base.clone(), |_| {}).unwrap();
+    let settings = config_dir(&home).join(openplan_core::profile::name());
+    std::fs::create_dir_all(&settings).unwrap();
+    openplan_core::local::write_app(
+        &settings.join("app.json"),
+        &openplan_core::local::AppInfo {
+            port: server.port,
+            pid: std::process::id(),
+        },
+    )
+    .unwrap();
+
+    let mut mcp = Command::new(env!("CARGO_BIN_EXE_openplan"))
+        .arg("mcp")
+        .env("HOME", &home)
+        .env_remove("XDG_CONFIG_HOME")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("the server should start");
+    let mut stdin = mcp.stdin.take().unwrap();
+    let mut lines = BufReader::new(mcp.stdout.take().unwrap()).lines();
+    let mut ask = |message: &str| -> serde_json::Value {
+        writeln!(stdin, "{message}").unwrap();
+        let line = lines.next().expect("a reply").unwrap();
+        serde_json::from_str(&line).expect("json-rpc")
+    };
+
+    ask(r##"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-ai","version":"1.0"}}}"##);
+    let joined = server.sessions();
+    assert_eq!(joined.len(), 1, "the app knows a session started: {joined:?}");
+    assert_eq!(joined[0].client, "claude-code");
+    assert!(joined[0].plans.is_empty(), "filing is not working on it");
+
+    // Filing a plan leaves it a draft and says nothing about a session.
+    let created = ask(
+        r##"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor"}}}"##,
+    );
+    assert_eq!(created["result"]["isError"], false, "{created}");
+    assert!(server.sessions()[0].plans.is_empty());
+
+    // Reading one is. The plan moves with it.
+    let read = ask(r##"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read_plan","arguments":{"id":"auth-refactor"}}}"##);
+    assert_eq!(read["result"]["isError"], false, "{read}");
+    assert_eq!(server.sessions()[0].plans, vec!["auth-refactor".to_string()]);
+    let entry = openplan_core::library::scan(&base)
+        .into_iter()
+        .find(|e| e.meta.id == "auth-refactor")
+        .unwrap();
+    assert_eq!(entry.meta.status, openplan_core::plan::Status::InProgress);
+
+    // A review sent from the app reaches the session in its next tool result.
+    let sent = server.send(
+        "auth-refactor",
+        Event::Comments {
+            plan: "auth-refactor".to_string(),
+            threads: vec![CommentNote {
+                id: "t1".to_string(),
+                quote: "Auth refactor".to_string(),
+                line_start: 1,
+                line_end: 1,
+                text: "Say what breaks.".to_string(),
+                author: "Sid".to_string(),
+            }],
+        },
+    );
+    assert_eq!(sent, 1);
+    // Delivery rides the next call, so it is whichever call comes after it.
+    let mut delivered = String::new();
+    for _ in 0..200 {
+        let listed = ask(r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_plans","arguments":{}}}"##);
+        let text = listed["result"]["content"][0]["text"].as_str().unwrap();
+        if text.contains("New comments") {
+            delivered = text.to_string();
+            break;
+        }
+    }
+    assert!(delivered.contains("New comments on auth-refactor"), "{delivered}");
+    assert!(
+        delivered.contains("thread t1 (lines 1-1): \"Auth refactor\""),
+        "{delivered}"
+    );
+    assert!(delivered.contains("Say what breaks."), "{delivered}");
+    assert!(delivered.contains("reply_comment"), "{delivered}");
+
+    // ...and only once.
+    let again = ask(r##"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"list_plans","arguments":{}}}"##);
+    assert!(!again["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("New comments"));
+
+    // The session ends when the client closes stdin.
+    drop(stdin);
+    mcp.wait().unwrap();
+    assert!(server.sessions().is_empty(), "{:?}", server.sessions());
+
+    server.shutdown();
     let _ = std::fs::remove_dir_all(&home);
 }

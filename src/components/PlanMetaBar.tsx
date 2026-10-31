@@ -4,6 +4,7 @@ import {
   CodexIcon,
   CursorIcon,
 } from "@/components/AgentIcons";
+import { LiveMark } from "@/components/PlanFacts";
 import { SOURCE_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { projectName } from "@/lib/projects";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ function formatDate(iso: string | null): string | null {
 
 interface PlanMetaBarProps {
   plan: PlanSummary;
+  /** Agent sessions working on this plan right now. */
+  sessions: number;
   onStatusChange: (status: Status) => void;
   onOpenHistory: () => void;
 }
@@ -32,6 +35,7 @@ interface PlanMetaBarProps {
  * where it came from, and when. */
 export function PlanMetaBar({
   plan,
+  sessions,
   onStatusChange,
   onOpenHistory,
 }: PlanMetaBarProps) {
@@ -47,6 +51,12 @@ export function PlanMetaBar({
         {plan.source === "cursor" && <CursorIcon className="size-3.5" />}
         {SOURCE_LABELS[plan.source] ?? plan.source}
       </span>
+      {sessions > 0 && (
+        <>
+          <span aria-hidden>·</span>
+          <LiveMark sessions={sessions} />
+        </>
+      )}
       {plan.project && (
         <>
           <span aria-hidden>·</span>

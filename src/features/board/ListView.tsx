@@ -12,6 +12,8 @@ interface ListViewProps {
   plans: PlanSummary[];
   summaries: ReviewSummary[];
   avatars: Map<string, string>;
+  /** Live agent sessions by plan id. */
+  sessions: Map<string, number>;
   activePlanPath: string | null;
   onSelectPlan: (plan: PlanSummary) => void;
   onSelectDocument: (plan: PlanSummary, document: string) => void;
@@ -72,6 +74,7 @@ export function ListView({
   plans,
   summaries,
   avatars,
+  sessions,
   activePlanPath,
   onSelectPlan,
   onSelectDocument,
@@ -102,6 +105,7 @@ export function ListView({
         activePath={activePlanPath}
         avatars={avatars}
         openThreads={openThreads}
+        sessions={sessions}
         onSelect={onSelectPlan}
         onSelectDocument={onSelectDocument}
         onRename={onRenamePlan}

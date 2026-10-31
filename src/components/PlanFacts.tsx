@@ -73,10 +73,12 @@ export function PlanRowFacts({
   plan,
   avatarUrl,
   open,
+  sessions,
 }: {
   plan: PlanSummary;
   avatarUrl: string | null;
   open: number;
+  sessions: number;
 }) {
   return (
     <>
@@ -85,12 +87,38 @@ export function PlanRowFacts({
         avatarUrl={avatarUrl}
         className="hidden w-36 shrink-0 md:flex"
       />
+      <LiveMark sessions={sessions} />
       <HandledBy source={plan.source} className="hidden md:grid" />
       <ThreadCount open={open} />
       <span className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
         {shortDate(plan.updated ?? plan.created)}
       </span>
     </>
+  );
+}
+
+/** Agents working on this plan right now. Nothing is shown when nobody is.
+ * The dot pulses on opacity alone; the reduced-motion guard stills it. */
+export function LiveMark({
+  sessions,
+  className,
+}: {
+  sessions: number;
+  className?: string;
+}) {
+  if (sessions <= 0) return null;
+  const said = `${sessions} ${sessions === 1 ? "session" : "sessions"}`;
+  return (
+    <span
+      title={`${said} working on this plan right now`}
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 whitespace-nowrap text-warning",
+        className,
+      )}
+    >
+      <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-current" />
+      <span className="tabular-nums">{said}</span>
+    </span>
   );
 }
 
