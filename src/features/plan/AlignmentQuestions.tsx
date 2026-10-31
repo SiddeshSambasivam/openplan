@@ -374,6 +374,11 @@ function AnsweredQuestion({ question }: { question: Question }) {
         {chosen.map((option) => (
           <OptionRow key={option.id} option={option} chosen question={question} />
         ))}
+        {answer.note && (
+          <p className="ml-5.5 border-l-2 border-border pl-2 text-sm leading-snug whitespace-pre-wrap text-foreground">
+            {answer.note}
+          </p>
+        )}
       </div>
       {others.length > 0 && (
         <>

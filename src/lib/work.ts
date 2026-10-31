@@ -59,7 +59,8 @@ export interface Choice {
 }
 
 export type Answer =
-  | { kind: "option"; options: string[] }
+  /** `note` is what the person wrote beside the pick. */
+  | { kind: "option"; options: string[]; note?: string }
   | { kind: "text"; text: string }
   /** Older records only: the person let the agent decide. */
   | { kind: "agent" };
@@ -292,16 +293,14 @@ export interface AnswerDraft {
   text: string;
 }
 
-/** The answer a draft gives. An answer holds an option or text, not both,
- * so reasoning written beside a pick goes in the text after the option's
- * label. */
+/** The answer a draft gives. Reasoning written beside a pick is its note. */
 export function answerFromDraft(
   question: Question,
   draft: AnswerDraft | undefined,
 ): Answer | null {
   const text = draft?.text.trim() ?? "";
   const option = question.options.find((choice) => choice.id === draft?.option);
-  if (option && text) return { kind: "text", text: `${option.label}. ${text}` };
+  if (option && text) return { kind: "option", options: [option.id], note: text };
   if (option) return { kind: "option", options: [option.id] };
   if (text) return { kind: "text", text };
   return null;
@@ -315,10 +314,12 @@ export function pendingQuestionsLabel(count: number, status: Status): string | n
   return `${count} ${count === 1 ? "question" : "questions"}`;
 }
 
-/** What a question's answer says, in words. */
+/** What a question's answer says, in words, with the note written beside a
+ * pick. */
 export function answerOf(question: Question): {
   kind: Answer["kind"] | "none";
   text: string;
+  note?: string;
 } {
   const answer = question.answer;
   if (!answer) return { kind: "none", text: "Not answered yet" };
@@ -327,7 +328,8 @@ export function answerOf(question: Question): {
   const labels = answer.options.map(
     (id) => question.options.find((option) => option.id === id)?.label ?? id,
   );
-  return { kind: "option", text: labels.join(", ") };
+  const text = labels.join(", ");
+  return answer.note ? { kind: "option", text, note: answer.note } : { kind: "option", text };
 }
 
 /** The options the answer settled on: the person's picks, or the

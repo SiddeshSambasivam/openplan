@@ -258,6 +258,33 @@ describe("AlignmentTab", () => {
     expect(html).toContain("The tech lead and the designer had nothing to ask on this plan.");
   });
 
+  it("shows the note written beside a picked option under it", () => {
+    const html = alignmentTab(
+      record({
+        alignment: {
+          askedAt: "2026-10-28T09:00:00Z",
+          questions: [
+            {
+              id: "q1",
+              aspect: "scope",
+              question: "Which plans get it?",
+              options: [
+                { id: "a", label: "Every plan" },
+                { id: "b", label: "New plans" },
+              ],
+              mustAnswer: false,
+              answer: { kind: "option", options: ["a"], note: "Old plans too, they are few." },
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(html).toContain("Old plans too, they are few.");
+    expect(html.indexOf("Every plan")).toBeLessThan(html.indexOf("Old plans too"));
+    expect(html.indexOf("Old plans too")).toBeLessThan(html.indexOf("Show the other options"));
+  });
+
   it("says alignment has not been recorded when the record has none", () => {
     expect(alignmentTab(null)).toContain("No alignment yet.");
     expect(alignmentTab(record({ decisions: [decision] }))).toContain(

@@ -17,7 +17,7 @@ pub fn tools() -> Vec<Value> {
     vec![
         json!({
             "name": "ask_questions",
-            "description": "Post alignment questions for the person, with no answers yet. The person answers on the plan's Alignment tab, or in the session. After posting, end your turn with one line that points the person to the questions. Record answers given in the session with record_alignment. Questions posted together are one round, and earlier rounds stay. Works while the plan is a draft, in alignment or in progress, and never changes its status. Add an illustration wherever a question is easier to see than to read.",
+            "description": "Post alignment questions for the person, with no answers yet. The person answers on the plan's Alignment tab, or in the session. An answer can pick an option and carry a note with the person's reasoning. After posting, end your turn with one line that points the person to the questions. Record answers given in the session with record_alignment. Questions posted together are one round, and earlier rounds stay. Works while the plan is a draft, in alignment or in progress, and never changes its status. Add an illustration wherever a question is easier to see than to read.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "id": id, "questions": questions_schema(false) },
@@ -180,7 +180,7 @@ fn questions_schema(answered: bool) -> Value {
     if answered {
         question["properties"]["answer"] = json!({
             "type": "object",
-            "description": "{\"kind\":\"option\",\"options\":[ids]}, {\"kind\":\"text\",\"text\":\"...\"}, or {\"kind\":\"agent\"} when the person let you decide"
+            "description": "{\"kind\":\"option\",\"options\":[ids]}, with \"note\":\"...\" when the person wrote reasoning beside the pick, {\"kind\":\"text\",\"text\":\"...\"}, or {\"kind\":\"agent\"} when the person let you decide"
         });
         question["properties"]["answeredBy"] = json!({ "type": "string", "description": "Who answered. Defaults to user." });
         question["required"] = json!(["id", "aspect", "question", "options", "answer"]);
@@ -532,8 +532,12 @@ fn answer_line(question: &Question) -> String {
             .map_or(id.to_string(), |o| o.label.clone())
     };
     match &question.answer {
-        Some(Answer::Chosen { options }) => {
-            options.iter().map(|id| label(id)).collect::<Vec<_>>().join(", ")
+        Some(Answer::Chosen { options, note }) => {
+            let labels = options.iter().map(|id| label(id)).collect::<Vec<_>>().join(", ");
+            match note {
+                Some(note) => format!("{labels}. Note: {note}"),
+                None => labels,
+            }
         }
         Some(Answer::Text { text }) => text.clone(),
         Some(Answer::Agent {}) => match &question.recommended {
@@ -548,7 +552,7 @@ fn answer_line(question: &Question) -> String {
 /// was asked is worth a reviewer's time only then.
 fn departs(question: &Question) -> bool {
     match &question.answer {
-        Some(Answer::Chosen { options }) => question
+        Some(Answer::Chosen { options, .. }) => question
             .recommended
             .as_ref()
             .is_some_and(|recommended| options != std::slice::from_ref(recommended)),
@@ -667,7 +671,7 @@ mod tests {
                 asked_at: "2026-10-28T09:00:00Z".to_string(),
                 recorded_at: Some("2026-10-28T09:10:00Z".to_string()),
                 questions: vec![
-                    question("q1", "What has to be tested?", Answer::Chosen { options: vec!["b".to_string()] }),
+                    question("q1", "What has to be tested?", Answer::Chosen { options: vec!["b".to_string()], note: None }),
                     question("q2", "Where does the logic live?", Answer::Agent {}),
                     Question {
                         context: None,
@@ -799,6 +803,39 @@ mod tests {
         assert!(question["properties"]["illustration"]["description"].is_string());
         assert!(question["properties"]["options"]["items"]["properties"]["illustration"]["description"].is_string());
         assert_eq!(question["properties"]["role"], schema_of("record_alignment")["properties"]["questions"]["items"]["properties"]["role"]);
+    }
+
+    #[test]
+    fn a_note_written_beside_a_pick_follows_its_label() {
+        let picked = Answer::Chosen {
+            options: vec!["b".to_string()],
+            note: Some("Only on the main flows.".to_string()),
+        };
+        let record = WorkRecord {
+            alignment: Some(Alignment {
+                asked_at: "2026-10-28T09:00:00Z".to_string(),
+                recorded_at: None,
+                questions: vec![question("q1", "What has to be tested?", picked)],
+            }),
+            ..WorkRecord::default()
+        };
+
+        let note = alignment_note(&record);
+
+        assert!(
+            note.contains("- q1: What has to be tested? Answer: Unit and end-to-end tests. Note: Only on the main flows.\n"),
+            "{note}"
+        );
+    }
+
+    #[test]
+    fn both_question_tools_say_an_option_answer_can_carry_a_note() {
+        let answer = &schema_of("record_alignment")["properties"]["questions"]["items"]["properties"]["answer"];
+        assert!(answer["description"].as_str().unwrap().contains("\"note\""), "{answer}");
+
+        let tool = tools().into_iter().find(|t| t["name"] == "ask_questions").unwrap();
+        let description = tool["description"].as_str().unwrap();
+        assert!(description.contains("note"), "{description}");
     }
 
     #[test]

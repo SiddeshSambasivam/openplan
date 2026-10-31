@@ -205,10 +205,11 @@ describe("answerFromDraft", () => {
     });
   });
 
-  it("keeps the reasoning with a picked option by naming the option in the text", () => {
-    expect(answerFromDraft(asked, { option: "b", text: "The parser is the risk." })).toEqual({
-      kind: "text",
-      text: "End to end. The parser is the risk.",
+  it("keeps the reasoning written beside a picked option as its note", () => {
+    expect(answerFromDraft(asked, { option: "b", text: " The parser is the risk. " })).toEqual({
+      kind: "option",
+      options: ["b"],
+      note: "The parser is the risk.",
     });
   });
 
@@ -240,6 +241,16 @@ describe("answerOf", () => {
     );
 
     expect(answer).toEqual({ kind: "option", text: "Unit tests, End to end" });
+  });
+
+  it("carries the note written beside the pick", () => {
+    const answer = answerOf(
+      question("q1", "tests", {
+        answer: { kind: "option", options: ["b"], note: "The parser is the risk." },
+      }),
+    );
+
+    expect(answer).toEqual({ kind: "option", text: "End to end", note: "The parser is the risk." });
   });
 
   it("falls back to the id of an option it cannot find", () => {

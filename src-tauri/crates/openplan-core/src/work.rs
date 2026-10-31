@@ -130,10 +130,13 @@ pub struct Choice {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Answer {
-    /// The ids of the options the person picked.
+    /// The ids of the options the person picked, and what they wrote beside
+    /// the pick.
     #[serde(rename = "option")]
     Chosen {
         options: Vec<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
     },
     Text {
         text: String,
@@ -856,9 +859,35 @@ mod tests {
         assert_eq!(
             answer,
             Answer::Chosen {
-                options: vec!["a".to_string()]
+                options: vec!["a".to_string()],
+                note: None,
             }
         );
+    }
+
+    #[test]
+    fn a_picked_option_keeps_the_note_written_beside_it() {
+        let json = r#"{"kind":"option","options":["a"],"note":"Only for new plans."}"#;
+        let answer: Answer = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            answer,
+            Answer::Chosen {
+                options: vec!["a".to_string()],
+                note: Some("Only for new plans.".to_string()),
+            }
+        );
+        assert_eq!(serde_json::to_string(&answer).unwrap(), json);
+    }
+
+    #[test]
+    fn a_picked_option_without_a_note_is_written_as_before() {
+        let answer = Answer::Chosen {
+            options: vec!["a".to_string()],
+            note: None,
+        };
+
+        assert_eq!(serde_json::to_string(&answer).unwrap(), r#"{"kind":"option","options":["a"]}"#);
     }
 
     #[test]
@@ -956,6 +985,7 @@ mod tests {
                     "q1",
                     Some(Answer::Chosen {
                         options: vec!["a".to_string()],
+                        note: None,
                     }),
                 ),
                 question(
@@ -1021,6 +1051,7 @@ mod tests {
     fn chosen(id: &str) -> Answer {
         Answer::Chosen {
             options: vec![id.to_string()],
+            note: None,
         }
     }
 
