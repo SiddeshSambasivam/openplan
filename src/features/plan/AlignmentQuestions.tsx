@@ -36,6 +36,7 @@ import { AlignmentComposer, type ComposerLine } from "./AlignmentComposer";
 import { AlignmentMessage, type MediaContext } from "./AlignmentMessage";
 import { AlignmentScoreCard } from "./AlignmentScoreCard";
 import { PersonaAvatar } from "./PersonaAvatar";
+import { RoleHint } from "./RoleHint";
 import { WaitingBadge } from "./WaitingBadge";
 import { celebrate } from "./personaMotion";
 
@@ -107,6 +108,7 @@ export function AlignmentQuestions({
     return (
       <div className="alignment-thread min-h-0 flex-1 overflow-y-auto">
         <p className="mb-8 text-sm text-muted-foreground">No alignment yet.</p>
+        <RoleHint />
         {children}
       </div>
     );
@@ -232,6 +234,7 @@ export function AlignmentQuestions({
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
           <Thread latestId={newest?.id}>
+            <RoleHint />
             {inTab.length === 0 && tab !== "everyone" && <Note>{unusedRolesText([tab])}</Note>}
             {questionsByRound(inTab).map((group) => (
               <div key={group.round} className="flex flex-col gap-4">
