@@ -814,7 +814,7 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 - [x] P6.6 Board, list and For you views; project filter; repo marks
 - [x] P6.7 Rendered plan page: section-aware layout by type for markdown; HTML plans
       and HTML documents in a set rendered in a sandbox **(T: section parsing)**
-- [ ] P6.8 Comments as a review: threads accumulate as pending, one Send delivers
+- [x] P6.8 Comments as a review: threads accumulate as pending, one Send delivers
       them to the session; thread states open, answered, resolved; who resolved
       and when in the sidecar **(T)**
 - [ ] P6.9 Motion pass: transform and opacity only, reduced-motion guard, 60fps on
@@ -917,6 +917,13 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 | 2026-09-22 | NFR-9's "no listening ports" continues to bind the MCP server; the port belongs to the app window | The stdio server still listens on nothing. The app binds loopback only, for as long as its window is open, which is the reading FR-17 already states |
 | 2026-09-22 | The base is resolved once in the app's setup and handed to everything that needs it | Resolving it commits the base, so two callers resolving it for themselves race on git's index lock and one of them silently gives up. Found with the app running, not in tests |
 | 2026-09-22 | Test fixtures name their temp directory per process | Every checkout on a machine shares one temp directory, so a fixed name lets one run delete another run's base while it is being used. That is what the intermittent failures across the suite were |
+| 2026-09-22 | A pending thread is written to the sidecar immediately and committed only when the review is sent | NFR-3 is about the text surviving, and a write does that. The commit is what publishes it, so it belongs to the send, which also gives the review one recognisable entry in the log instead of one per comment |
+| 2026-09-22 | Pending threads are filtered out at every point an agent could read them, not hidden behind a flag the caller passes | `format_for_agent`, the review counts and the loopback send each drop them on their own, so a new reader cannot forget to. Naming a pending thread in a send does not send it either |
+| 2026-09-22 | "Copy for agents" leaves pending threads out too | It produces the same review text the MCP server serves. One rule about what has been sent is easier to hold than two, and the Send button sits in the same panel |
+| 2026-09-22 | Thread state is derived from the comments, not stored | `resolved` plus the last comment's author already answer it, and a stored state would be a second copy to keep true. Both sides derive it with the same rule, and the agent export prints it |
+| 2026-09-22 | Reopening clears `resolvedBy` and `resolvedAt` rather than keeping them as history | The sidecar says where a thread stands now; git says how it got there. Keeping a stale name on a reopened thread would read as though somebody closed it again |
+| 2026-09-22 | The review's commit message singularises: `review: <id> (1 thread)` | Every other message in §6.4 reads as English. A permanent log saying "1 threads" is the kind of thing nobody goes back to fix |
+| 2026-09-22 | The send result is one transient line in the top bar, not a new toast system | It is the only thing in the app that needs saying after an action. A toast library, or a hand-rolled one, would be more machinery than the one message justifies |
 
 ---
 
