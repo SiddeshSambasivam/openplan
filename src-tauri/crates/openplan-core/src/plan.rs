@@ -77,6 +77,19 @@ pub fn folder_name(text: &str) -> String {
         .join(" ")
 }
 
+/// Folder names cleaned, empty ones dropped, and each kept once whatever
+/// its case, in the order given.
+pub fn folder_list(names: Vec<String>) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for name in names.iter().map(|n| folder_name(n)) {
+        let lower = name.to_lowercase();
+        if !name.is_empty() && !kept.iter().any(|k| k.to_lowercase() == lower) {
+            kept.push(name);
+        }
+    }
+    kept
+}
+
 /// What the app knows about a plan without reading its body.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlanMeta {

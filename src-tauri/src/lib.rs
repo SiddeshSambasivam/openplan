@@ -288,6 +288,8 @@ pub fn run() {
             plans::search_plans,
             plans::set_plan_status,
             plans::set_folders,
+            plans::base_folders,
+            plans::set_base_folders,
             plans::commit_base,
             plans::plan_history,
             plans::plan_diff,
