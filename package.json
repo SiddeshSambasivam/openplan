@@ -10,7 +10,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:sidecar": "cargo build --release -p openplan-cli --manifest-path src-tauri/Cargo.toml && mkdir -p src-tauri/binaries && cp src-tauri/target/release/openplan \"src-tauri/binaries/openplan-$(rustc -vV | sed -n 's/host: //p')\""
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.4",
