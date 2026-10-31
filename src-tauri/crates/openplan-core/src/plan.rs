@@ -1,6 +1,8 @@
-//! What a plan is on disk: markdown, with optional frontmatter carrying the
-//! few things the app tracks. The body is never rewritten — a plan is the
-//! author's text, and tooling only ever touches the header.
+//! What a plan is on disk: markdown or HTML, with optional frontmatter
+//! carrying the few things the app tracks. An HTML plan keeps that
+//! frontmatter inside a comment so a browser still renders the file. The body
+//! is never rewritten — a plan is the author's text, and tooling only ever
+//! touches the header.
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -78,16 +80,33 @@ pub struct Plan {
     pub body: String,
     /// True when the file carried no frontmatter and the metadata was derived.
     pub derived: bool,
+    /// True for a plan written as HTML, whose frontmatter is wrapped in a
+    /// comment so the file still opens as a page.
+    pub html: bool,
 }
 
 const FENCE: &str = "---";
+const COMMENT_OPEN: &str = "<!--";
+const COMMENT_CLOSE: &str = "-->";
+
+/// Whether a path names an HTML plan. The extension is what decides which
+/// form its frontmatter takes.
+pub fn is_html(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("html") || e.eq_ignore_ascii_case("htm"))
+}
+
+fn strip_newline(text: &str) -> Option<&str> {
+    text.strip_prefix('\n').or_else(|| text.strip_prefix("\r\n"))
+}
 
 /// Splits leading `---` fenced frontmatter from the body. Returns `None` when
 /// there is no frontmatter, which is the normal case for a plan someone wrote
 /// by hand.
 fn split_frontmatter(text: &str) -> Option<(&str, &str)> {
     let rest = text.strip_prefix(FENCE)?;
-    let rest = rest.strip_prefix('\n').or_else(|| rest.strip_prefix("\r\n"))?;
+    let rest = strip_newline(rest)?;
     // The closing fence is a line of its own.
     let mut offset = 0;
     for line in rest.split_inclusive('\n') {
@@ -98,6 +117,15 @@ fn split_frontmatter(text: &str) -> Option<(&str, &str)> {
         offset += line.len();
     }
     None
+}
+
+/// The same block, wrapped in a comment so an HTML plan opens as a page
+/// rather than showing its metadata as text.
+fn split_commented_frontmatter(text: &str) -> Option<(&str, &str)> {
+    let rest = strip_newline(text.strip_prefix(COMMENT_OPEN)?)?;
+    let (block, after) = split_frontmatter(rest)?;
+    let body = after.strip_prefix(COMMENT_CLOSE)?;
+    Some((block, strip_newline(body).unwrap_or(body)))
 }
 
 /// Deliberately not a YAML parser: plan frontmatter is flat `key: value`, and
@@ -143,14 +171,22 @@ fn status_from(pairs: &[(String, String)]) -> Status {
     }
 }
 
-/// The first heading, falling back to the filename — what to call a plan that
-/// never declared a title.
+/// The first heading, markdown or HTML, falling back to the filename — what
+/// to call a plan that never declared a title.
 fn title_from(body: &str, fallback: &str) -> String {
     body.lines()
         .find_map(|line| line.strip_prefix("# "))
         .map(|t| t.trim().to_string())
+        .or_else(|| first_h1(body))
         .filter(|t| !t.is_empty())
         .unwrap_or_else(|| fallback.to_string())
+}
+
+fn first_h1(body: &str) -> Option<String> {
+    let start = body.to_lowercase().find("<h1")?;
+    let open = body[start..].find('>')? + start + 1;
+    let end = body[open..].to_lowercase().find("</h1>")? + open;
+    Some(body[open..end].trim().to_string())
 }
 
 /// Reads a plan. A file with no frontmatter is still a plan: its title comes
@@ -163,7 +199,13 @@ pub fn parse(text: &str, path: &Path) -> Plan {
         .unwrap_or("untitled")
         .to_string();
 
-    let (block, body) = match split_frontmatter(text) {
+    let html = is_html(path);
+    let split = if html {
+        split_commented_frontmatter(text)
+    } else {
+        split_frontmatter(text)
+    };
+    let (block, body) = match split {
         Some((block, body)) => (block, body),
         None => {
             return Plan {
@@ -181,6 +223,7 @@ pub fn parse(text: &str, path: &Path) -> Plan {
                 frontmatter: Vec::new(),
                 body: text.to_string(),
                 derived: true,
+                html,
             };
         }
     };
@@ -204,6 +247,7 @@ pub fn parse(text: &str, path: &Path) -> Plan {
         frontmatter: pairs,
         body: body.to_string(),
         derived: false,
+        html,
     }
 }
 
@@ -240,14 +284,25 @@ pub fn serialize(plan: &Plan) -> String {
         pairs.retain(|(k, _)| k != "pr");
     }
 
-    let mut out = String::from("---\n");
+    let mut out = String::new();
+    if plan.html {
+        out.push_str(COMMENT_OPEN);
+        out.push('\n');
+    }
+    out.push_str(FENCE);
+    out.push('\n');
     for (key, value) in &pairs {
         out.push_str(key);
         out.push_str(": ");
         out.push_str(value);
         out.push('\n');
     }
-    out.push_str("---\n");
+    out.push_str(FENCE);
+    out.push('\n');
+    if plan.html {
+        out.push_str(COMMENT_CLOSE);
+        out.push('\n');
+    }
     out.push_str(&plan.body);
     out
 }
@@ -439,6 +494,78 @@ mod tests {
         let text = "---\ntitle: X\n\n# no closing fence\n";
 
         let plan = parse_str(text);
+
+        assert_eq!(plan.body, text);
+        assert!(plan.derived);
+    }
+
+    const HTML_PATH: &str = "/base/plans/auth-refactor.html";
+
+    fn parse_html(text: &str) -> Plan {
+        parse(text, Path::new(HTML_PATH))
+    }
+
+    #[test]
+    fn an_html_plan_carries_its_frontmatter_in_a_comment() {
+        let plan = parse_html(
+            "<!--\n---\nid: auth-refactor\ntitle: Auth refactor\nstatus: in-progress\n\
+             type: feature\n---\n-->\n<h1>Auth refactor</h1>\n",
+        );
+
+        assert_eq!(plan.meta.title, "Auth refactor");
+        assert_eq!(plan.meta.status, Status::InProgress);
+        assert_eq!(plan.meta.plan_type.as_deref(), Some("feature"));
+        assert_eq!(plan.body, "<h1>Auth refactor</h1>\n");
+        assert!(!plan.derived);
+        assert!(plan.html);
+    }
+
+    #[test]
+    fn an_html_plan_is_written_back_the_way_it_was_read() {
+        let text = "<!--\n---\nid: auth-refactor\ntitle: Auth refactor\nstatus: draft\n\
+                    source: manual\n---\n-->\n<h1>Auth refactor</h1>\n<p>body</p>\n";
+
+        assert_eq!(serialize(&parse_html(text)), text);
+    }
+
+    #[test]
+    fn an_html_body_survives_a_round_trip_byte_for_byte() {
+        let body = "<h1>Auth refactor</h1>\n<pre>---\nnot: frontmatter\n---</pre>\n";
+        let text = format!("<!--\n---\ntitle: Auth refactor\n---\n-->\n{body}");
+
+        assert_eq!(parse_html(&serialize(&parse_html(&text))).body, body);
+    }
+
+    #[test]
+    fn an_html_plan_that_never_had_frontmatter_gets_it_in_a_comment() {
+        let mut plan = parse_html("<h1>Hand written</h1>\n");
+        plan.meta.status = Status::InReview;
+
+        let out = serialize(&plan);
+
+        assert!(out.starts_with("<!--\n---\n"), "{out}");
+        assert!(out.contains("status: in-review\n"), "{out}");
+        assert!(out.ends_with("-->\n<h1>Hand written</h1>\n"), "{out}");
+    }
+
+    #[test]
+    fn an_html_plan_without_frontmatter_takes_its_title_from_the_first_heading() {
+        let plan = parse_html("<h1 class=\"t\">Just some notes</h1>\n<p>x</p>\n");
+
+        assert_eq!(plan.meta.title, "Just some notes");
+        assert!(plan.derived);
+    }
+
+    #[test]
+    fn a_markdown_plan_is_never_written_as_a_comment() {
+        assert!(serialize(&parse_str("---\ntitle: X\n---\n# X\n")).starts_with("---\n"));
+    }
+
+    #[test]
+    fn an_unclosed_comment_is_body_not_metadata() {
+        let text = "<!--\n---\ntitle: X\n---\n<h1>no closing comment</h1>\n";
+
+        let plan = parse_html(text);
 
         assert_eq!(plan.body, text);
         assert!(plan.derived);

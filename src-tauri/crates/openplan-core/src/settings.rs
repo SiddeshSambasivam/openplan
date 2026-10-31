@@ -27,6 +27,33 @@ pub struct Settings {
     /// Whether onboarding has been walked through on this machine.
     #[serde(default)]
     pub onboarded: bool,
+    /// Which format agents write plan bodies in. Absent until the person
+    /// picks one, which reads as markdown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authoring: Option<String>,
+}
+
+/// Markdown is token-efficient; HTML gives a richer page to review. Both are
+/// plans under the same contract.
+pub const DEFAULT_AUTHORING: &str = "markdown";
+pub const AUTHORING_MODES: [&str; 2] = ["markdown", "html"];
+
+/// The mode a stored value means. Anything this build does not recognise is
+/// markdown, so a settings file from elsewhere never stops plans being written.
+pub fn authoring_mode(stored: Option<&str>) -> &'static str {
+    match stored.map(str::trim).map(str::to_lowercase).as_deref() {
+        Some("html") => "html",
+        _ => DEFAULT_AUTHORING,
+    }
+}
+
+/// What this machine is set to, read the way the MCP server reads it.
+pub fn current_authoring() -> &'static str {
+    let stored = settings_path()
+        .ok()
+        .and_then(|path| read_settings(&path).ok().flatten())
+        .and_then(|s| s.authoring);
+    authoring_mode(stored.as_deref())
 }
 
 /// A blank setting is the same as an unset one; git configs in particular
@@ -158,17 +185,12 @@ pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
         )?;
     }
 
-    let (standards, name, email, onboarded) = existing
-        .map(|s| (s.standards, s.name, s.email, s.onboarded))
-        .unwrap_or((None, None, None, false));
+    let carried = existing.unwrap_or_default();
     write_settings(
         settings_file,
         &Settings {
             base_path: base.root.clone(),
-            standards,
-            name,
-            email,
-            onboarded,
+            ..carried
         },
     )?;
     Ok(base)
@@ -176,6 +198,54 @@ pub fn resolve_base(settings_file: &Path, home: &Path) -> Result<Base, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn plans_are_written_in_markdown_unless_someone_asked_for_html() {
+        assert_eq!(authoring_mode(None), DEFAULT_AUTHORING);
+        assert_eq!(authoring_mode(Some("html")), "html");
+        assert_eq!(authoring_mode(Some("HTML")), "html");
+        assert_eq!(authoring_mode(Some("markdown")), "markdown");
+        // A word from a build that knew something this one does not.
+        assert_eq!(authoring_mode(Some("rtf")), DEFAULT_AUTHORING);
+    }
+
+    #[test]
+    fn the_authoring_mode_is_remembered_across_launches() {
+        let dir = temp_dir("openplan-core-settings-authoring");
+        let home = dir.join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let file = dir.join("settings.json");
+        write_settings(
+            &file,
+            &Settings {
+                base_path: default_base_path(&home),
+                authoring: Some("html".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        resolve_base(&file, &home).unwrap();
+
+        assert_eq!(
+            read_settings(&file).unwrap().unwrap().authoring.as_deref(),
+            Some("html")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn settings_written_before_the_mode_existed_still_read() {
+        let dir = temp_dir("openplan-core-settings-no-authoring");
+        let file = dir.join("settings.json");
+        std::fs::write(&file, "{\"basePath\":\"/somewhere\"}\n").unwrap();
+
+        let saved = read_settings(&file).unwrap().unwrap();
+
+        assert_eq!(saved.authoring, None);
+        assert_eq!(authoring_mode(saved.authoring.as_deref()), "markdown");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn what_someone_set_beats_what_git_guessed() {
         let id = resolve_identity(
@@ -242,6 +312,7 @@ mod tests {
             name: Some("Sid".to_string()),
             email: Some("sid@hypotenuse.ai".to_string()),
             onboarded: true,
+            authoring: Some("html".to_string()),
         };
 
         write_settings(&file, &settings).unwrap();
@@ -279,9 +350,7 @@ mod tests {
             &Settings {
                 base_path: default_base_path(&home),
                 standards: Some("Name the reviewer.".to_string()),
-                name: None,
-                email: None,
-                onboarded: false,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -340,10 +409,7 @@ mod tests {
             &file,
             &Settings {
                 base_path: elsewhere.clone(),
-                standards: None,
-                name: None,
-                email: None,
-                onboarded: false,
+                ..Default::default()
             },
         )
         .unwrap();

@@ -167,7 +167,7 @@ pub fn import_folder(
         }
         let path = entry.path();
         let importable = match entry.file_type() {
-            Ok(t) if t.is_file() => library::is_markdown(&path),
+            Ok(t) if t.is_file() => library::is_plan(&path),
             Ok(t) if t.is_dir() => library::set_entry(&path).is_some(),
             _ => false,
         };

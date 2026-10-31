@@ -80,6 +80,16 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     );
     assert_eq!(dup["result"]["isError"], true);
 
+    // A plan short of the sections its type calls for is filed anyway, and said so.
+    let thin = ask(
+        r##"{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Token refresh loops","body":"# Token refresh loops\n\n## Summary\n\nit loops","type":"bug","project":"github.com/acme/api"}}}"##,
+    );
+    assert_eq!(thin["result"]["isError"], false, "{thin}");
+    let warned = thin["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(warned.contains("Reproduction"), "{warned}");
+    assert!(warned.contains("Blast radius"), "{warned}");
+    assert!(!warned.contains("describe_project"), "already described: {warned}");
+
     let listed = ask(r##"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"list_plans","arguments":{}}}"##);
     let listing = listed["result"]["content"][0]["text"].as_str().unwrap();
     assert!(listing.contains("[draft] auth-refactor Auth refactor"), "{listing}");
@@ -155,7 +165,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     // What reached disk is a plan the app would list, attributed in history.
     let base = openplan_core::base::Base { root: base_root.clone() };
     let entries = openplan_core::library::scan(&base);
-    assert_eq!(entries.len(), 1);
+    assert_eq!(entries.len(), 2);
     let history =
         openplan_core::repo::history(&base.root, std::path::Path::new("plans/auth-refactor.md"))
             .unwrap();
@@ -165,6 +175,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let listed = openplan_core::project::list(&base);
     assert_eq!(listed.len(), 1, "{listed:?}");
     assert_eq!(listed[0].project.as_deref(), Some("github.com/acme/api"));
+    assert_eq!(listed[0].plans, 2, "both plans came from the same repo");
     assert_eq!(
         listed[0].description.as_deref(),
         Some("The public API Hypotenuse customers call.")
@@ -175,6 +186,83 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     )
     .unwrap();
     assert_eq!(described[0].author, "claude-code", "the write is attributed");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+/// Where `dirs` puts a config directory for a given home, which is how the
+/// server finds the settings this test writes for it.
+#[cfg(unix)]
+fn config_dir(home: &std::path::Path) -> std::path::PathBuf {
+    if cfg!(target_os = "macos") {
+        home.join("Library").join("Application Support")
+    } else {
+        home.join(".config")
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn in_html_mode_the_plan_on_disk_is_an_html_document() {
+    let home = std::env::temp_dir().join("openplan-mcp-session-html");
+    let _ = std::fs::remove_dir_all(&home);
+    let settings = config_dir(&home).join(openplan_core::profile::name());
+    std::fs::create_dir_all(&settings).unwrap();
+    let base_path = home.join(openplan_core::profile::base_dir_name());
+    std::fs::write(
+        settings.join("settings.json"),
+        format!(
+            "{{\"basePath\":{:?},\"authoring\":\"html\"}}\n",
+            base_path.display().to_string()
+        ),
+    )
+    .unwrap();
+
+    let mut server = Command::new(env!("CARGO_BIN_EXE_openplan"))
+        .arg("mcp")
+        .env("HOME", &home)
+        .env_remove("XDG_CONFIG_HOME")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("the server should start");
+    let mut stdin = server.stdin.take().unwrap();
+    let mut lines = BufReader::new(server.stdout.take().unwrap()).lines();
+    let mut ask = |message: &str| -> serde_json::Value {
+        writeln!(stdin, "{message}").unwrap();
+        let line = lines.next().expect("a reply").unwrap();
+        serde_json::from_str(&line).expect("json-rpc")
+    };
+
+    ask(r##"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-ai","version":"1.0"}}}"##);
+
+    // The mode reaches the agent before it writes anything.
+    let tools = ask(r##"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"##);
+    let create = tools["result"]["tools"][0]["description"].as_str().unwrap();
+    assert!(create.contains("HTML document"), "{create}");
+
+    let standards = ask(r##"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_standards","arguments":{}}}"##);
+    let served = standards["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(served.starts_with("Authoring mode: html"), "{served}");
+
+    let created = ask(
+        r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Rendered plan","body":"<h1>Rendered plan</h1>\n<h2>Scope</h2>\n<h2>Findings</h2>\n<h2>Recommendations</h2>","type":"audit"}}}"##,
+    );
+    assert_eq!(created["result"]["isError"], false, "{created}");
+
+    let read = ask(r##"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_plan","arguments":{"id":"rendered-plan"}}}"##);
+    let text = read["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.starts_with("<!--\n---\n"), "{text}");
+    assert!(text.contains("\n-->\n<h1>Rendered plan</h1>"), "{text}");
+
+    drop(stdin);
+    server.wait().unwrap();
+
+    let base = openplan_core::base::Base { root: base_path };
+    let entries = openplan_core::library::scan(&base);
+    assert_eq!(entries.len(), 1, "{entries:?}");
+    assert_eq!(entries[0].meta.title, "Rendered plan");
+    assert_eq!(entries[0].path.extension().unwrap(), "html");
 
     let _ = std::fs::remove_dir_all(&home);
 }

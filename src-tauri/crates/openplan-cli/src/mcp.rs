@@ -42,16 +42,29 @@ fn now_iso() -> String {
     iso_from_unix(secs)
 }
 
-fn tool_list() -> Value {
+/// The tools, described for the mode this machine writes plans in. Read at
+/// tools/list time so a change in settings reaches the next session.
+fn tool_list(authoring: &str) -> Value {
+    let (filing, body) = if authoring == "html" {
+        (
+            "File a finished plan into the user's plan base. Call get_standards first and follow it. The body is one self-contained HTML document: no scripts, no external resources. The title should read as a change, not a topic. A new plan is a draft.",
+            "The plan, as one self-contained HTML document",
+        )
+    } else {
+        (
+            "File a finished plan into the user's plan base. Call get_standards first and follow it. The body is the full markdown of the plan; the title should read as a change, not a topic. A new plan is a draft.",
+            "The plan, as markdown",
+        )
+    };
     json!([
         {
             "name": "create_plan",
-            "description": "File a finished plan into the user's plan base. Call get_standards first and follow it. The body is the full markdown of the plan; the title should read as a change, not a topic. A new plan is a draft.",
+            "description": filing,
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "title": { "type": "string", "description": "One line, reading as a change" },
-                    "body": { "type": "string", "description": "The plan, as markdown" },
+                    "body": { "type": "string", "description": body },
                     "type": { "type": "string", "enum": ["feature", "bug", "migration", "research", "audit"], "description": "What kind of work this is. It decides which sections the plan needs and how the app lays it out." },
                     "project": { "type": "string", "description": "The git remote of the repo you are working in, as owner/repo or its URL. Leave it out only when there is no repo." }
                 },
@@ -153,7 +166,7 @@ fn text_result(text: impl Into<String>, is_error: bool) -> Value {
     json!({ "content": [{ "type": "text", "text": text.into() }], "isError": is_error })
 }
 
-fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
+fn create_plan(base: &Base, author: &str, authoring: &str, args: &Value) -> Value {
     let Some(title) = args.get("title").and_then(Value::as_str).filter(|t| !t.trim().is_empty())
     else {
         return text_result("create_plan needs a title.", true);
@@ -168,7 +181,9 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
         .map(project::normalize)
         .filter(|p| !p.is_empty());
     let id = slugify(title);
-    let destination = base.plans_dir().join(format!("{id}.md"));
+    let html = authoring == "html";
+    let extension = if html { "html" } else { "md" };
+    let destination = base.plans_dir().join(format!("{id}.{extension}"));
     if destination.exists() {
         return text_result(
             format!("A plan called {id} already exists. Read it with read_plan first."),
@@ -191,6 +206,7 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
         frontmatter: Vec::new(),
         body: format!("{}\n", body.trim_end()),
         derived: false,
+        html,
     };
     if let Err(e) = fs::atomic_write(&destination, &plan::serialize(&filed)) {
         return text_result(e, true);
@@ -203,6 +219,15 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
         return text_result(e, true);
     }
     let mut reply = format!("Filed as {id}.");
+    if let Some(plan_type) = filed.meta.plan_type.as_deref() {
+        let missing = standards::missing_sections(plan_type, &filed.body);
+        if !missing.is_empty() {
+            reply.push_str(&format!(
+                " A {plan_type} plan also needs these sections: {}. Add them and file the next revision.",
+                missing.join(", ")
+            ));
+        }
+    }
     let undescribed = project
         .as_ref()
         .is_some_and(|p| !project::read_descriptions(base).contains_key(p));
@@ -416,7 +441,10 @@ fn get_standards() -> Value {
         .ok()
         .and_then(|p| settings::read_settings(&p).ok().flatten())
         .and_then(|s| s.standards);
-    text_result(standards::effective(overrides.as_deref()), false)
+    text_result(
+        standards::effective(settings::current_authoring(), overrides.as_deref()),
+        false,
+    )
 }
 
 /// Serves until stdin closes, which is how the client says the session ended.
@@ -454,12 +482,12 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                 }))
             }
             "ping" => Ok(json!({})),
-            "tools/list" => Ok(json!({ "tools": tool_list() })),
+            "tools/list" => Ok(json!({ "tools": tool_list(settings::current_authoring()) })),
             "tools/call" => {
                 let name = params.get("name").and_then(Value::as_str).unwrap_or("");
                 let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
                 match name {
-                    "create_plan" => Ok(create_plan(base, &author, &args)),
+                    "create_plan" => Ok(create_plan(base, &author, settings::current_authoring(), &args)),
                     "list_plans" => Ok(list_plans(base, &args)),
                     "set_status" => Ok(set_status(base, &author, &args)),
                     "read_plan" => Ok(read_plan(base, &args)),

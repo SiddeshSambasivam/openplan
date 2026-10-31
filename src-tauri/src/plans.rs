@@ -92,13 +92,7 @@ pub async fn get_standards() -> Result<Standards, String> {
 #[tauri::command]
 pub async fn set_standards_overrides(text: String) -> Result<(), String> {
     let path = settings::settings_path()?;
-    let mut saved = settings::read_settings(&path)?.unwrap_or_else(|| settings::Settings {
-        base_path: Default::default(),
-        standards: None,
-        name: None,
-        email: None,
-        onboarded: false,
-    });
+    let mut saved = settings::read_settings(&path)?.unwrap_or_default();
     if saved.base_path.as_os_str().is_empty() {
         saved.base_path = base()?.root;
     }

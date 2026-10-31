@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlanEntry {
     pub meta: PlanMeta,
-    /// The document to open: the plan itself, or a set's `README.md`.
+    /// The document to open: the plan itself, or a set's README.
     pub path: PathBuf,
     /// Path within the base — what history is recorded against.
     pub relative_path: PathBuf,
@@ -20,17 +20,19 @@ pub struct PlanEntry {
     pub documents: Vec<PathBuf>,
 }
 
-/// The entry point of a plan set. A large change is written as a folder — see
+/// The entry points of a plan set. A large change is written as a folder — see
 /// the standards — so a folder holding one of these is one plan, not thirty.
-pub const SET_ENTRY: &str = "README.md";
+pub const SET_ENTRIES: [&str; 2] = ["README.md", "README.html"];
 
 /// A set's entry point: its README, or failing that the first of its numbered
 /// documents, which is how plan sets that lead with `00-overview.md` are
 /// written. `None` means the folder is somewhere plans are kept, not a plan.
 pub fn set_entry(dir: &Path) -> Option<PathBuf> {
-    let readme = dir.join(SET_ENTRY);
-    if readme.is_file() {
-        return Some(readme);
+    for name in SET_ENTRIES {
+        let readme = dir.join(name);
+        if readme.is_file() {
+            return Some(readme);
+        }
     }
     let mut numbered: Vec<PathBuf> = std::fs::read_dir(dir)
         .ok()?
@@ -38,7 +40,7 @@ pub fn set_entry(dir: &Path) -> Option<PathBuf> {
         .map(|e| e.path())
         .filter(|p| {
             p.is_file()
-                && is_markdown(p)
+                && is_plan(p)
                 && p.file_name()
                     .and_then(|n| n.to_str())
                     .is_some_and(|n| n.starts_with("00-"))
@@ -58,15 +60,17 @@ pub struct SearchHit {
     pub text: String,
 }
 
-const MARKDOWN_EXTENSIONS: [&str; 3] = ["md", "markdown", "mdx"];
+/// What a plan can be written in. HTML plans sit under the same contract as
+/// markdown ones, so everything that walks the base reads both.
+const PLAN_EXTENSIONS: [&str; 5] = ["md", "markdown", "mdx", "html", "htm"];
 /// Enough context to recognise a match without pasting a whole paragraph.
 const MAX_HIT_CHARS: usize = 240;
 const MAX_HITS: usize = 200;
 
-pub(crate) fn is_markdown(path: &Path) -> bool {
+pub(crate) fn is_plan(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .map(|e| MARKDOWN_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+        .map(|e| PLAN_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
         .unwrap_or(false)
 }
 
@@ -86,13 +90,13 @@ fn set_documents(dir: &Path, prefix: &Path, out: &mut Vec<PathBuf>) {
         let relative = prefix.join(entry.file_name());
         match entry.file_type() {
             Ok(t) if t.is_dir() => set_documents(&path, &relative, out),
-            Ok(t) if t.is_file() && is_markdown(&path) => out.push(relative),
+            Ok(t) if t.is_file() && is_plan(&path) => out.push(relative),
             _ => {}
         }
     }
 }
 
-/// Walks the base, treating a folder with a `README.md` as one plan rather
+/// Walks the base, treating a folder with a README as one plan rather
 /// than descending into its documents. Hidden entries are skipped — that is
 /// where git and the sidecars live.
 fn walk(dir: &Path, out: &mut Vec<(PathBuf, Vec<PathBuf>)>) {
@@ -115,7 +119,7 @@ fn walk(dir: &Path, out: &mut Vec<(PathBuf, Vec<PathBuf>)>) {
                 }
                 None => walk(&path, out),
             },
-            Ok(t) if t.is_file() && is_markdown(&path) => out.push((path, Vec::new())),
+            Ok(t) if t.is_file() && is_plan(&path) => out.push((path, Vec::new())),
             _ => {}
         }
     }
@@ -134,7 +138,7 @@ pub fn plan_paths(base: &Base) -> Vec<PathBuf> {
             let path = entry.path();
             match entry.file_type() {
                 Ok(t) if t.is_dir() => every(&path, out),
-                Ok(t) if t.is_file() && is_markdown(&path) => out.push(path),
+                Ok(t) if t.is_file() && is_plan(&path) => out.push(path),
                 _ => {}
             }
         }
@@ -285,6 +289,50 @@ mod tests {
         assert_eq!(entries.len(), 1, "{entries:?}");
         assert_eq!(entries[0].meta.title, "PDB Search v1");
         assert_eq!(entries[0].documents.len(), 2);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn an_html_plan_is_listed_like_any_other() {
+        let base = temp_base("openplan-core-library-html");
+        write(
+            &base,
+            "plans/rendered.html",
+            "<!--\n---\ntitle: Rendered\nstatus: in-review\n---\n-->\n<h1>Rendered</h1>\n",
+        );
+
+        let entries = scan(&base);
+
+        assert_eq!(entries.len(), 1, "{entries:?}");
+        assert_eq!(entries[0].meta.title, "Rendered");
+        assert_eq!(entries[0].meta.status, crate::plan::Status::InReview);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_set_can_open_at_an_html_readme_and_mix_both_kinds() {
+        let base = temp_base("openplan-core-library-html-set");
+        write(&base, "plans/rendered-set/README.html", "<h1>The set</h1>\n");
+        write(&base, "plans/rendered-set/01-detail.md", "# Detail\n");
+        write(&base, "plans/rendered-set/02-diagram.html", "<h1>Diagram</h1>\n");
+
+        let entries = scan(&base);
+
+        assert_eq!(entries.len(), 1, "{entries:?}");
+        assert_eq!(entries[0].meta.title, "The set");
+        assert!(entries[0].path.ends_with("README.html"));
+        assert_eq!(entries[0].documents.len(), 3);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_search_reads_html_plans_too() {
+        let base = temp_base("openplan-core-library-html-search");
+        write(&base, "plans/rendered.html", "<h1>R</h1>\n<p>the cache is warm</p>\n");
+
+        let hits = search(&base, "cache is warm");
+
+        assert_eq!(hits.len(), 1, "{hits:?}");
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
