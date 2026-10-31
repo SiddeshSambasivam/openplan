@@ -155,6 +155,15 @@ async fn read_work_record(path: String) -> Result<Option<openplan_core::work::Wo
     openplan_core::work::read(Path::new(&path))
 }
 
+/// Todo progress for the given plans, in one call so the board does not ask
+/// once per card.
+#[tauri::command]
+async fn list_work_progress(
+    paths: Vec<std::path::PathBuf>,
+) -> Result<Vec<openplan_core::work::PlanProgress>, String> {
+    Ok(openplan_core::work::progress_of(&paths))
+}
+
 /// Build the markdown tree of a folder for the sidebar's nested list view.
 #[tauri::command]
 async fn scan_folder(path: String) -> Result<ScanResult, String> {
@@ -256,6 +265,7 @@ pub fn run() {
             classify_paths,
             read_comments,
             read_work_record,
+            list_work_progress,
             write_comments,
             delete_comments
         ])

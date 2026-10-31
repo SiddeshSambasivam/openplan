@@ -371,6 +371,31 @@ pub fn progress(record: &WorkRecord) -> (usize, usize) {
     (done, counted.count())
 }
 
+/// One plan's todo progress, as the board shows it on the plan's card.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct PlanProgress {
+    pub path: PathBuf,
+    pub done: usize,
+    pub total: usize,
+}
+
+/// Progress for each plan that has a record. A plan without one, or with one
+/// that cannot be read, is left out.
+pub fn progress_of(doc_paths: &[PathBuf]) -> Vec<PlanProgress> {
+    doc_paths
+        .iter()
+        .filter_map(|path| {
+            let record = read(path).ok()??;
+            let (done, total) = progress(&record);
+            Some(PlanProgress {
+                path: path.clone(),
+                done,
+                total,
+            })
+        })
+        .collect()
+}
+
 /// Copies a plan's legacy frontmatter `pr` into the record, once.
 pub fn absorb_pr(record: &mut WorkRecord, url: &str) {
     if record.prs.iter().any(|p| p.url == url) {
@@ -868,6 +893,32 @@ mod tests {
         let record = read(&doc).unwrap().unwrap();
         assert_eq!(record.todos.len(), 100);
         assert_eq!(record.todos.last().unwrap().id, "t100");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn progress_is_listed_for_each_plan_with_a_readable_record() {
+        let dir = temp_dir("openplan-core-work-progress-list");
+        let worked = dir.join("worked.md");
+        let untouched = dir.join("untouched.md");
+        let broken = dir.join("broken.md");
+        modify(&worked, |r| {
+            add_todos(r, &texts(&["a", "b"]), "claude-code", None);
+            update_todo(r, "t1", TodoState::Done, None, "claude-code").map(|_| ())
+        })
+        .unwrap();
+        std::fs::write(work_path(&broken).unwrap(), "not json").unwrap();
+
+        let listed = progress_of(&[worked.clone(), untouched, broken]);
+
+        assert_eq!(
+            listed,
+            vec![PlanProgress {
+                path: worked,
+                done: 1,
+                total: 2
+            }]
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
