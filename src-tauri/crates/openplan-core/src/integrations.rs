@@ -76,13 +76,16 @@ Plans are managed by the `{}` MCP server, not by loose files.
 - To see or reread existing plans, use `list_plans` and `read_plan` rather
   than searching the filesystem for them.
 - A plan moves through draft, alignment, in-progress, in-review, completed and
-  archived. The person sets alignment, completed and archived. You set
-  in-progress once alignment is recorded and a todo exists, and in-review once
-  no todo is open.
-- At alignment, ask in the harness with its question tool (AskUserQuestion in
-  Claude Code), never in a comment. Ask at most 12 questions. The first is always
-  \"Accept all N recommendations, or go one by one?\". Then call `record_alignment`,
-  `add_decisions`, `add_todos`, and `set_status` with in-progress.
+  archived. The app moves a draft to alignment when the person sends the first
+  review. You set in-progress after the person presses Build, and in-review
+  once no todo is open. Only the person sets completed and archived.
+- After you answer a review round, post one to three questions with
+  `ask_questions` and end your turn with a one-line pointer to them. Never ask
+  in a harness question prompt such as AskUserQuestion, or in a comment.
+  Record an answer given in the session with `record_alignment`.
+- On Build, answer the comments it carries, post every question left and wait
+  for the answers. Then call `add_decisions`, `add_todos`, and `set_status`
+  with in-progress.
 - Add todos with `add_todos` and move each one with `update_todo` as you work.
   Never replace the list. A comment that asks for new work becomes a todo.
 - Before opening a PR, call `pr_body` and paste its text into the description.
@@ -475,6 +478,7 @@ mod tests {
         assert_eq!(crate::standards::writing_faults(&block), Vec::<String>::new());
         for tool in [
             "update_plan",
+            "ask_questions",
             "record_alignment",
             "add_decisions",
             "add_todos",
@@ -485,8 +489,11 @@ mod tests {
             assert!(block.contains(&format!("`{tool}`")), "the block never names {tool}");
         }
         let flat = block.split_whitespace().collect::<Vec<_>>().join(" ");
-        assert!(flat.contains("AskUserQuestion"));
-        assert!(flat.contains("Accept all N recommendations, or go one by one?"));
+        assert!(flat.contains("one to three questions"));
+        assert!(flat.contains("On Build,"));
+        assert!(flat.contains("Never ask in a harness question prompt such as AskUserQuestion"));
+        assert!(!flat.contains("Accept all N recommendations"));
+        assert!(!flat.contains("Let the agent decide"));
         assert!(flat.contains("When every PR is merged, ask the person in the harness to confirm"));
     }
 

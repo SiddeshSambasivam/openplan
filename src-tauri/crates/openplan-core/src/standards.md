@@ -117,13 +117,16 @@ A plan has one status at a time. The server checks every move.
 
 | status | what it means | who moves the plan there | guard |
 |---|---|---|---|
-| `draft` | filed, under review, revised in place with `update_plan` | the agent, with `create_plan` | none |
-| `alignment` | the person finished reviewing and the agent asks its questions | the person, from the status picker | none |
-| `in-progress` | the work is under way | the agent, with `set_status` | refused until alignment is recorded and at least one todo exists |
+| `draft` | filed and revised in place with `update_plan`, until the person sends the first review | the agent, with `create_plan` | none |
+| `alignment` | the person reviews in rounds, and the agent answers each round and asks its questions | the app, when the person sends the first review | none |
+| `in-progress` | the work is under way | the agent, with `set_status`, after the person presses **Build** | refused until every recorded question has an answer and at least one todo exists |
 | `in-review` | the work is done and waits for the person | the agent, with `set_status` | refused while any todo is open or doing |
-| `completed` | the person accepted the work | the person only | the server refuses it from an agent |
+| `completed` | the person accepted the work | the person only, and the app offers "Mark completed" once every PR reads merged | the server refuses it from an agent |
 | `archived` | nobody needs to think about it again | the person, or the app after the number of days set in settings | none |
 
+- Review and alignment run together for as many rounds as the person wants.
+- **Build** is a button in the app. Pressing it sends the agent a Build message
+  that carries any review comments the person had not sent yet.
 - Session presence does not change status. Reading a plan or its comments leaves
   the status where it is.
 - A new todo on an in-review plan moves it back to in-progress.
@@ -132,44 +135,72 @@ A plan has one status at a time. The server checks every move.
 ## Alignment
 
 Alignment settles the choices that decide whether the work comes out right, before
-anyone writes code. It starts when the person sets a plan to alignment.
+anyone writes code. It runs alongside review, one round at a time, until the
+person presses **Build**.
 
-1. Read the plan, its open comments and the question bank for its type. Ask about
-   the aspects where a wrong guess would cost a rewrite. Skip the ones the plan or
-   the code already answers.
-2. Ask in the harness with its own question tool. In Claude Code that is
-   AskUserQuestion. Never ask in a plan comment.
-3. Ask at most 12 questions. The first is always "Accept all N recommendations, or
-   go one by one?", with each recommendation listed below it in one line. If the
-   person accepts all, every recommended option is the answer. Ask the
-   must-answer questions either way.
+### Each review round
+
+1. Answer the review first. Revise the plan with `update_plan`, reply in every
+   thread with `reply_comment`, and resolve each thread you acted on.
+2. Post one to three questions with `ask_questions`. Pick the ones the latest
+   feedback makes answerable. Skip what the plan or the code already answers.
+3. End your turn with a one-line pointer to the questions, for example "Two
+   questions are waiting on the Alignment tab."
+4. Do not open a harness question prompt such as AskUserQuestion. The person may
+   answer in the app, and the app cannot close a harness prompt. Never ask in a
+   plan comment either.
+5. The person answers on the plan's Alignment tab or by replying in the session.
+   Record each answer given in the session with `record_alignment`.
+6. Rounds merge by question id, so send only the new round. Leave `round` out.
+   The server stamps it.
+
+### On Build
+
+1. Answer the comments that came with the Build message, as in a review round.
+2. If questions are left, post all of them in one round with `ask_questions`.
+   Wait for the answers before you write code.
+3. Once every question has an answer, call `add_decisions` for the consequential
+   answers, `add_todos` for the work, and `set_status` with in-progress. Then
+   start.
+
+You may post a question after Build when you reach a call you cannot make alone.
+The plan stays in progress, and the app flags it as needing an answer.
+
+### Writing a question
+
+1. Give each question a `role`. `product` is the product owner, `engineering` is
+   the tech lead, `design` is the designer, and `oncall` is the person paged
+   when it breaks. Ask from the roles the plan touches. Do not add a role that
+   has nothing to ask.
+2. Order the questions from easy to hard. The early ones confirm scope. The later
+   ones ask the person to explain their reasoning, and a free-text answer is
+   welcome there.
+3. Ask about error handling, edge cases and behaviour at scale on every plan,
+   unless the plan or the code already settles them.
 4. Write each question as one direct sentence, and give it a `context` of two to
    four sentences. The context says why the question matters for this plan and
    what you found in the code or the plan that raised it. Name the files,
    functions and numbers you found.
-5. List the recommended option first and mark it "(Recommended)". Give every
-   option a `consequence`, what happens if the person picks it, and a `tradeoff`,
-   what it costs or gives up and when it is the right pick. One sentence each.
-6. In AskUserQuestion, put the context on the question text's first line and the
-   question on the line after it. Put the consequence and the trade-off in each
-   option's description.
-7. Add a "Let the agent decide" option to every question you have not marked
-   must-answer. Mark a question must-answer only when it is about product
-   behaviour you cannot know from the plan or the code. AskUserQuestion takes four
-   options, so offer at most three of your own beside "Let the agent decide".
-8. Call `record_alignment` with every question, its context, its options and the
-   answer as soon as the last answer arrives. Then call `add_decisions` for the
-   answers that are consequential, `add_todos` for the work, and `set_status`
-   with in-progress.
+5. Offer at least two real options. Give every option a `consequence`, what
+   happens if the person picks it, and a `tradeoff`, what it costs or gives up
+   and when it is the right pick. One sentence each.
+6. Set `recommended` to one option, and end the `context` with one sentence on
+   why you recommend it.
+7. The person picks every answer. Never add an option that hands the choice back
+   to you.
+8. Add an `illustration` in markdown to a question or an option wherever it is
+   easier to see than to read. Use a mermaid diagram, a worked example, a before
+   and after, or a small `html` fence when media is on.
 
-A question at the level of detail this asks for, as `record_alignment` takes it,
+A question at the level of detail this asks for, as `ask_questions` takes it,
 from a feature plan that adds a cache:
 
 ```json
 {
-  "id": "q4", "aspect": "performance",
+  "id": "q4", "role": "engineering", "aspect": "performance",
   "question": "Where does the plan cache live?",
-  "context": "`list_plans` in `library.rs` reads every plan file each time the board opens. The base has 412 plans, and the board takes 900 ms to open.",
+  "context": "`list_plans` in `library.rs` reads every plan file each time the board opens. The base has 412 plans, and the board takes 900 ms to open. I recommend memory because launch already reads the base once.",
+  "illustration": "| | board opens in |\n|---|---|\n| today | 900 ms |\n| in memory | under 50 ms after launch |\n| on disk | under 50 ms always |",
   "options": [
     { "id": "a", "label": "In memory, filled on launch",
       "consequence": "The board opens in under 50 ms once the app has launched.",
@@ -183,72 +214,82 @@ from a feature plan that adds a cache:
 ```
 
 When alignment is reopened, ask only about what changed since the last record. The
-target is under 15 minutes of the person's time.
+target is under 15 minutes of the person's time across every round.
 
 ## Question bank
 
-These are model questions for each plan type. Reword each one for the plan in
-front of you and replace the options with the real ones. The usual options are a
+These are model questions for each plan type, with the role that usually asks
+each one. The rows run from easy to hard. Reword each one for the plan in front
+of you and replace the options with the real ones. The usual options are a
 starting point, not a menu to copy. The context and the trade-offs come from what
 you find in the plan and the code, so the bank has none.
 
 ### `feature`
 
-| aspect | model question | usual options |
-|---|---|---|
-| tests | What has to be tested before this merges? | unit tests on the new logic · unit tests plus one end-to-end test of the main flow · the existing tests are enough |
-| edge cases | What happens when the input is empty, too large or malformed? | reject it with a clear error · accept it and repair it · keep today's behaviour |
-| scale | How large a case must this handle without slowing down? | today's largest real case · ten times that · no target yet, measure after release |
-| UX | What does the user see while this runs and when it fails? | a progress state and a plain error · only the result · the same as the closest existing screen |
-| security | Who may use this, and does it touch secrets or personal data? | the same access as today · a new permission check · it touches sensitive data, so it needs a security review |
-| performance | Which number must this change not make worse? | start time · time to open a page · memory at idle · none, it is off the hot path |
-| low-level design | Where does the new logic live? | in the existing module · in a new module beside it · in the caller |
-| high-level design | Does this add a service, a data store or a dependency? | no, it reuses what exists · one dependency, justified in the PR · a new service |
-| layout and naming | What are the new files and public names called? | follow the nearest existing names · the names in this plan · names the reviewer picks |
-| practices | How does this ship? | behind a flag that is off by default · straight to main · on a branch until a QA gate |
+| role | aspect | model question | usual options |
+|---|---|---|---|
+| product | scope | Who gets this first, and what is left out? | every user at once · one group first · the people who asked for it |
+| design | UX | What does the user see while this runs and when it fails? | a progress state and a plain error · only the result · the same as the closest existing screen |
+| engineering | tests | What has to be tested before this merges? | unit tests on the new logic · unit tests plus one end-to-end test of the main flow · the existing tests are enough |
+| engineering | edge cases | What happens when the input is empty, too large or malformed? | reject it with a clear error · accept it and repair it · keep today's behaviour |
+| oncall | error handling | What happens when a step fails halfway? | retry, then show a plain error · roll back to the last good state · log it and carry on |
+| oncall | scale | How large a case must this handle without slowing down? | today's largest real case · ten times that · no target yet, measure after release |
+| engineering | performance | Which number must this change not make worse? | start time · time to open a page · memory at idle · none, it is off the hot path |
+| engineering | security | Who may use this, and does it touch secrets or personal data? | the same access as today · a new permission check · it touches sensitive data, so it needs a security review |
+| engineering | low-level design | Where does the new logic live? | in the existing module · in a new module beside it · in the caller |
+| engineering | high-level design | Does this add a service, a data store or a dependency? | no, it reuses what exists · one dependency, justified in the PR · a new service |
+| engineering | layout and naming | What are the new files and public names called? | follow the nearest existing names · the names in this plan · names the reviewer picks |
+| oncall | practices | How does this ship? | behind a flag that is off by default · straight to main · on a branch until a QA gate |
 
 ### `bug`
 
-| aspect | model question | usual options |
-|---|---|---|
-| tests | Which test proves the fix? | a regression test that fails before the fix · that test plus a manual check of the reproduction · a manual check only |
-| edge cases | What happens to records the bug already wrote? | leave them · repair them with a one-off script · repair them as part of the fix |
-| low-level design | How deep does the fix go? | the root cause · a guard at the boundary now and the root cause later · both in one change |
-| security | Could this bug have exposed data or access? | no, it only affects behaviour · unknown, check the logs first · yes, treat it as an incident |
-| UX | What do the users it affected see or hear about it? | nothing, the fix is silent · a line in the release notes · a message in the product |
-| practices | How does the fix reach users? | the next regular release · a hotfix today · behind a flag |
+| role | aspect | model question | usual options |
+|---|---|---|---|
+| product | UX | What do the users it affected see or hear about it? | nothing, the fix is silent · a line in the release notes · a message in the product |
+| engineering | tests | Which test proves the fix? | a regression test that fails before the fix · that test plus a manual check of the reproduction · a manual check only |
+| engineering | edge cases | What happens to records the bug already wrote? | leave them · repair them with a one-off script · repair them as part of the fix |
+| oncall | scale | How many users or records does the bug reach? | a handful, fixed by hand · a share of every request · unknown, count from the logs first |
+| oncall | error handling | What happens when the fixed code meets the bad state again? | fail with an alert · repair it and log a warning · skip it quietly |
+| oncall | security | Could this bug have exposed data or access? | no, it only affects behaviour · unknown, check the logs first · yes, treat it as an incident |
+| engineering | low-level design | How deep does the fix go? | the root cause · a guard at the boundary now and the root cause later · both in one change |
+| oncall | practices | How does the fix reach users? | the next regular release · a hotfix today · behind a flag |
 
 ### `migration`
 
-| aspect | model question | usual options |
-|---|---|---|
-| tests | How do we show the new path gives the same results as the old one? | run both and compare outputs · contract tests on the new path · spot checks after each phase |
-| edge cases | What happens to records the new system cannot read? | block the migration until they are fixed · skip them and log each one · convert them with defaults |
-| scale | How does the data move? | all at once in a maintenance window · in batches with a checkpoint · on first read |
-| performance | How much slower may requests get while both paths run? | not at all · under 10 percent · any amount for a short window |
-| security | Do access rules carry over unchanged? | yes, mapped one to one · they change, and the plan lists how · they get a review before cutover |
-| high-level design | How do the old and new paths run during the move? | write to both, read the old · write to both, read the new · a hard cutover |
-| layout and naming | What happens to the old names? | aliases for one release · renamed everywhere now · kept as they are |
-| UX | Will users notice the move? | no visible change · a short notice · downtime announced ahead |
-| practices | How far back can each phase roll? | every phase rolls back · only until cutover · no rollback, fix forward |
+| role | aspect | model question | usual options |
+|---|---|---|---|
+| product | UX | Will users notice the move? | no visible change · a short notice · downtime announced ahead |
+| engineering | tests | How do we show the new path gives the same results as the old one? | run both and compare outputs · contract tests on the new path · spot checks after each phase |
+| engineering | edge cases | What happens to records the new system cannot read? | block the migration until they are fixed · skip them and log each one · convert them with defaults |
+| oncall | error handling | What happens when a batch fails halfway? | stop and resume from the last checkpoint · retry the batch at the end · roll back the phase |
+| oncall | scale | How does the data move? | all at once in a maintenance window · in batches with a checkpoint · on first read |
+| oncall | performance | How much slower may requests get while both paths run? | not at all · under 10 percent · any amount for a short window |
+| engineering | security | Do access rules carry over unchanged? | yes, mapped one to one · they change, and the plan lists how · they get a review before cutover |
+| engineering | high-level design | How do the old and new paths run during the move? | write to both, read the old · write to both, read the new · a hard cutover |
+| engineering | layout and naming | What happens to the old names? | aliases for one release · renamed everywhere now · kept as they are |
+| oncall | practices | How far back can each phase roll? | every phase rolls back · only until cutover · no rollback, fix forward |
 
 ### `research`
 
-| aspect | model question | usual options |
-|---|---|---|
-| scope | Which question must the answer settle, and what is out of scope? | the question as written · a narrower question first · the question and its follow-ups |
-| sources | Which sources count as evidence? | our code and data only · our code plus public docs and papers · a small prototype as well |
-| what counts as done | What does a finished answer look like? | one recommendation with its evidence · a ranked list of options · a prototype that answers it |
-| how the answer will be used | What will the answer decide? | whether to build it · the approach of a feature plan · nothing yet, it is background |
+| role | aspect | model question | usual options |
+|---|---|---|---|
+| product | scope | Which question must the answer settle, and what is out of scope? | the question as written · a narrower question first · the question and its follow-ups |
+| product | how the answer will be used | What will the answer decide? | whether to build it · the approach of a feature plan · nothing yet, it is background |
+| engineering | sources | Which sources count as evidence? | our code and data only · our code plus public docs and papers · a small prototype as well |
+| oncall | error handling | Must the answer say how each option fails? | yes, for every option · only for the recommended one · no, a later plan covers it |
+| engineering | scale | At what size must the answer still hold? | today's size · ten times today · no target, name the limit found |
+| product | what counts as done | What does a finished answer look like? | one recommendation with its evidence · a ranked list of options · a prototype that answers it |
 
 ### `audit`
 
-| aspect | model question | usual options |
-|---|---|---|
-| scope | What does the audit cover? | one service or module · every service of one kind · the whole platform |
-| sources | What counts as evidence? | the code · the code plus logs and metrics · interviews with the owners as well |
-| what counts as done | What does a finished audit hand over? | findings ranked by risk · findings with a fix for each · each finding filed as its own plan |
-| how the answer will be used | Who acts on the findings? | this agent, in follow-up plans · the team that owns the code · nobody yet, they inform a decision |
+| role | aspect | model question | usual options |
+|---|---|---|---|
+| product | scope | What does the audit cover? | one service or module · every service of one kind · the whole platform |
+| product | how the answer will be used | Who acts on the findings? | this agent, in follow-up plans · the team that owns the code · nobody yet, they inform a decision |
+| engineering | sources | What counts as evidence? | the code · the code plus logs and metrics · interviews with the owners as well |
+| oncall | error handling | Does the audit check how each part fails and recovers? | yes, by forcing each failure · by reading the code only · no, it is out of scope |
+| oncall | scale | Does the audit measure behaviour under load? | at today's peak · at ten times today's peak · no, it is out of scope |
+| product | what counts as done | What does a finished audit hand over? | findings ranked by risk · findings with a fix for each · each finding filed as its own plan |
 
 ## Todos
 

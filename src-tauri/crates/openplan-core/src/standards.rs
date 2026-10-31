@@ -302,19 +302,29 @@ mod tests {
     }
 
     #[test]
-    fn alignment_questions_carry_their_context_and_each_options_tradeoff() {
+    fn alignment_runs_in_rounds_and_each_question_carries_its_role_and_tradeoffs() {
         let alignment = section("## Alignment").join("\n");
 
         for rule in [
-            "at most 12 questions",
-            "Accept all N recommendations",
+            "one to three questions with `ask_questions`",
+            "Do not open a harness question prompt",
+            "`record_alignment`",
+            "**Build**",
+            "post all of them in one round",
+            "Leave `round` out",
+            "\"role\":",
+            "\"illustration\":",
+            "`oncall`",
+            "error handling, edge cases and behaviour at scale",
             "`context`",
             "`consequence`",
             "`tradeoff`",
-            "first line",
-            "description",
+            "`recommended`",
         ] {
             assert!(alignment.contains(rule), "the Alignment section is missing {rule}");
+        }
+        for gone in ["Accept all", "Let the agent decide", "must-answer", "at most 12"] {
+            assert!(!alignment.contains(gone), "the Alignment section still says {gone}");
         }
         assert_eq!(writing_faults(&alignment), Vec::<String>::new());
     }
@@ -325,6 +335,10 @@ mod tests {
 
         assert!(!bank.is_empty());
         assert!(bank.len() < 90, "the question bank is {} lines", bank.len());
+        let headers = bank.iter().filter(|line| line.starts_with("| role | aspect |")).count();
+        assert_eq!(headers, 5, "every type's table names the role that asks");
+        let error_rows = bank.iter().filter(|line| line.contains("| error handling |")).count();
+        assert_eq!(error_rows, 5, "every type asks about error handling");
     }
 
     #[test]
