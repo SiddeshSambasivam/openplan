@@ -54,33 +54,50 @@ function bar(overrides: Partial<ComponentProps<typeof Header>> = {}): string {
   );
 }
 
+const planA = {
+  id: "a",
+  title: "Plan a",
+  status: "in-review" as const,
+  type: null,
+  source: "claude-code" as const,
+  pr: null,
+  created: null,
+  updated: null,
+  path: "/base/a.md",
+  relativePath: "a.md",
+  documents: [],
+  folders: [],
+  completed: null,
+};
+
+function buildButton(html: string): string {
+  return html.match(/<button(?:(?!<\/button>).)*Build<\/button>/)?.[0] ?? "";
+}
+
 function expandMark(html: string): string {
   return html.match(/<button[^>]*aria-label="Expand navbar"[^>]*>/)?.[0] ?? "";
 }
 
 describe("Header", () => {
   it("asks to complete the plan once every PR reads merged", () => {
-    const plan = {
-      id: "a",
-      title: "Plan a",
-      status: "in-review" as const,
-      type: null,
-      source: "claude-code" as const,
-      pr: null,
-      created: null,
-      updated: null,
-      path: "/base/a.md",
-      relativePath: "a.md",
-      documents: [],
-      folders: [],
-      completed: null,
-    };
+    const plan = planA;
 
     const html = bar({ mainView: "plan", title: "Plan a", plan, offerCompletion: true });
 
     expect(html).toContain("All PRs merged.");
     expect(html).toContain("Mark completed?");
     expect(bar({ mainView: "plan", title: "Plan a", plan })).not.toContain("Mark completed?");
+  });
+
+  it("shows Build turned off while the plan is below the alignment target", () => {
+    const plan = { ...planA, status: "alignment" as const };
+    const blocked = buildButton(bar({ mainView: "plan", plan, onBuild: noop, buildBlocked: true }));
+    const open = buildButton(bar({ mainView: "plan", plan, onBuild: noop }));
+
+    expect(blocked).toContain("Build");
+    expect(blocked).toContain(` disabled=""`);
+    expect(open).toContain("Build");
+    expect(open).not.toContain(` disabled=""`);
   });
 
   it("has no theme control, which lives in the profile menu", () => {

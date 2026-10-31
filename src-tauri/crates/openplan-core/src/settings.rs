@@ -44,7 +44,7 @@ pub struct Settings {
     #[serde(rename = "archiveAfterDays", default, skip_serializing_if = "Option::is_none")]
     pub archive_after_days: Option<u32>,
     /// The alignment score, as a percentage, the person wants before Build.
-    /// It never stops Build. Absent reads as the default, and 0 means none.
+    /// Build waits for it. Absent reads as the default, and 0 means none.
     #[serde(rename = "alignmentTarget", default, skip_serializing_if = "Option::is_none")]
     pub alignment_target: Option<u32>,
     /// The file name of the person's picture, kept beside the settings file.

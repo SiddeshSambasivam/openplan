@@ -83,23 +83,32 @@ export function belowTarget(total: number, target: number): boolean {
   return target > 0 && total < target;
 }
 
-/** What the Build button says while areas are unsettled or the score is
- * below the target. It reads only the answers the agent has: a draft reply
+/** Whether the score has reached the person's target, so Build can start
+ * the work. Like `buildTooltip`, it reads only the answers the agent has. */
+export function canBuild(record: WorkRecord | null, target: number): boolean {
+  return !belowTarget(recordedScore(record).total, target);
+}
+
+/** What the Build button says while the score is below the target or areas
+ * are unsettled. It reads only the answers the agent has: a draft reply
  * does not travel with Build. */
 export function buildTooltip(record: WorkRecord | null, target: number): string | undefined {
-  const questions = record?.alignment?.questions ?? [];
-  if (questions.length === 0) return undefined;
-  const score = alignmentScore(questions, {});
+  const score = recordedScore(record);
+  if (belowTarget(score.total, target)) {
+    return [
+      `Align with the agent first. Alignment is ${score.total}%, and Build opens at ${target}%.`,
+      score.notAsked.length > 0 && `The agent still has to ask about ${spokenList(score.notAsked)}.`,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
   const open = openAreas(score);
-  const short = belowTarget(score.total, target);
-  if (open.length === 0 && !short) return undefined;
-  return [
-    "Starts the work.",
-    short && `The score is ${score.total}, below your ${target}% target.`,
-    open.length > 0 && `The agent asks about ${spokenList(open)} first.`,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  if (open.length === 0) return undefined;
+  return `Starts the work. The agent asks about ${spokenList(open)} first.`;
+}
+
+function recordedScore(record: WorkRecord | null): AlignmentScore {
+  return alignmentScore(record?.alignment?.questions ?? [], {});
 }
 
 function openAreas(score: AlignmentScore): string[] {

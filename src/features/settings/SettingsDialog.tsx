@@ -296,7 +296,7 @@ export function SettingsDialog({
                   </Row>
                   <Row
                     label="Alignment target"
-                    hint="Build still works below the target. The Alignment tab shows how far off you are. Set 0 for no target."
+                    hint="Build stays off until a plan reaches the target. The Alignment tab shows how far off you are. Set 0 for no target."
                   >
                     <WholeNumberField
                       value={preferences.alignmentTarget}

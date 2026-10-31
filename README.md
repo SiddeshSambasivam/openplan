@@ -73,8 +73,8 @@ completed.
   question is easier to see than to read. Picking an option is the answer, and one
   Send delivers them all.
 - **An alignment score.** Up to 80 points for settling the areas the plan needs, and
-  up to 20 for answers that explain why. Build works at any score. OpenPlan suggests
-  at least 80, and the target is a setting.
+  up to 20 for answers that explain why. Build waits until the score reaches a target.
+  OpenPlan suggests at least 80, and the target is a setting.
 
 Long plans can carry a short explainer video, rendered with
 [Remotion](https://www.remotion.dev), where motion shows a flow faster than text.

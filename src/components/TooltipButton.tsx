@@ -19,7 +19,9 @@ interface TooltipButtonProps extends ComponentProps<typeof Button> {
 }
 
 /** Every button in the app that explains itself on hover — the pairing is
- * common enough here to be worth naming, and shadcn ships the two halves. */
+ * common enough here to be worth naming, and shadcn ships the two halves. A
+ * disabled button takes no pointer events, so a span around it holds the
+ * tooltip and it still says why it is off. */
 export function TooltipButton({
   shortcut,
   tooltip,
@@ -28,10 +30,11 @@ export function TooltipButton({
   ...props
 }: TooltipButtonProps) {
   const action = shortcut ? registryEntry(shortcut) : null;
+  const button = <Button {...props} />;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button {...props} />
+        {props.disabled ? <span className="inline-flex">{button}</span> : button}
       </TooltipTrigger>
       <TooltipContent side={tooltipSide} align={tooltipAlign} sideOffset={6}>
         <ShortcutLabel label={tooltip ?? action?.label} keys={action?.keys} />

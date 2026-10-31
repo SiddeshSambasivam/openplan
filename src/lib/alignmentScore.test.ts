@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alignmentScore, areaKey, belowTarget, buildTooltip } from "./alignmentScore";
+import { alignmentScore, areaKey, belowTarget, buildTooltip, canBuild } from "./alignmentScore";
 import type { Answer, Question, WorkRecord } from "./work";
 
 const question = (id: string, aspect: string, extra: Partial<Question> = {}): Question => ({
@@ -186,55 +186,70 @@ describe("alignmentScore", () => {
   });
 });
 
+const record = (questions: Question[]): WorkRecord => ({
+  version: 1,
+  repos: [],
+  decisions: [],
+  todos: [],
+  prs: [],
+  alignment: { askedAt: "2026-10-31T09:00:00Z", questions },
+});
+
+const settledPlan = [
+  question("q1", "scope", { answer: pick }),
+  question("q2", "high-level design", { answer: pick }),
+  question("q3", "practices", { answer: pick }),
+  question("q4", "error handling", { answer: pick }),
+  question("q5", "edge cases", { answer: pick }),
+];
+
+describe("canBuild", () => {
+  it("waits until the score reaches the target", () => {
+    expect(canBuild(record(settledPlan), 80)).toBe(false);
+    expect(canBuild(record(settledPlan), 67)).toBe(true);
+    expect(canBuild(record([...settledPlan, question("q6", "scale", { answer: pick })]), 80)).toBe(true);
+  });
+
+  it("stays off below a target before any question, and on with no target", () => {
+    expect(canBuild(record([]), 80)).toBe(false);
+    expect(canBuild(null, 80)).toBe(false);
+    expect(canBuild(null, 0)).toBe(true);
+    expect(canBuild(record([question("q1", "scope")]), 0)).toBe(true);
+  });
+});
+
 describe("buildTooltip", () => {
-  const record = (questions: Question[]): WorkRecord => ({
-    version: 1,
-    repos: [],
-    decisions: [],
-    todos: [],
-    prs: [],
-    alignment: { askedAt: "2026-10-31T09:00:00Z", questions },
-  });
-
-  it("names the areas the agent still asks about, from the answers it has", () => {
-    expect(
-      buildTooltip(
-        record([
-          question("q1", "scope", { answer: pick }),
-          question("q2", "error handling"),
-          question("q3", "scale"),
-        ]),
-        0,
-      ),
-    ).toBe("Starts the work. The agent asks about error handling and scale first.");
-  });
-
-  it("adds the score when it is below the target", () => {
-    const below = record([
-      question("q1", "scope", { answer: pick }),
-      question("q2", "error handling"),
-      question("q3", "scale"),
-    ]);
-    expect(buildTooltip(below, 80)).toBe(
-      "Starts the work. The score is 20, below your 80% target. The agent asks about error handling and scale first.",
+  it("says how far the score is from the target while Build waits", () => {
+    expect(buildTooltip(record(settledPlan), 80)).toBe(
+      "Align with the agent first. Alignment is 67%, and Build opens at 80%. The agent still has to ask about scale.",
     );
-    expect(buildTooltip(record([question("q1", "scope", { answer: pick })]), 90)).toBe(
-      "Starts the work. The score is 20, below your 90% target.",
+    expect(buildTooltip(record([...settledPlan, question("q6", "scale")]), 90)).toBe(
+      "Align with the agent first. Alignment is 67%, and Build opens at 90%.",
     );
   });
 
-  it("leaves the target out once the score meets it", () => {
-    const settled = record([
-      question("q1", "scope", { answer: reasoned }),
-      question("q2", "scale"),
-    ]);
-    expect(buildTooltip(settled, 20)).toBe("Starts the work. The agent asks about scale first.");
-    expect(buildTooltip(record([question("q1", "scope", { answer: pick })]), 20)).toBeUndefined();
+  it("names every required area nobody has asked about yet", () => {
+    expect(buildTooltip(record([]), 80)).toBe(
+      "Align with the agent first. Alignment is 0%, and Build opens at 80%. The agent still has to ask about edge cases, error handling and scale.",
+    );
+    expect(buildTooltip(null, 80)).toBe(
+      "Align with the agent first. Alignment is 0%, and Build opens at 80%. The agent still has to ask about edge cases, error handling and scale.",
+    );
   });
 
-  it("says nothing more before any question", () => {
-    expect(buildTooltip(record([]), 80)).toBeUndefined();
-    expect(buildTooltip(null, 80)).toBeUndefined();
+  it("names the open areas once Build is allowed", () => {
+    expect(buildTooltip(record([...settledPlan, question("q6", "scale"), question("q7", "ux")]), 60)).toBe(
+      "Starts the work. The agent asks about scale and ux first.",
+    );
+    expect(buildTooltip(record([question("q1", "scope")]), 0)).toBe(
+      "Starts the work. The agent asks about scope first.",
+    );
+  });
+
+  it("says nothing more once nothing is open", () => {
+    expect(buildTooltip(record(settledPlan), 60)).toBeUndefined();
+    expect(buildTooltip(record([]), 0)).toBeUndefined();
+    expect(buildTooltip(null, 0)).toBeUndefined();
   });
 });
 

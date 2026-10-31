@@ -132,7 +132,7 @@ import { useWorkRecord } from "./features/plan/useWorkRecord";
 import { WORK_PANEL_PX, WorkPanel } from "./features/plan/PlanWork";
 import { PlanTabStrip } from "./features/plan/PlanTabStrip";
 import { loadWorkPanelMode, saveWorkPanelMode } from "./lib/workPanel";
-import { buildTooltip } from "./lib/alignmentScore";
+import { buildTooltip, canBuild } from "./lib/alignmentScore";
 import { originLabel, pushOrigin, type Origin } from "./lib/origin";
 import { stepTab, tabFor, withTab, type PlanTab, type PlanTabs } from "./lib/planTab";
 import { restoreScroll, scrollMarks, type ScrollMark } from "./lib/scroll";
@@ -646,7 +646,7 @@ export default function App() {
 
   // Build is how the person tells the agent to start, so it goes once the
   // work has.
-  const canBuild =
+  const beforeWork =
     activePlan != null && (activePlan.status === "draft" || activePlan.status === "alignment");
   const build = useCallback(() => {
     if (!activePlan) return;
@@ -688,6 +688,7 @@ export default function App() {
     [requestAttention],
   );
   const workRecord = useWorkRecord(activePlan?.path ?? null, showNewQuestions);
+  const aligned = canBuild(workRecord, preferences.alignmentTarget);
   const offerCompletion =
     activePlan != null && offersCompletion(activePlan.status, workRecord?.prs);
   const prState = usePrStateRefresh({
@@ -1715,7 +1716,7 @@ export default function App() {
     previousTab: planHome && activePlan ? () => choosePlanTab(stepTab(planTab, -1)) : undefined,
     nextTab: planHome && activePlan ? () => choosePlanTab(stepTab(planTab, 1)) : undefined,
     status: onPlan && activePlan ? () => setStatusOpen(true) : undefined,
-    build: onPlan && canBuild ? build : undefined,
+    build: onPlan && beforeWork && aligned ? build : undefined,
     folders: onPlan && activePlan && view === "preview" ? () => setFoldersOpen(true) : undefined,
     archive:
       selection.length > 0
@@ -1818,7 +1819,8 @@ export default function App() {
           statusOpen={statusOpen}
           onStatusOpenChange={setStatusOpen}
           offerCompletion={offerCompletion}
-          onBuild={canBuild ? build : undefined}
+          onBuild={beforeWork ? build : undefined}
+          buildBlocked={!aligned}
           buildTooltip={buildTooltip(workRecord, preferences.alignmentTarget)}
           folders={knownFolders}
           folder={folder}

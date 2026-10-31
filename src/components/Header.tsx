@@ -64,6 +64,8 @@ interface HeaderProps {
   offerCompletion: boolean;
   /** Sends the agent on the plan to work. Absent once the work has started. */
   onBuild?: () => void;
+  /** The score is below the person's target, so Build shows but is off. */
+  buildBlocked?: boolean;
   /** What Build says while alignment is unsettled. */
   buildTooltip?: string;
   /** Every folder in the base, for the filter. */
@@ -120,6 +122,7 @@ export function Header({
   onStatusOpenChange,
   offerCompletion,
   onBuild,
+  buildBlocked = false,
   buildTooltip,
   folders,
   folder,
@@ -287,6 +290,7 @@ export function Header({
           size="xs"
           variant="outline"
           onClick={onBuild}
+          disabled={buildBlocked}
           shortcut="build"
           tooltip={buildTooltip ?? "Tell the agent to start the work, with any unsent comments"}
           className="gap-1.5"
