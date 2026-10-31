@@ -113,6 +113,65 @@ pub fn missing_sections(plan_type: &str, body: &str) -> Vec<&'static str> {
         .collect()
 }
 
+/// Opens the Writing bullet that lists the banned words. The lint reads its
+/// list from there and skips the bullet itself.
+#[cfg(test)]
+const BANNED_LIST: &str = "- Never write:";
+
+/// Every place a text breaks the Writing rules a machine can check, one line
+/// each. Kept beside the standards so any later edit to them, or to the block
+/// the installers write, has to pass it.
+#[cfg(test)]
+pub(crate) fn writing_faults(text: &str) -> Vec<String> {
+    let banned = banned_words();
+    let mut faults = Vec::new();
+    let mut in_banned_list = false;
+    for (index, line) in text.lines().enumerate() {
+        in_banned_list = line.starts_with(BANNED_LIST) || (in_banned_list && line.starts_with("  "));
+        if in_banned_list {
+            continue;
+        }
+        let number = index + 1;
+        if line.contains('\u{2014}') {
+            faults.push(format!("line {number}: em dash"));
+        }
+        if joins_clauses_with_a_semicolon(line) {
+            faults.push(format!("line {number}: semicolon between clauses"));
+        }
+        let lower = line.to_lowercase();
+        for word in lower.split(|c: char| !c.is_alphabetic()) {
+            if banned.iter().any(|banned_word| banned_word == word) {
+                faults.push(format!("line {number}: {word}"));
+            }
+        }
+    }
+    faults
+}
+
+/// The words the Writing section bans, with any "(as ...)" note dropped.
+#[cfg(test)]
+fn banned_words() -> Vec<String> {
+    let lines: Vec<&str> = BUILT_IN.lines().collect();
+    let start = lines
+        .iter()
+        .position(|line| line.starts_with(BANNED_LIST))
+        .expect("the Writing section lists the banned words");
+    let continued = lines[start + 1..].iter().take_while(|line| line.starts_with("  ")).count();
+    let bullet = lines[start..=start + continued].join(" ");
+    let list = bullet[BANNED_LIST.len()..].split('.').next().unwrap_or_default();
+    list.split(',')
+        .map(|entry| entry.split('(').next().unwrap_or_default().trim().to_lowercase())
+        .filter(|word| !word.is_empty())
+        .collect()
+}
+
+/// Approximate: a semicolon followed by a lowercase word joins two clauses.
+#[cfg(test)]
+fn joins_clauses_with_a_semicolon(line: &str) -> bool {
+    line.match_indices("; ")
+        .any(|(at, _)| line[at + 2..].chars().next().is_some_and(char::is_lowercase))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +284,55 @@ mod tests {
         assert_eq!(second_line(effective_with_media("markdown", true, None)), "Media: on");
         assert_eq!(second_line(effective_with_media("html", false, None)), "Media: off");
         assert_eq!(second_line(effective("markdown", None)), "Media: off");
+    }
+
+    #[test]
+    fn the_standards_say_how_a_plan_moves_and_what_to_ask_at_alignment() {
+        for heading in ["## Lifecycle", "## Alignment", "## Question bank", "## Todos", "## Pull requests", "## Media"] {
+            assert!(BUILT_IN.lines().any(|line| line == heading), "no {heading}");
+        }
+        for plan_type in ["feature", "bug", "migration", "research", "audit"] {
+            let heading = format!("### `{plan_type}`");
+            assert!(BUILT_IN.lines().any(|line| line == heading), "no question bank for {plan_type}");
+        }
+    }
+
+    #[test]
+    fn the_question_bank_stays_short_enough_to_read_in_one_go() {
+        let bank: Vec<&str> = BUILT_IN
+            .lines()
+            .skip_while(|line| *line != "## Question bank")
+            .skip(1)
+            .take_while(|line| !line.starts_with("## "))
+            .collect();
+
+        assert!(!bank.is_empty());
+        assert!(bank.len() < 90, "the question bank is {} lines", bank.len());
+    }
+
+    #[test]
+    fn the_built_in_standards_follow_their_own_writing_rules() {
+        assert_eq!(writing_faults(BUILT_IN), Vec::<String>::new());
+    }
+
+    #[test]
+    fn the_writing_lint_names_each_fault_by_line() {
+        let text = "A plain line.\nOne idea \u{2014} then another.\nIt runs; it also fails.\n\
+                    Call `a`; `b` stays. Done; Next.\nWe leverage the cache.\n";
+
+        assert_eq!(
+            writing_faults(text),
+            ["line 2: em dash", "line 3: semicolon between clauses", "line 5: leverage"]
+        );
+    }
+
+    #[test]
+    fn the_list_of_banned_words_is_read_from_the_writing_section() {
+        let words = banned_words();
+
+        assert!(words.contains(&"leverage".to_string()), "{words:?}");
+        assert!(words.contains(&"landscape".to_string()), "{words:?}");
+        assert!(words.iter().all(|word| !word.contains(' ')), "{words:?}");
     }
 
     #[test]
