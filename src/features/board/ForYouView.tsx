@@ -1,6 +1,7 @@
 import { MessageSquareText } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { PlanRowFacts } from "@/components/PlanFacts";
+import type { TodoCount } from "@/lib/work";
 import { StatusGlyph } from "@/components/StatusGlyph";
 import { forYou, type ReviewSummary } from "@/lib/board";
 import { entrance, useMountedKeys } from "@/lib/motion";
@@ -11,6 +12,8 @@ interface ForYouViewProps {
   summaries: ReviewSummary[];
   /** Live agent sessions by plan id. */
   sessions: Map<string, number>;
+  /** Todo progress by plan path, for the plans with a work record. */
+  progress: Map<string, TodoCount>;
   onOpen: (plan: PlanSummary) => void;
 }
 
@@ -56,6 +59,7 @@ function Group({
                     plan={plan}
                     open={openThreads.get(plan.path) ?? 0}
                     sessions={sessions.get(plan.id) ?? 0}
+                    progress={progress.get(plan.path)}
                   />
                 </span>
               </button>
@@ -73,6 +77,7 @@ export function ForYouView({
   summaries,
   sessions,
   onOpen,
+  progress,
 }: ForYouViewProps) {
   const groups = useMemo(() => forYou(plans, summaries), [plans, summaries]);
   const openThreads = useMemo(

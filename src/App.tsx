@@ -1555,6 +1555,7 @@ export default function App() {
               plans={shownPlans}
               summaries={summaries}
               sessions={sessions}
+              progress={workProgress}
               onOpen={selectPlan}
             />
           </div>
