@@ -243,13 +243,20 @@ pub async fn comment_threads(path: String) -> Result<Vec<comments::CommentThread
     Ok(comments::read_threads(std::path::Path::new(&path)))
 }
 
-/// The interface writes whole thread lists; every save is one commit.
+/// The interface writes whole thread lists. The write always happens first,
+/// so typed text is on disk before anything else can fail. `commit` is false
+/// while a review is still being put together: those threads are recorded
+/// with the review that carries them, under its own message.
 #[tauri::command]
 pub async fn save_comment_threads(
     path: String,
     threads: Vec<comments::CommentThread>,
+    commit: bool,
 ) -> Result<(), String> {
     comments::write_threads(std::path::Path::new(&path), &threads)?;
+    if !commit {
+        return Ok(());
+    }
     let base = base()?;
     let name = std::path::Path::new(&path)
         .file_stem()

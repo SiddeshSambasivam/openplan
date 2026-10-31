@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type RefObject } from "react";
 import { blocksForRange } from "@/lib/anchors";
 import type { CommentThread } from "@/lib/comments";
 import { findTextRanges } from "@/lib/domRange";
+import { cn } from "@/lib/utils";
 
 /** How well a thread's anchor still fits the document. */
 export type AnchorState = "exact" | "block" | "missing";
@@ -15,6 +16,8 @@ interface Box {
   /** Block markers draw as a gutter bar, exact matches as text highlight. */
   kind: "text" | "gutter";
   active: boolean;
+  /** Written but not sent: drawn dashed, so it reads as still being worked on. */
+  pending: boolean;
 }
 
 /**
@@ -73,11 +76,18 @@ export function CommentsLayer({
         findTextRanges(block, thread.quote, true),
       );
       const active = thread.id === activeThreadId;
+      const pending = thread.pending;
       if (matches.length === 1) {
         states[thread.id] = "exact";
         for (const rect of matches[0].getClientRects()) {
           if (rect.width === 0 || rect.height === 0) continue;
-          next.push({ threadId: thread.id, kind: "text", active, ...toBox(rect) });
+          next.push({
+            threadId: thread.id,
+            kind: "text",
+            active,
+            pending,
+            ...toBox(rect),
+          });
         }
       } else {
         states[thread.id] = "block";
@@ -86,6 +96,7 @@ export function CommentsLayer({
             threadId: thread.id,
             kind: "gutter",
             active,
+            pending,
             ...toBox(block.getBoundingClientRect()),
           });
         }
@@ -119,15 +130,22 @@ export function CommentsLayer({
             key={i}
             onClick={() => onOpenThread(box.threadId)}
             tabIndex={-1}
-            className="pointer-events-auto absolute cursor-default rounded-[2px]"
+            className={cn(
+              "pointer-events-auto absolute cursor-default rounded-[2px]",
+              // Not sent yet: outlined rather than filled in.
+              box.pending && "outline-1 outline-dashed",
+            )}
             style={{
               top: box.top,
               left: box.left,
               width: box.width,
               height: box.height,
-              backgroundColor: box.active
-                ? "var(--comment-highlight-active)"
-                : "var(--comment-highlight)",
+              backgroundColor: box.pending
+                ? "transparent"
+                : box.active
+                  ? "var(--comment-highlight-active)"
+                  : "var(--comment-highlight)",
+              outlineColor: "var(--comment-highlight-active)",
             }}
           />
         ) : (
@@ -136,7 +154,10 @@ export function CommentsLayer({
             onClick={() => onOpenThread(box.threadId)}
             tabIndex={-1}
             aria-hidden
-            className="pointer-events-auto absolute w-[3px] cursor-default rounded-full"
+            className={cn(
+              "pointer-events-auto absolute w-[3px] cursor-default rounded-full",
+              box.pending && "opacity-50 outline-1 outline-dashed",
+            )}
             style={{
               top: box.top,
               left: Math.max(0, box.left - 14),
@@ -144,6 +165,7 @@ export function CommentsLayer({
               backgroundColor: box.active
                 ? "var(--comment-highlight-active)"
                 : "var(--comment-highlight)",
+              outlineColor: "var(--comment-highlight-active)",
             }}
           />
         ),

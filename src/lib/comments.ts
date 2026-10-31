@@ -65,6 +65,43 @@ export function isPending(thread: CommentThread): boolean {
   return thread.pending && !thread.resolved;
 }
 
+/** Everything waiting goes out together: one review, one time on all of it.
+ * A thread already sent keeps the time it actually went. */
+export function markSent(threads: CommentThread[], now: string): CommentThread[] {
+  return threads.map((thread) =>
+    isPending(thread) ? { ...thread, pending: false, sentAt: now } : thread,
+  );
+}
+
+/** Closing a thread in the app is always the person's own doing; an agent
+ * closing one signs it with its own name through the MCP server. */
+export function resolveThread(thread: CommentThread, now: string): CommentThread {
+  return { ...thread, resolved: true, resolvedBy: "user", resolvedAt: now };
+}
+
+/** Reopening clears every trace of the close, so the thread reads as open
+ * again rather than as closed by whoever closed it last. */
+export function reopenThread(thread: CommentThread): CommentThread {
+  return { ...thread, resolved: false, resolvedBy: null, resolvedAt: null };
+}
+
+/** The panel's three sections. A thread is in one of them, never two. */
+export interface ThreadGroups {
+  /** Written, on disk, not sent. */
+  pending: CommentThread[];
+  /** Sent and still live: open and answered together. */
+  open: CommentThread[];
+  resolved: CommentThread[];
+}
+
+export function groupThreads(threads: CommentThread[]): ThreadGroups {
+  return {
+    pending: threads.filter(isPending),
+    open: threads.filter((t) => !t.resolved && !t.pending),
+    resolved: threads.filter((t) => t.resolved),
+  };
+}
+
 /** An in-progress, not-yet-saved comment — just the anchor, captured from
  * the live selection when the user starts commenting. The draft's own text
  * is kept as local state in the panel until submitted (no need to re-render

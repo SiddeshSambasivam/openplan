@@ -1,4 +1,4 @@
-import { Check, Copy, RotateCcw, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, Copy, RotateCcw, Send, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   ClaudeCodeIcon,
@@ -7,11 +7,14 @@ import {
 } from "@/components/AgentIcons";
 import { Button } from "@/components/ui/button";
 import { TooltipButton } from "@/components/TooltipButton";
+import { shortDate } from "@/lib/board";
 import {
   formatThreadsForAgent,
+  groupThreads,
   type CommentEntry,
   type CommentThread,
 } from "@/lib/comments";
+import { SOURCE_LABELS } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import type { AnchorState } from "./CommentsLayer";
 
@@ -22,19 +25,29 @@ function AuthorMark({ author }: { author: string }) {
   return null;
 }
 
-const TOOL_NAMES: Record<string, string> = {
-  "claude-code": "Claude Code",
-  codex: "Codex",
-  cursor: "Cursor",
-};
-
 /** Your own comments say "You"; a teammate's say their name. Comments from
  * before anyone had a name were written by whoever is reading them. */
 function authorLabel(entry: CommentEntry, myEmail: string | null): string {
-  if (entry.author !== "user") return TOOL_NAMES[entry.author] ?? entry.author;
+  if (entry.author !== "user") return SOURCE_LABELS[entry.author] ?? entry.author;
   if (!entry.authorEmail) return "You";
   if (myEmail && entry.authorEmail === myEmail) return "You";
   return entry.authorName ?? "A teammate";
+}
+
+/** Who closed a thread and when, once it is closed. */
+function resolvedLine(thread: CommentThread): string | null {
+  if (!thread.resolvedBy) return null;
+  const who = SOURCE_LABELS[thread.resolvedBy] ?? thread.resolvedBy;
+  const when = shortDate(thread.resolvedAt);
+  return when ? `Resolved by ${who}, ${when}` : `Resolved by ${who}`;
+}
+
+function GroupHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="pt-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+      {children}
+    </li>
+  );
 }
 
 function Reply({ onReply }: { onReply: (text: string) => void }) {
@@ -80,6 +93,7 @@ export function CommentsPanel({
   onSetResolved,
   onRemoveThread,
   onJumpTo,
+  onSendReview,
 }: {
   open: boolean;
   threads: CommentThread[];
@@ -93,8 +107,10 @@ export function CommentsPanel({
   onSetResolved: (threadId: string, resolved: boolean) => void;
   onRemoveThread: (threadId: string) => void;
   onJumpTo: (thread: CommentThread) => void;
+  onSendReview: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [showResolved, setShowResolved] = useState(false);
   const focusRef = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
@@ -105,8 +121,7 @@ export function CommentsPanel({
 
   if (!open) return null;
 
-  const openThreads = threads.filter((t) => !t.resolved);
-  const resolvedThreads = threads.filter((t) => t.resolved);
+  const groups = groupThreads(threads);
 
   const copyForAgents = () => {
     void navigator.clipboard
@@ -123,6 +138,8 @@ export function CommentsPanel({
       ref={thread.id === focusThreadId ? focusRef : undefined}
       className={cn(
         "rounded-lg border border-border p-2.5",
+        // Not sent yet reads the same here as it does on the highlight.
+        thread.pending && !thread.resolved && "border-dashed",
         thread.id === focusThreadId && "border-ring",
         thread.resolved && "opacity-60",
       )}
@@ -156,18 +173,34 @@ export function CommentsPanel({
         ))}
       </div>
 
+      {thread.resolved && resolvedLine(thread) && (
+        <p className="mt-2 text-[10px] text-muted-foreground">{resolvedLine(thread)}</p>
+      )}
+
       {!thread.resolved && <Reply onReply={(text) => onReply(thread.id, text)} />}
 
       <div className="mt-2 flex items-center gap-1">
-        <TooltipButton
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => onSetResolved(thread.id, !thread.resolved)}
-          tooltip={thread.resolved ? "Reopen this discussion" : "Mark as resolved"}
-          className="text-muted-foreground"
-        >
-          {thread.resolved ? <RotateCcw /> : <Check />}
-        </TooltipButton>
+        {thread.resolved ? (
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => onSetResolved(thread.id, false)}
+            className="gap-1 text-muted-foreground"
+          >
+            <RotateCcw />
+            Reopen
+          </Button>
+        ) : (
+          <TooltipButton
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => onSetResolved(thread.id, true)}
+            tooltip="Mark as resolved"
+            className="text-muted-foreground"
+          >
+            <Check />
+          </TooltipButton>
+        )}
         <TooltipButton
           variant="ghost"
           size="icon-xs"
@@ -217,13 +250,42 @@ export function CommentsPanel({
         </p>
       ) : (
         <ol className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
-          {openThreads.map(renderThread)}
-          {resolvedThreads.length > 0 && (
-            <p className="pt-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-              Resolved
-            </p>
+          {groups.pending.length > 0 && (
+            <>
+              <GroupHeading>Not sent yet</GroupHeading>
+              {groups.pending.map(renderThread)}
+              <li>
+                <Button size="xs" onClick={onSendReview} className="w-full gap-1.5">
+                  <Send />
+                  Send review ({groups.pending.length})
+                </Button>
+              </li>
+            </>
           )}
-          {resolvedThreads.map(renderThread)}
+
+          {groups.pending.length > 0 && groups.open.length > 0 && (
+            <GroupHeading>Sent</GroupHeading>
+          )}
+          {groups.open.map(renderThread)}
+
+          {groups.resolved.length > 0 && (
+            <li>
+              <button
+                onClick={() => setShowResolved((shown) => !shown)}
+                aria-expanded={showResolved}
+                className="flex w-full cursor-default items-center gap-1 pt-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground"
+              >
+                <ChevronRight
+                  className={cn(
+                    "size-3 transition-transform duration-150",
+                    showResolved && "rotate-90",
+                  )}
+                />
+                Resolved ({groups.resolved.length})
+              </button>
+            </li>
+          )}
+          {showResolved && groups.resolved.map(renderThread)}
         </ol>
       )}
     </aside>

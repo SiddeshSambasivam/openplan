@@ -5,6 +5,7 @@ import {
   Moon,
   PanelLeft,
   Search,
+  Send,
   SquarePen,
   Sun,
   TableOfContents,
@@ -74,6 +75,11 @@ interface HeaderProps {
   onToggleComments: () => void;
   /** Open discussions on the current plan, shown on the icon. */
   openCommentCount: number;
+  /** Threads written but not sent. Zero hides the Send button. */
+  pendingCommentCount: number;
+  onSendReview: () => void;
+  /** What the last send did. Cleared by whoever set it. */
+  sendNotice: string | null;
   onOpenFind: () => void;
   /** Keep clear of the macOS traffic lights when the sidebar is hidden. */
   trafficLightGap: boolean;
@@ -116,6 +122,9 @@ export function Header({
   commentsOpen,
   onToggleComments,
   openCommentCount,
+  pendingCommentCount,
+  onSendReview,
+  sendNotice,
   onOpenFind,
   trafficLightGap,
 }: HeaderProps) {
@@ -290,6 +299,19 @@ export function Header({
         >
           <TableOfContents className="size-4" />
         </TooltipButton>
+      )}
+
+      {showDocTools && inPreview && canComment && sendNotice && (
+        <span className="max-w-56 animate-in truncate pl-1 text-xs text-muted-foreground fade-in slide-in-from-right-2 duration-200">
+          {sendNotice}
+        </span>
+      )}
+
+      {showDocTools && inPreview && canComment && pendingCommentCount > 0 && (
+        <Button size="xs" onClick={onSendReview} className="gap-1.5">
+          <Send />
+          Send review ({pendingCommentCount})
+        </Button>
       )}
 
       {showDocTools && inPreview && canComment && (

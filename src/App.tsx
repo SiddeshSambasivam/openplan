@@ -1288,12 +1288,38 @@ export default function App() {
   const commentsDoc = canComment ? (activeDoc?.path ?? null) : null;
   const {
     threads: commentThreads,
+    pendingCount: pendingCommentCount,
     addThread,
     reply: replyToThread,
     setResolved: setThreadResolved,
     removeThread,
-  } = useComments(commentsDoc, identity);
-  const openCommentCount = commentThreads.filter((t) => !t.resolved).length;
+    sendReview,
+  } = useComments(commentsDoc, identity, activePlan?.id ?? null);
+  const openCommentCount = commentThreads.filter(
+    (t) => !t.resolved && !t.pending,
+  ).length;
+
+  // One line under the top bar's buttons, gone a moment later. Comments are
+  // the only thing that needs saying, so there is no toast to build on.
+  const [sendNotice, setSendNotice] = useState<string | null>(null);
+  const onSendReview = useCallback(() => {
+    void sendReview()
+      .then(({ threads, sessions }) => {
+        if (threads === 0) return;
+        setSendNotice(
+          sessions > 0
+            ? `Sent to ${sessions} ${sessions === 1 ? "session" : "sessions"}.`
+            : "Saved. Agents get it on their next call.",
+        );
+      })
+      .catch(() => setSendNotice("Could not send. Your comments are saved."));
+  }, [sendReview]);
+
+  useEffect(() => {
+    if (!sendNotice) return;
+    const timer = setTimeout(() => setSendNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [sendNotice]);
 
   const openThread = useCallback((threadId: string) => {
     setCommentsOpen(true);
@@ -1505,6 +1531,9 @@ export default function App() {
           commentsOpen={commentsOpen}
           onToggleComments={() => setCommentsOpen((o) => !o)}
           openCommentCount={openCommentCount}
+          pendingCommentCount={pendingCommentCount}
+          onSendReview={onSendReview}
+          sendNotice={sendNotice}
           onOpenFind={() => {
             setFindOpen(true);
             setFindFocusSeq((s) => s + 1);
@@ -1656,6 +1685,7 @@ export default function App() {
               onSetResolved={setThreadResolved}
               onRemoveThread={removeThread}
               onJumpTo={jumpToThread}
+              onSendReview={onSendReview}
             />
           )}
           {activePlan && (
