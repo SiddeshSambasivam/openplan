@@ -16,6 +16,7 @@ import type { DocFile, MainView, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
 import type { Crumb } from "../lib/board";
 import type { FolderFilter } from "../lib/folders";
+import type { NavbarMode } from "../lib/navbar";
 import type { PlanSummary, Status } from "../lib/planBase";
 import { cn } from "../lib/utils";
 import { TooltipButton } from "./TooltipButton";
@@ -61,13 +62,14 @@ interface HeaderProps {
   doc: DocFile | null;
   wordCount: number | null;
   view: ViewMode;
-  /** Whether the current doc can be edited (loaded, not the welcome page). */
+  /** Whether the current doc can be edited (loaded and on disk or inline). */
   canEdit: boolean;
   dirty: boolean;
   onToggleView: () => void;
   dark: boolean;
   onToggleTheme: () => void;
-  sidebarOpen: boolean;
+  /** How the navbar sits beside the header at this window width. */
+  navbar: NavbarMode;
   onToggleSidebar: () => void;
   contentWidth: ContentWidth;
   onContentWidthChange: (width: ContentWidth) => void;
@@ -88,7 +90,7 @@ interface HeaderProps {
    * whoever set it. */
   sendNotice: string | null;
   onOpenFind: () => void;
-  /** Keep clear of the macOS traffic lights when the sidebar is hidden. */
+  /** Keep clear of the macOS traffic lights where the navbar does not. */
   trafficLightGap: boolean;
 }
 
@@ -110,7 +112,7 @@ export function Header({
   onToggleView,
   dark,
   onToggleTheme,
-  sidebarOpen,
+  navbar,
   onToggleSidebar,
   contentWidth,
   onContentWidthChange,
@@ -130,7 +132,8 @@ export function Header({
 }: HeaderProps) {
   const mod = isMac ? "⌘" : "Ctrl+";
   const modShift = isMac ? "⇧⌘" : "Ctrl+Shift+";
-  const toggleSidebarLabel = `${sidebarOpen ? "Hide" : "Show"} sidebar (${mod}B)`;
+  const navbarShown = navbar !== "hidden";
+  const toggleSidebarLabel = `${navbarShown ? "Hide" : "Show"} sidebar (${mod}B)`;
   const toggleViewLabel =
     view === "preview" ? `Edit (${mod}E)` : `Preview (${mod}E)`;
   const toggleThemeLabel = `${dark ? "Switch to light theme" : "Switch to dark theme"} (${modShift}L)`;
@@ -148,7 +151,7 @@ export function Header({
           className={cn(
             "h-full shrink-0 transition-[width] duration-200 ease-in-out",
             // The controls end around 72pt in; clear them before the toggle.
-            sidebarOpen ? "w-0" : "w-18",
+            navbar === "open" ? "w-0" : navbar === "rail" ? "w-6" : "w-18",
           )}
         />
       )}
@@ -159,7 +162,7 @@ export function Header({
         tooltip={toggleSidebarLabel}
         tooltipSide="bottom" tooltipAlign="start"
         aria-label={toggleSidebarLabel}
-        aria-expanded={sidebarOpen}
+        aria-expanded={navbarShown}
       >
         <PanelLeft className="size-4" />
       </TooltipButton>

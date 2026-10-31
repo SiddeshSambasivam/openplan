@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Folder } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import { FolderPicker } from "@/components/FolderPicker";
 import { StatusGlyph } from "@/components/StatusGlyph";
 import {
@@ -217,8 +217,10 @@ function HiddenColumns({
   );
 }
 
-/** Every plan, in the column its status puts it in. */
-export function BoardView({
+/** Every plan, in the column its status puts it in. Memoized: the shell
+ * re-renders when the navbar or the theme changes, and none of that
+ * concerns the cards. */
+export const BoardView = memo(function BoardView({
   plans,
   summaries,
   sessions,
@@ -285,4 +287,4 @@ export function BoardView({
       <div className="flex h-full gap-3 p-4">{pieces}</div>
     </div>
   );
-}
+});
