@@ -133,6 +133,9 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
   Existing ad-hoc primitives (Button, Tooltip, menus, custom CSS in `index.css`)
   are migrated to shadcn as files are touched — no big-bang rewrite, but new code
   never adds to the old system.
+- **Semi-rounded edges everywhere.** Every surface uses the radius tokens (`rounded-md`,
+  `rounded-lg`): rows, cards, inputs, frames, panels, popovers, active nav rows. No
+  square corners. Sid, 2026-10-29.
 - **[beautifului.dev](https://www.beautifului.dev/)** patterns for AI-facing surfaces:
   - Discovery scan: shimmer loading + elapsed time + expandable trace of scan steps.
   - Import review: approval cards per found plan.
