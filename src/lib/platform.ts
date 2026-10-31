@@ -31,7 +31,8 @@ export function dirname(path: string): string {
 export function extensionOf(name: string): string {
   const base = basename(name);
   const i = base.lastIndexOf(".");
-  return i === -1 ? "" : base.slice(i + 1).toLowerCase();
+  // A leading dot names a hidden file; it does not give it an extension.
+  return i <= 0 ? "" : base.slice(i + 1).toLowerCase();
 }
 
 export function isMarkdownPath(path: string): boolean {

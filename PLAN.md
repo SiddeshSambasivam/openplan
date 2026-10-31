@@ -558,7 +558,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       crate; move `atomic_write` + sidecar fs helpers into it **(T: ports existing tests)**
 - [x] P0.3 Sidecar dual-read rename `.omd-` → `.oplan-` with v2 `author` field
       **(T: v1 parse compat, migration on write)**
-- [ ] P0.4 Tests for the remaining pure helpers in `src/lib/` — `tree.ts`,
+- [x] P0.4 Tests for the remaining pure helpers in `src/lib/` — `tree.ts`,
       `platform.ts` (`comments.ts` is retired in Phase 4, so skip it) **(T)**
       — Vitest itself was set up in P0.1, which needed it for its test
 - [ ] P0.5 Vendor shadcn/ui CLI + replace `Button.tsx`, `Tooltip.tsx` with shadcn
