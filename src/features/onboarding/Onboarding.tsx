@@ -1,4 +1,9 @@
-import { Check, FileText, Folder, Loader2 } from "lucide-react";
+import { Check, Folder, Loader2 } from "lucide-react";
+import {
+  ClaudeCodeIcon,
+  CodexIcon,
+  CursorIcon,
+} from "@/components/AgentIcons";
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
@@ -35,6 +40,17 @@ interface InstallStep {
 }
 
 type Stage = "hello" | "import" | "connect";
+
+const AGENT_ICONS: Record<string, typeof ClaudeCodeIcon> = {
+  "claude-code": ClaudeCodeIcon,
+  codex: CodexIcon,
+  cursor: CursorIcon,
+};
+
+function AgentMark({ id, className }: { id: string; className?: string }) {
+  const Icon = AGENT_ICONS[id];
+  return Icon ? <Icon className={className} /> : null;
+}
 
 /** Staggered entrance for a column of elements. */
 function rise(index: number): React.CSSProperties {
@@ -230,6 +246,13 @@ export function Onboarding({ onDone }: OnboardingProps) {
                     >
                       {selectedTools.has(agent.id) && <Check className="size-3" />}
                     </span>
+                    <AgentMark
+                      id={agent.id}
+                      className={cn(
+                        "size-4 shrink-0",
+                        agent.installed ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    />
                     <span className="flex-1">{agent.name}</span>
                     <span className="text-xs text-muted-foreground">
                       {agent.installed ? "Detected" : "Not found"}
@@ -282,7 +305,10 @@ export function Onboarding({ onDone }: OnboardingProps) {
                   style={rise(i)}
                 >
                   {item.key.startsWith("agent:") ? (
-                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                    <AgentMark
+                      id={item.key.slice("agent:".length)}
+                      className="size-4 shrink-0 text-foreground"
+                    />
                   ) : (
                     <Folder className="size-4 shrink-0 text-muted-foreground" />
                   )}
@@ -352,6 +378,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
                     className="animate-in flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm fade-in duration-300"
                     style={rise(i)}
                   >
+                    <AgentMark id={tool} className="size-4 shrink-0 text-foreground" />
                     <span className="flex-1">{agentName(tool)}</span>
                     {installing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
                   </div>
@@ -369,7 +396,10 @@ export function Onboarding({ onDone }: OnboardingProps) {
                     key={result.tool}
                     className="animate-in rounded-lg border border-border px-3 py-2.5 fade-in duration-300"
                   >
-                    <p className="text-sm font-medium">{agentName(result.tool)}</p>
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      <AgentMark id={result.tool} className="size-4 shrink-0" />
+                      {agentName(result.tool)}
+                    </p>
                     {result.error ? (
                       <p className="mt-1 text-xs text-destructive">{result.error}</p>
                     ) : (

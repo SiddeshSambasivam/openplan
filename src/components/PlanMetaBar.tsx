@@ -1,5 +1,10 @@
 import { History } from "lucide-react";
 import {
+  ClaudeCodeIcon,
+  CodexIcon,
+  CursorIcon,
+} from "@/components/AgentIcons";
+import {
   PLAN_STATUSES,
   SOURCE_LABELS,
   STATUS_LABELS,
@@ -69,7 +74,12 @@ export function PlanMetaBar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <span>{SOURCE_LABELS[plan.source] ?? plan.source}</span>
+      <span className="flex items-center gap-1.5">
+        {plan.source === "claude-code" && <ClaudeCodeIcon className="size-3.5" />}
+        {plan.source === "codex" && <CodexIcon className="size-3.5" />}
+        {plan.source === "cursor" && <CursorIcon className="size-3.5" />}
+        {SOURCE_LABELS[plan.source] ?? plan.source}
+      </span>
       {plan.project && (
         <>
           <span aria-hidden>·</span>
