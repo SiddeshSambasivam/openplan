@@ -65,6 +65,13 @@ export const SHORTCUTS = [
   },
   { id: "nextNavItem", label: "Next navbar item", keys: "mod+shift+]", group: "Views" },
   {
+    id: "selectAll",
+    label: "Select every plan",
+    keys: "mod+a",
+    group: "Views",
+    when: "On the board and the lists",
+  },
+  {
     id: "edit",
     label: "Edit or preview",
     keys: "mod+e",
@@ -78,6 +85,13 @@ export const SHORTCUTS = [
   { id: "status", label: "Change status", keys: "mod+shift+s", group: "Plan" },
   { id: "folders", label: "Folders", keys: "mod+shift+f", group: "Plan", when: "In the preview" },
   { id: "archive", label: "Archive plan", keys: "mod+shift+a", group: "Plan" },
+  {
+    id: "deletePlans",
+    label: "Delete",
+    keys: "mod+backspace",
+    group: "Plan",
+    when: "The selected plans, or the open plan. Asks twice",
+  },
   { id: "comments", label: "Comments", keys: "mod+shift+c", group: "Review", when: "In the preview" },
   {
     id: "sendReview",
@@ -200,6 +214,7 @@ const MAC_NAMES: Record<string, string> = {
   shift: "⇧",
   enter: "↩",
   escape: "Esc",
+  backspace: "⌫",
 };
 
 const OTHER_NAMES: Record<string, string> = {
@@ -207,9 +222,10 @@ const OTHER_NAMES: Record<string, string> = {
   shift: "Shift",
   enter: "Enter",
   escape: "Esc",
+  backspace: "Backspace",
 };
 
-const NAMED_KEYS = ["enter", "escape"];
+const NAMED_KEYS = ["enter", "escape", "backspace"];
 
 /** Shift turns a bracket into a brace on US layouts, and the registry names
  * the key on the keycap. */

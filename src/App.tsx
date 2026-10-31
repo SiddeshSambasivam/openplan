@@ -136,6 +136,10 @@ import { BoardView } from "./features/board/BoardView";
 import { DisplayMenu } from "./features/board/DisplayMenu";
 import { ForYouView } from "./features/board/ForYouView";
 import { ListView } from "./features/board/ListView";
+import { DeletePlansDialog } from "./features/board/DeletePlansDialog";
+import { usePlanActions } from "./features/board/PlanActions";
+import { planPathsIn, SelectionArea } from "./features/board/SelectionArea";
+import { holdsDocument } from "./lib/planActions";
 import { cn } from "./lib/utils";
 import {
   isContentWidth,
@@ -1572,6 +1576,27 @@ export default function App() {
                 ? goBack
                 : undefined;
 
+  // Deleting the open plan goes back to where it was opened from, and its
+  // documents leave the library.
+  const leaveDeleted = (gone: PlanSummary[]) => {
+    const held = (path?: string | null) => !!path && gone.some((plan) => holdsDocument(plan, path));
+    setItems((prev) => prev.filter((item) => item.kind !== "file" || !held(item.path)));
+    if (mainView === "plan" && held(activeDoc?.path)) {
+      if (trail.length > 0) goBack();
+      else showView("board");
+    }
+  };
+  const planActions = usePlanActions({
+    plans,
+    scope: `${mainView}:${folder ?? ""}`,
+    folders: knownFolders,
+    onOpen: selectPlan,
+    onChanged: refreshPlans,
+    onDeleted: leaveDeleted,
+    onError: notify,
+  });
+  const selection = [...planActions.selected];
+
   // One handler per action, shared by the keys, the palette and the
   // buttons. An action that cannot run here has none.
   const shortcutHandlers: ShortcutHandlers = {
@@ -1582,7 +1607,10 @@ export default function App() {
     theme: toggleTheme,
     openFile: () => void openFileDialog(),
     openFolder: () => void openFolderDialog(),
-    escape: closeTopOverlay,
+    escape: selection.length > 0 ? planActions.clear : closeTopOverlay,
+    selectAll: onPlan
+      ? undefined
+      : () => planActions.value.select(new Set(planPathsIn(viewAreaRef.current))),
     board: () => showView("board"),
     list: () => showView("list"),
     forYou: () => showView("for-you"),
@@ -1603,9 +1631,17 @@ export default function App() {
     status: onPlan && activePlan ? () => setStatusOpen(true) : undefined,
     folders: onPlan && activePlan && view === "preview" ? () => setFoldersOpen(true) : undefined,
     archive:
-      onPlan && activePlan && activePlan.status !== "archived"
-        ? () => changeStatus("archived")
-        : undefined,
+      selection.length > 0
+        ? () => planActions.value.archive(selection)
+        : onPlan && activePlan && activePlan.status !== "archived"
+          ? () => changeStatus("archived")
+          : undefined,
+    deletePlans:
+      selection.length > 0
+        ? () => planActions.value.remove(selection)
+        : onPlan && activePlan
+          ? () => planActions.value.remove([activePlan.path])
+          : undefined,
     comments: onPlan && canComment ? toggleComments : undefined,
     sendReview:
       onPlan && canComment && commentsOpen && pendingCommentCount > 0 ? onSendReview : undefined,
@@ -1727,7 +1763,11 @@ export default function App() {
           onExpandNavbar={toggleSidebar}
         />
         {mainView === "board" && (
-          <div ref={viewAreaRef} className="motion-view min-h-0 flex-1">
+          <SelectionArea
+            ref={viewAreaRef}
+            actions={planActions.value}
+            className="motion-view min-h-0 flex-1"
+          >
             <BoardView
               plans={shownPlans}
               summaries={summaries}
@@ -1738,11 +1778,15 @@ export default function App() {
               onFoldersChange={changeFolders}
               onOpen={selectPlan}
             />
-          </div>
+          </SelectionArea>
         )}
 
         {mainView === "list" && (
-          <div ref={viewAreaRef} className="motion-view min-h-0 flex-1">
+          <SelectionArea
+            ref={viewAreaRef}
+            actions={planActions.value}
+            className="motion-view min-h-0 flex-1"
+          >
             <ListView
               plans={shownPlans}
               summaries={summaries}
@@ -1761,11 +1805,15 @@ export default function App() {
               onSelect={selectFile}
               onRemove={removeItem}
             />
-          </div>
+          </SelectionArea>
         )}
 
         {mainView === "for-you" && (
-          <div ref={viewAreaRef} className="motion-view min-h-0 flex-1">
+          <SelectionArea
+            ref={viewAreaRef}
+            actions={planActions.value}
+            className="motion-view min-h-0 flex-1"
+          >
             <ForYouView
               plans={shownPlans}
               summaries={summaries}
@@ -1774,7 +1822,7 @@ export default function App() {
               display={cardDisplay}
               onOpen={selectPlan}
             />
-          </div>
+          </SelectionArea>
         )}
 
         {/* Clips the outline while it sits translated off-screen — otherwise
@@ -1946,6 +1994,12 @@ export default function App() {
       />
 
       <ShortcutSheet ref={sheetRef} />
+
+      <DeletePlansDialog
+        titles={planActions.deleting}
+        onCancel={planActions.cancelDelete}
+        onConfirm={planActions.confirmDelete}
+      />
 
       {dragging && <DropOverlay />}
 

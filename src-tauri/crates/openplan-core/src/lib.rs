@@ -3,6 +3,7 @@
 
 pub mod archive;
 pub mod base;
+pub mod bulk;
 pub mod comments;
 pub mod discovery;
 pub mod fs;

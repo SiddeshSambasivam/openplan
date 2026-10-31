@@ -249,6 +249,16 @@ export async function setPlanStatus(path: string, status: Status): Promise<void>
   return invoke<void>("set_plan_status", { path, status });
 }
 
+/** One status for several plans, recorded as one change. */
+export async function setStatuses(paths: string[], status: Status): Promise<void> {
+  return invoke<void>("set_statuses", { paths, status });
+}
+
+/** Removes plans with their comments and work records, as one change. */
+export async function deletePlans(paths: string[]): Promise<void> {
+  return invoke<void>("delete_plans", { paths });
+}
+
 /** Replaces the folders a plan is filed under. */
 export async function setFolders(path: string, folders: string[]): Promise<void> {
   return invoke<void>("set_folders", { path, folders });

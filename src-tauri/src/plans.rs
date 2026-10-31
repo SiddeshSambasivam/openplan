@@ -4,7 +4,7 @@
 
 use openplan_core::base::Base;
 use openplan_core::plan::folder_list;
-use openplan_core::{comments, library, plan, repo, settings, standards};
+use openplan_core::{bulk, comments, library, plan, repo, settings, standards};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -188,6 +188,27 @@ pub async fn set_plan_status(
         &format!("{}: {id}", status.as_str()),
     );
     Ok(())
+}
+
+/// One status for several plans, recorded as one change by the person.
+#[tauri::command]
+pub async fn set_statuses(
+    paths: Vec<PathBuf>,
+    status: plan::Status,
+    state: tauri::State<'_, BaseState>,
+) -> Result<(), String> {
+    let now = openplan_core::import::now_iso();
+    bulk::set_statuses(state.get()?, &settings::me(), &paths, status, &now)
+}
+
+/// The person deletes plans from the app. Agents have no way to do this:
+/// the MCP server never calls it.
+#[tauri::command]
+pub async fn delete_plans(
+    paths: Vec<PathBuf>,
+    state: tauri::State<'_, BaseState>,
+) -> Result<(), String> {
+    bulk::delete_plans(state.get()?, &settings::me(), &paths)
 }
 
 /// The folders a plan is filed under. Only the person sets them, so this

@@ -22,7 +22,7 @@ pub fn is_stale(meta: &PlanMeta, days: u32, now: i64) -> bool {
 }
 
 pub fn commit_message(count: usize) -> String {
-    format!("archive: {count} {}", if count == 1 { "plan" } else { "plans" })
+    format!("archive: {}", crate::bulk::counted(count))
 }
 
 /// Archives every stale completed plan in one commit, authored by the app.

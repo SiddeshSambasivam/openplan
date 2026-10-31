@@ -287,6 +287,8 @@ pub fn run() {
             plans::set_authoring,
             plans::search_plans,
             plans::set_plan_status,
+            plans::set_statuses,
+            plans::delete_plans,
             plans::set_folders,
             plans::base_folders,
             plans::set_base_folders,

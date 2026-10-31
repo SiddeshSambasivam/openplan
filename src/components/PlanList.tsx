@@ -10,6 +10,11 @@ import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
 import type { PlanProgress } from "@/lib/work";
 import { NewBadge, PlanRowFacts } from "./PlanFacts";
 import { StatusGlyph } from "./StatusGlyph";
+import {
+  PlanContextMenu,
+  SELECTED_ROW,
+  useSelectedMark,
+} from "@/features/board/PlanActions";
 
 interface PlanListProps {
   plans: PlanSummary[];
@@ -272,71 +277,77 @@ const PlanRow = memo(function PlanRow({
     [isSet, everExpanded, plan.documents],
   );
   const enter = entrance(index, mountedWith);
+  const selected = useSelectedMark(plan.path);
   return (
     <li style={enter.style} className={enter.className}>
-      <button
-        onDoubleClick={() => setRenaming({ path: plan.path, value: plan.title })}
-        onClick={() => {
-          if (!isSet) {
-            onSelect(plan);
-            return;
-          }
-          // Opening a set shows the plan and its documents; folding it
-          // away leaves you where you were reading.
-          const next = !expanded;
-          onToggleExpand(plan, next);
-          if (next) onSelect(plan);
-        }}
-        aria-expanded={isSet ? expanded : undefined}
-        className={cn(
-          "flex w-full cursor-pointer items-center gap-3 border-b border-border px-4 py-2 text-left text-sm text-foreground transition-colors hover:bg-sidebar",
-          (plan.path === activePath || expanded) && "bg-sidebar-accent/60",
-        )}
-      >
-        <span className="flex shrink-0 items-center gap-1">
-          {isSet ? (
-            <ChevronRight
-              className={cn(
-                "size-3 shrink-0 text-muted-foreground transition-transform duration-200",
-                expanded && "rotate-90",
-              )}
+      <PlanContextMenu plan={plan}>
+        <button
+          data-plan-path={plan.path}
+          data-selected={selected}
+          onDoubleClick={() => setRenaming({ path: plan.path, value: plan.title })}
+          onClick={() => {
+            if (!isSet) {
+              onSelect(plan);
+              return;
+            }
+            // Opening a set shows the plan and its documents; folding it
+            // away leaves you where you were reading.
+            const next = !expanded;
+            onToggleExpand(plan, next);
+            if (next) onSelect(plan);
+          }}
+          aria-expanded={isSet ? expanded : undefined}
+          className={cn(
+            "flex w-full cursor-pointer items-center gap-3 border-b border-border px-4 py-2 text-left text-sm text-foreground transition-colors hover:bg-sidebar",
+            (plan.path === activePath || expanded) && "bg-sidebar-accent/60",
+            SELECTED_ROW,
+          )}
+        >
+          <span className="flex shrink-0 items-center gap-1">
+            {isSet ? (
+              <ChevronRight
+                className={cn(
+                  "size-3 shrink-0 text-muted-foreground transition-transform duration-200",
+                  expanded && "rotate-90",
+                )}
+              />
+            ) : (
+              <span className="size-3 shrink-0" />
+            )}
+            <StatusGlyph status={plan.status} />
+          </span>
+          {renaming?.path === plan.path ? (
+            <RenameInput
+              renaming={renaming}
+              onChange={(value) => setRenaming({ path: plan.path, value })}
+              onCancel={() => setRenaming(null)}
+              onCommit={(value) => {
+                onRename(plan, value);
+                setRenaming(null);
+              }}
             />
           ) : (
-            <span className="size-3 shrink-0" />
-          )}
-          <StatusGlyph status={plan.status} />
-        </span>
-        {renaming?.path === plan.path ? (
-          <RenameInput
-            renaming={renaming}
-            onChange={(value) => setRenaming({ path: plan.path, value })}
-            onCancel={() => setRenaming(null)}
-            onCommit={(value) => {
-              onRename(plan, value);
-              setRenaming(null);
-            }}
-          />
-        ) : (
-          <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="truncate font-medium">{plan.title}</span>
-            {fresh && <NewBadge />}
-          </span>
-        )}
-        <span className="flex items-center gap-3 text-xs text-muted-foreground">
-          {isSet && (
-            <span className="hidden shrink-0 tabular-nums sm:inline">
-              {plan.documents.length} docs
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="truncate font-medium">{plan.title}</span>
+              {fresh && <NewBadge />}
             </span>
           )}
-          <PlanRowFacts
-            plan={plan}
-            open={openThreads}
-            sessions={sessions}
-            work={work}
-            display={display}
-          />
-        </span>
-      </button>
+          <span className="flex items-center gap-3 text-xs text-muted-foreground">
+            {isSet && (
+              <span className="hidden shrink-0 tabular-nums sm:inline">
+                {plan.documents.length} docs
+              </span>
+            )}
+            <PlanRowFacts
+              plan={plan}
+              open={openThreads}
+              sessions={sessions}
+              work={work}
+              display={display}
+            />
+          </span>
+        </button>
+      </PlanContextMenu>
 
       {/* A set opens at its entry point; the rest of it is only reachable
           if the documents are listed. */}
@@ -499,7 +510,9 @@ export function PlanList({
             ) : (
               <p className={headingClass}>{heading}</p>
             )}
+            {/* Folded rows stay mounted, and selecting skips them. */}
             <div
+              data-folded={shown ? undefined : ""}
               className={cn(
                 collapsible &&
                   "grid transition-[grid-template-rows] duration-200 ease-in-out",
