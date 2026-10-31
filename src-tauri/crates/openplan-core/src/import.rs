@@ -32,6 +32,15 @@ fn modified_iso(path: &Path) -> Option<String> {
     Some(iso_from_unix(secs))
 }
 
+/// An ISO 8601 timestamp, without pulling in a date library for one line.
+pub fn now_iso() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0) as i64;
+    iso_from_unix(secs)
+}
+
 /// Days-from-civil, inverted — exact for every date a file can carry.
 pub fn iso_from_unix(secs: i64) -> String {
     let (days, time) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));

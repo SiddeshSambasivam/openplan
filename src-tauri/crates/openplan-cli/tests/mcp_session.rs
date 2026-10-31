@@ -49,10 +49,13 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         names,
         vec![
             "create_plan", "list_plans", "set_status", "read_plan",
-            "get_comments", "reply_comment", "resolve_comment", "describe_project",
-            "get_standards"
+            "get_comments", "reply_comment", "resolve_comment", "get_standards"
         ]
     );
+    let described = tools["result"]["tools"].to_string();
+    for status in ["draft", "alignment", "in-progress", "in-review", "completed", "archived"] {
+        assert!(described.contains(status), "the tools name every status: {status}");
+    }
 
     let standards = ask(r##"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_standards","arguments":{}}}"##);
     assert!(standards["result"]["content"][0]["text"]
@@ -61,18 +64,11 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         .contains("Plan standards"));
 
     let created = ask(
-        r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor\n\n## Summary\n\nwhy\n\n## Current state\n\nnow\n\n## Approach\n\nthis\n\n## Steps\n\none\n\n## Risks and open questions\n\nnone","project":"git@github.com:acme/api.git","type":"feature"}}}"##,
+        r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor\n\n## Summary\n\nwhy\n\n## Current state\n\nnow\n\n## Approach\n\nthis\n\n## Steps\n\none\n\n## Risks and open questions\n\nnone","type":"feature"}}}"##,
     );
     assert_eq!(created["result"]["isError"], false, "{created}");
     let filed = created["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(filed.contains("describe_project"), "nobody has said what the repo is: {filed}");
-    assert!(!filed.contains("missing"), "every required section is there: {filed}");
-
-    // The first agent into a project says what it is, once.
-    let described = ask(
-        r##"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"describe_project","arguments":{"project":"git@github.com:acme/api.git","description":"The public API Hypotenuse customers call."}}}"##,
-    );
-    assert_eq!(described["result"]["isError"], false, "{described}");
+    assert_eq!(filed, "Filed as auth-refactor.", "every required section is there");
 
     // Filing the same title again is refused, not overwritten.
     let dup = ask(
@@ -82,35 +78,44 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
 
     // A plan short of the sections its type calls for is filed anyway, and said so.
     let thin = ask(
-        r##"{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Token refresh loops","body":"# Token refresh loops\n\n## Summary\n\nit loops","type":"bug","project":"github.com/acme/api"}}}"##,
+        r##"{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Token refresh loops","body":"# Token refresh loops\n\n## Summary\n\nit loops","type":"bug"}}}"##,
     );
     assert_eq!(thin["result"]["isError"], false, "{thin}");
     let warned = thin["result"]["content"][0]["text"].as_str().unwrap();
     assert!(warned.contains("Reproduction"), "{warned}");
     assert!(warned.contains("Blast radius"), "{warned}");
-    assert!(!warned.contains("describe_project"), "already described: {warned}");
 
     let listed = ask(r##"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"list_plans","arguments":{}}}"##);
     let listing = listed["result"]["content"][0]["text"].as_str().unwrap();
     assert!(listing.contains("[draft] auth-refactor Auth refactor"), "{listing}");
-    assert!(listing.contains("acme/api"), "the repo it belongs to: {listing}");
+    assert!(!listing.contains('('), "a plan names no project: {listing}");
 
-    // The agent cannot finish a plan on the person's behalf...
-    let finished = ask(r##"{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"completed"}}}"##);
-    assert_eq!(finished["result"]["isError"], true, "{finished}");
-    // ...nor send it for review without saying where the PR is.
-    let no_pr = ask(r##"{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-review"}}}"##);
-    assert_eq!(no_pr["result"]["isError"], true, "{no_pr}");
-    let moved = ask(r##"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-review","pr":"https://github.com/acme/api/pull/4"}}}"##);
+    // A session may open alignment on a draft.
+    let aligning = ask(r##"{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"alignment"}}}"##);
+    assert_eq!(aligning["result"]["isError"], false, "{aligning}");
+    let started = ask(r##"{"jsonrpc":"2.0","id":17,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-progress"}}}"##);
+    assert_eq!(started["result"]["isError"], false, "{started}");
+    // Once the work has started, going back to alignment is the person's call.
+    let back = ask(r##"{"jsonrpc":"2.0","id":18,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"alignment"}}}"##);
+    assert_eq!(back["result"]["isError"], true, "{back}");
+
+    // The agent cannot finish or put away a plan on the person's behalf.
+    for status in ["completed", "archived"] {
+        let refused = ask(&format!(
+            r##"{{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{{"name":"set_status","arguments":{{"id":"auth-refactor","status":"{status}"}}}}}}"##
+        ));
+        assert_eq!(refused["result"]["isError"], true, "{status}: {refused}");
+    }
+    let moved = ask(r##"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-review"}}}"##);
     assert_eq!(moved["result"]["isError"], false, "{moved}");
 
     let read = ask(r##"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"read_plan","arguments":{"id":"auth-refactor"}}}"##);
     let text = read["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("source: claude-code"), "client name normalised: {text}");
-    assert!(text.contains("project: github.com/acme/api"), "remote normalised: {text}");
     assert!(text.contains("type: feature"), "{text}");
     assert!(text.contains("status: in-review"), "{text}");
-    assert!(text.contains("pr: https://github.com/acme/api/pull/4"), "{text}");
+    assert!(!text.contains("project:"), "{text}");
+    assert!(!text.contains("pr:"), "{text}");
 
     // The user starts a review the way the app writes one: on disk at once,
     // and pending until they send it.
@@ -196,22 +201,6 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         openplan_core::repo::history(&base.root, std::path::Path::new("plans/auth-refactor.md"))
             .unwrap();
     assert_eq!(history[0].author, "claude-code");
-
-    // The project the plan belongs to, described and counted.
-    let listed = openplan_core::project::list(&base);
-    assert_eq!(listed.len(), 1, "{listed:?}");
-    assert_eq!(listed[0].project.as_deref(), Some("github.com/acme/api"));
-    assert_eq!(listed[0].plans, 2, "both plans came from the same repo");
-    assert_eq!(
-        listed[0].description.as_deref(),
-        Some("The public API Hypotenuse customers call.")
-    );
-    let described = openplan_core::repo::history(
-        &base.root,
-        std::path::Path::new(openplan_core::project::DESCRIPTIONS_FILE),
-    )
-    .unwrap();
-    assert_eq!(described[0].author, "claude-code", "the write is attributed");
 
     let _ = std::fs::remove_dir_all(&home);
 }

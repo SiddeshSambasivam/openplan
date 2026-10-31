@@ -11,7 +11,6 @@ pub mod library;
 pub mod local;
 pub mod plan;
 pub mod profile;
-pub mod project;
 pub mod repo;
 pub mod settings;
 pub mod standards;

@@ -15,7 +15,8 @@ openplan — manage the plans you and your coding agents share
 
 usage:
   openplan init              create the plan base, or say where it already is
-  openplan list [status]     list plans, optionally only draft, in-progress, in-review, or completed
+  openplan list [status]     list plans, optionally only draft, alignment, in-progress,
+                             in-review, completed, or archived
   openplan add <file>        file an existing markdown document as a plan
   openplan doctor            check the base is healthy and report what is in it
   openplan install <tool>    connect claude-code, codex, or cursor to the base
@@ -58,7 +59,7 @@ fn list(ctx: &Context, status: Option<&str>) -> Result<String, String> {
     if let Some(wanted) = status {
         let Some(wanted) = Status::parse(wanted) else {
             return Err(format!(
-                "No such status: {wanted}. Try draft, in-progress, in-review, or completed."
+                "No such status: {wanted}. Try draft, alignment, in-progress, in-review, completed, or archived."
             ));
         };
         entries.retain(|e| e.meta.status == wanted);

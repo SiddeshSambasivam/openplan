@@ -126,7 +126,7 @@ fn find_claude(home: &Path) -> Option<PathBuf> {
 }
 
 /// Claude Code: register the server with its own CLI (its config file also
-/// carries unrelated per-project state, so it stays Claude's to write), and
+/// carries unrelated per-repo state, so it stays Claude's to write), and
 /// add the conventions to the global CLAUDE.md.
 pub fn install_claude_code(home: &Path, cli: &Path, dry_run: bool) -> Result<Vec<Step>, String> {
     let mut steps = Vec::new();

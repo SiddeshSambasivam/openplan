@@ -39,10 +39,11 @@ pub struct PlanSummary {
     #[serde(rename = "type")]
     plan_type: Option<String>,
     source: String,
-    project: Option<String>,
+    folders: Vec<String>,
     pr: Option<String>,
     created: Option<String>,
     updated: Option<String>,
+    completed: Option<String>,
     path: PathBuf,
     relative_path: PathBuf,
     documents: Vec<PathBuf>,
@@ -56,10 +57,11 @@ impl From<library::PlanEntry> for PlanSummary {
             status: entry.meta.status,
             plan_type: entry.meta.plan_type,
             source: entry.meta.source,
-            project: entry.meta.project,
+            folders: entry.meta.folders,
             pr: entry.meta.pr,
             created: entry.meta.created,
             updated: entry.meta.updated,
+            completed: entry.meta.completed,
             path: entry.path,
             relative_path: entry.relative_path,
             documents: entry.documents,
@@ -169,25 +171,34 @@ pub async fn search_plans(
         .collect())
 }
 
-/// Rewrites only the plan's status line, leaving its body untouched. The
-/// person can set any status, completed included; agents cannot.
+/// Rewrites only the plan's status, leaving its body untouched. The person
+/// can set any status, completed and archived included; agents cannot.
 #[tauri::command]
 pub async fn set_plan_status(
     path: String,
     status: plan::Status,
     state: tauri::State<'_, BaseState>,
 ) -> Result<(), String> {
-    let path = PathBuf::from(&path);
-    let text = openplan_core::fs::read_to_string(&path)?;
-    let mut parsed = plan::parse(&text, &path);
-    parsed.meta.status = status;
-    openplan_core::fs::atomic_write(&path, &plan::serialize(&parsed))?;
-
+    let now = openplan_core::import::now_iso();
+    let id = rewrite_meta(Path::new(&path), |meta| meta.set_status(status, &now))?;
     let _ = repo::commit_all(
         &state.get()?.root,
         &settings::me(),
-        &format!("{}: {}", status.as_str(), parsed.meta.id),
+        &format!("{}: {id}", status.as_str()),
     );
+    Ok(())
+}
+
+/// The folders a plan is filed under. Only the person sets them, so this
+/// is the one writer.
+#[tauri::command]
+pub async fn set_folders(
+    path: String,
+    folders: Vec<String>,
+    state: tauri::State<'_, BaseState>,
+) -> Result<(), String> {
+    let id = rewrite_meta(Path::new(&path), |meta| meta.folders = folder_list(folders))?;
+    let _ = repo::commit_all(&state.get()?.root, &settings::me(), &format!("edit: {id}"));
     Ok(())
 }
 
@@ -446,6 +457,28 @@ pub fn setup(app: &tauri::App, base: Option<Base>) {
     watch_base(app.handle().clone(), base);
 }
 
+/// Changes a plan's header and writes it back, returning the plan's id.
+fn rewrite_meta(path: &Path, change: impl FnOnce(&mut plan::PlanMeta)) -> Result<String, String> {
+    let text = openplan_core::fs::read_to_string(path)?;
+    let mut parsed = plan::parse(&text, path);
+    change(&mut parsed.meta);
+    openplan_core::fs::atomic_write(path, &plan::serialize(&parsed))?;
+    Ok(parsed.meta.id)
+}
+
+/// Folder names as they are stored: cleaned, and each one once whatever its
+/// case, so "Search" and "search" are the same folder.
+fn folder_list(names: Vec<String>) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for name in names.iter().map(|n| plan::folder_name(n)) {
+        let lower = name.to_lowercase();
+        if !name.is_empty() && !kept.iter().any(|k| k.to_lowercase() == lower) {
+            kept.push(name);
+        }
+    }
+    kept
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -484,6 +517,51 @@ mod tests {
             touched(&root, &event(root.join(".git").join("index"))),
             (false, false)
         );
+    }
+
+    fn a_plan_file(name: &str, text: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("openplan-app-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("auth-refactor.md");
+        std::fs::write(&path, text).unwrap();
+        path
+    }
+
+    #[test]
+    fn folder_names_are_cleaned_and_said_once() {
+        let names = vec![
+            " Search ".to_string(),
+            "search".to_string(),
+            "Q3, launch".to_string(),
+            "  ".to_string(),
+        ];
+
+        assert_eq!(folder_list(names), ["Search", "Q3 launch"]);
+    }
+
+    #[test]
+    fn setting_folders_rewrites_only_the_header() {
+        let path = a_plan_file("folders", "---\ntitle: Auth refactor\nstatus: draft\n---\n# Body\n");
+
+        let id = rewrite_meta(&path, |meta| meta.folders = folder_list(vec!["Infra".into()])).unwrap();
+
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(id, "auth-refactor");
+        assert!(text.contains("folders: [Infra]\n"), "{text}");
+        assert!(text.ends_with("---\n# Body\n"), "{text}");
+    }
+
+    #[test]
+    fn completing_from_the_app_records_when() {
+        let path = a_plan_file("complete", "---\ntitle: Auth refactor\nstatus: in-review\n---\n# Body\n");
+
+        rewrite_meta(&path, |meta| meta.set_status(plan::Status::Completed, "2026-10-28T10:00:00Z"))
+            .unwrap();
+
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("status: completed\n"), "{text}");
+        assert!(text.contains("completed: 2026-10-28T10:00:00Z\n"), "{text}");
     }
 
     #[test]

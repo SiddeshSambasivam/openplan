@@ -1,4 +1,5 @@
 use openplan_cli::{run, Context};
+use openplan_core::import::now_iso;
 use openplan_core::settings;
 
 fn main() {
@@ -36,13 +37,4 @@ fn main() {
             std::process::exit(1);
         }
     }
-}
-
-/// An ISO 8601 timestamp, without pulling in a date library for one line.
-fn now_iso() -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0) as i64;
-    openplan_core::import::iso_from_unix(secs)
 }
