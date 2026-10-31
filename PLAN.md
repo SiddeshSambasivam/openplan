@@ -1334,6 +1334,7 @@ behaviours above; `iam create-open-id-connect-provider`, `create-role`,
 | 2026-10-31 | New unanswered questions on the open plan switch it to the Alignment tab. A window in the background calls `requestUserAttention` once, then not again until it is focused. No `openplan://` deep link | Sid (R5.5, q2, q5): Tauri's core window API needs no new dependency. One request per background period keeps several sessions from nagging. Nobody has checked whether Claude Code desktop opens custom-scheme links |
 | 2026-10-31 | Every question with options ends with "Write my own" | Sid (R5.3, q1): the composer already took free text, but nothing on the question said so |
 | 2026-10-31 | **GATE 7 waived and Phase 8 (0.6.0, S3 builds and in-app updates) starts** | Sid, 2026-10-31: "Gate waived", after the rule was pointed out. Recorded per §2 Process. GATE 7 QA remains owed |
+| 2026-10-31 | macOS builds are ad-hoc signed (`bundle.macOS.signingIdentity: "-"`) and not notarized | Sid has no Apple Developer ID. An unsigned download can fail with "is damaged and can't be opened", which only `xattr` gets past; an ad-hoc signed one gets Open Anyway in Privacy & Security. Revisit with a Developer ID, which adds signing and notarization secrets to CI and changes nothing else |
 
 ---
 

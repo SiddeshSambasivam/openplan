@@ -56,7 +56,10 @@
     ],
     "externalBin": [
       "binaries/openplan"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    }
   },
   "mainBinaryName": "openplan-app"
 }
