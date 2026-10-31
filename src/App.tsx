@@ -10,6 +10,7 @@ import {
 } from "react";
 import { DropOverlay } from "./components/DropOverlay";
 import type { EditorApi } from "./components/Editor";
+import { Loader2 } from "lucide-react";
 import { EmptyState } from "./components/EmptyState";
 import { FindBar } from "./components/FindBar";
 import { Header } from "./components/Header";
@@ -262,7 +263,7 @@ export default function App() {
     [items, activeId],
   );
 
-  const loadDoc = useCallback(async (doc: DocFile | null, clear: boolean) => {
+  const loadDoc = useCallback(async (doc: DocFile | null) => {
     const seq = ++loadSeq.current;
     if (!doc) {
       setContent(null);
@@ -277,7 +278,8 @@ export default function App() {
       return;
     }
     if (!doc.path) return;
-    if (clear) setContent(null);
+    // The document being left stays on screen, blurred, until the next one
+    // arrives — clearing it first is what made switching feel like a jolt.
     setLoading(true);
     try {
       const text = await readTextFile(doc.path);
@@ -322,10 +324,7 @@ export default function App() {
         autosaveTimer.current = null;
       }
     }
-    void loadDoc(
-      findDocInItems(itemsRef.current, activeIdRef.current),
-      switched,
-    );
+    void loadDoc(findDocInItems(itemsRef.current, activeIdRef.current));
     if (switched) setFindOpen(false);
   }, [activeDocId, reloadKey, loadDoc]);
 
@@ -1259,6 +1258,11 @@ export default function App() {
               />
             )}
           </div>
+          {loading && content != null && (
+            <div className="absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/50 fade-in backdrop-blur-[3px] duration-150">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
           {activePlan && (
             <HistoryPanel
               path={activePlan.path}
