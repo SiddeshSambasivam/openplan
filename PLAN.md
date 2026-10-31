@@ -938,14 +938,14 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [ ] R2.2 The webview's own context menu (with Reload) never shows; plans get an
       app context menu instead
 - [ ] R2.3 A plan can be deleted, alone or in bulk, behind a two-step confirmation
-- [ ] R2.4 Minimized navbar: the top bar spans the full width above the rail, so the
+- [x] R2.4 Minimized navbar: the top bar spans the full width above the rail, so the
       traffic lights sit in the top bar and nothing crowds them
 - [x] R2.5 Every clickable control shows the pointer cursor
 - [ ] R2.6 Pull request state has its own icon: open, draft, merged, closed, and none
 - [ ] R2.7 Alignment questions carry more detail: why the question matters, what the
       agent found, and each option's trade-off
 
-- [ ] R2.8 Profile: one profile, the app's existing identity, shown as a generated
+- [x] R2.8 Profile: one profile, the app's existing identity, shown as a generated
       avatar at the bottom of the navbar; its menu holds Settings, the theme switch
       and the shortcut list; the theme toggle leaves the top bar
 #### GATE 7 QA script
@@ -1166,10 +1166,13 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | A back control replaces the breadcrumb: opening from a view or the palette starts the trail, opening a plan from a plan stacks it, leaving for a view clears it; back to Search reopens the palette with the query; scroll positions of a left view are restored | Sid: a way back to where the plan was entered from. Restoring scroll costs one DOM walk per navigation |
 | 2026-10-29 | **Exception to the transform-and-opacity rule:** the navbar column transitions `width` over 180ms ease-out with `will-change: width`, and the top bar's leading gap moves on the same curve; labels fade. Nothing else animates layout | Sid asked for a smooth transition between the two modes, and a translate cannot push the content. Measured: the board stays under a frame (production, 60 plans); a 2 MB plan costs 15 to 17ms a frame, one frame at 60Hz, what a window resize costs. Accepted. Virtualizing the preview is the only way down and is not worth it for a 180ms transition |
 | 2026-10-29 | The navbar has two modes, expanded and minimized, with `cmd+b`; hidden mode, the edge reveal and `cmd+shift+b` are gone. The collapse chevron sits at the right end of the expanded top row, and only in minimized mode does the mark morph into the expand chevron | Sid, 2026-10-29, in three notes. A single thin chevron, not the panel box |
-| 2026-10-29 | On macOS the navbar keeps a 36px spacer above the mark in both modes, and in minimized mode the top bar's content starts at x 84 | The traffic lights overlapped the rail and the top bar's first control (R1.10). A spacer that changed with the mode would jump the rows during the transition |
+| 2026-10-29 | ~~On macOS the navbar keeps a 36px spacer above the mark in both modes, and in minimized mode the top bar's content starts at x 84~~ (superseded by the full-width top bar row below) | The traffic lights overlapped the rail and the top bar's first control (R1.10). A spacer that changed with the mode would jump the rows during the transition |
 | 2026-10-29 | Folders the person creates live in the base's `openplan.json` `folders` list; the navbar and the pickers show the union with frontmatter; removing drops the list entry only | A folder with no plans has no frontmatter to live in. Plans keep their own folders, so one still in use reappears |
 | 2026-10-29 | Search is a navbar row, not a control in the top row | Both modes then share one layout and the transition moves nothing |
 | 2026-10-29 | One profile for now: the identity the app already holds (settings name and email), drawn as a generated avatar. Multiple profiles and their routing are designed in §10, not built | Sid wants browser-style profiles eventually and asked to start with one. Building the list before the routing is agreed would fix the wrong storage |
+| 2026-10-29 | Minimized, the top bar spans the full window above the rail and carries the traffic lights, the mark (which morphs into the expand chevron) and the title; expanded, the navbar's top row sits level with the top bar with a left inset on macOS instead of a spacer above it | Sid (R2.4): the lights crowded the rail and the title. One row height in both modes keeps the rows from jumping vertically on a flip |
+| 2026-10-29 | The width-transition exception extends to the top bar's `margin-left`, on the same 180ms curve | The title then slides with the navbar instead of jumping; sampled at 16ms it moves smoothly from x 114 to 256 |
+| 2026-10-29 | The profile avatar is a marble drawn from a hash of the email, coloured from shadcn's `--chart-1` to `--chart-5`, which the theme now defines | A generated avatar needs no upload and no dependency, and the chart tokens follow light and dark |
 
 ---
 
