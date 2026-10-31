@@ -588,20 +588,20 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 - [x] P1.3 `openplan-core::repo` — git2 init/commit/log/diff **(T: temp repos)**
 - [x] P1.4 Tauri commands: `get_base`, `create_base`, `scan_base` (meta included),
       `set_plan_status` **(T)**
-- [ ] P1.5 First-run silent base creation wired into app startup (no UI — §4.1
+- [x] P1.5 First-run silent base creation wired into app startup (no UI — §4.1
       step 1; the sync screen comes in P3)
-- [ ] P1.6 Sidebar: base as root, status badges, group-by-status, filter extension
-- [ ] P1.7 Metadata header in preview (status chip editable, source, dates);
+- [x] P1.6 Sidebar: base as root, status badges, group-by-status, filter extension
+- [x] P1.7 Metadata header in preview (status chip editable, source, dates);
       frontmatter hidden from body **(T: lib logic)**
 - [x] P1.8 Watcher: `notify` + debounce + `base-changed` event; `usePlanBase` hook
       subscribes; toast on new plan **(T: Rust debounce/queue logic)**
-- [ ] P1.9 Auto-commit on app writes + external-write catch-up commits **(T)**
-- [ ] P1.10 History panel: revision list (with git-author attribution), diff view,
+- [x] P1.9 Auto-commit on app writes + external-write catch-up commits **(T)**
+- [x] P1.10 History panel: revision list (with git-author attribution), diff view,
       [Restore this version] as a new commit **(T: diff + restore commands)**
-- [ ] P1.11 Settings page (FR-14): theme, font type/size, layout width, base
+- [x] P1.11 Settings page (FR-14): theme, font type/size, layout width, base
       location, re-run discovery entry point; header reduced to quick toggles
       **(T: preference persistence logic)**
-- [ ] P1.12 Global search (FR-15): Rust on-demand scan command + search UI
+- [x] P1.12 Global search (FR-15): Rust on-demand scan command + search UI
       (grouped results, jump-to-match) **(T: scan command)**
 - [ ] **GATE 1 — Sid manual QA & approval** (base setup flow, statuses, live watcher
       updates, history; idle CPU ~0% with watcher running — NFR-8)

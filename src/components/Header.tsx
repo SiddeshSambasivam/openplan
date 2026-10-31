@@ -3,6 +3,7 @@ import {
   Moon,
   PanelLeft,
   Search,
+  Settings,
   SquarePen,
   Sun,
   TableOfContents,
@@ -35,6 +36,7 @@ interface HeaderProps {
   onFontSizeChange: (fontSize: FontSize) => void;
   outlineOpen: boolean;
   onToggleOutline: () => void;
+  onOpenSettings: () => void;
   onOpenFind: () => void;
   /** Keep clear of the macOS traffic lights when the sidebar is hidden. */
   trafficLightGap: boolean;
@@ -57,6 +59,7 @@ export function Header({
   onFontSizeChange,
   outlineOpen,
   onToggleOutline,
+  onOpenSettings,
   onOpenFind,
   trafficLightGap,
 }: HeaderProps) {
@@ -165,6 +168,17 @@ export function Header({
           )}
         </TooltipButton>
       )}
+
+      <TooltipButton
+        variant="ghost"
+        size="icon-sm"
+        onClick={onOpenSettings}
+        tooltip={`Settings (${mod},)`}
+        tooltipSide="bottom" tooltipAlign="end"
+        aria-label="Settings"
+      >
+        <Settings className="size-4" />
+      </TooltipButton>
 
       <TooltipButton
         variant="ghost"

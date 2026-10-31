@@ -10,7 +10,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::Duration;
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 
 fn base() -> Result<Base, String> {
     settings::resolve_default_base()
@@ -198,9 +198,9 @@ pub fn watch_base(app: tauri::AppHandle) {
             // Block until something happens, then drain whatever else arrives
             // in the same burst before telling anyone.
             let Ok(first) = rx.recv() else { return };
-            let mut relevant = is_relevant(&first);
+            let mut relevant = is_relevant(&base.root, &first);
             while let Ok(next) = rx.recv_timeout(debounce) {
-                relevant |= is_relevant(&next);
+                relevant |= is_relevant(&base.root, &next);
             }
             if relevant {
                 let _ = app.emit("base-changed", ());
@@ -210,11 +210,16 @@ pub fn watch_base(app: tauri::AppHandle) {
 }
 
 /// Git's own bookkeeping and the comment sidecars churn constantly; only
-/// changes to plans should send the interface back to disk.
-fn is_relevant(event: &notify::Result<notify::Event>) -> bool {
+/// changes to plans should send the interface back to disk. Judged from
+/// inside the base, since the base itself is a dotted directory and every
+/// path under it would otherwise look hidden.
+fn is_relevant(root: &Path, event: &notify::Result<notify::Event>) -> bool {
     let Ok(event) = event else { return false };
     event.paths.iter().any(|path| {
-        !path.components().any(|c| {
+        let Ok(inside) = path.strip_prefix(root) else {
+            return false;
+        };
+        !inside.components().any(|c| {
             c.as_os_str()
                 .to_str()
                 .map(|s| s.starts_with('.'))

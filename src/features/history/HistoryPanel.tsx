@@ -1,0 +1,153 @@
+import { RotateCcw, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  planAtRevision,
+  planHistory,
+  restorePlanRevision,
+  SOURCE_LABELS,
+  type Revision,
+} from "@/lib/planBase";
+import { Button } from "@/components/ui/button";
+import { TooltipButton } from "@/components/TooltipButton";
+import { cn } from "@/lib/utils";
+
+function formatWhen(seconds: number): string {
+  return new Date(seconds * 1000).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+interface HistoryPanelProps {
+  path: string;
+  open: boolean;
+  onClose: () => void;
+  /** Told when a restore rewrites the plan, so the reader re-reads it. */
+  onRestored: () => void;
+}
+
+/**
+ * A plan's revisions, and what it said at each one. Restoring writes the old
+ * text as a new revision rather than removing what came after, so nothing in
+ * the history is ever lost by going back.
+ */
+export function HistoryPanel({
+  path,
+  open,
+  onClose,
+  onRestored,
+}: HistoryPanelProps) {
+  const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [selected, setSelected] = useState<Revision | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setSelected(null);
+    setPreview(null);
+    void planHistory(path).then(setRevisions);
+  }, [open, path]);
+
+  useEffect(() => {
+    if (!selected) return;
+    let stale = false;
+    void planAtRevision(path, selected.id).then((text) => {
+      if (!stale) setPreview(text);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [path, selected]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const restore = async () => {
+    if (!selected) return;
+    await restorePlanRevision(path, selected.id);
+    onRestored();
+    onClose();
+  };
+
+  return (
+    <aside className="absolute inset-y-0 right-0 z-30 flex w-80 animate-in flex-col border-l border-border bg-background shadow-lg slide-in-from-right-4 duration-200">
+      <div className="flex shrink-0 items-center justify-between px-4 pt-3.5 pb-2">
+        <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+          History
+        </p>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={onClose}
+          aria-label="Close history"
+        >
+          <X />
+        </Button>
+      </div>
+
+      {revisions.length === 0 ? (
+        <p className="px-4 py-6 text-center text-xs leading-5 text-muted-foreground">
+          No changes recorded yet.
+        </p>
+      ) : (
+        <ol className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+          {revisions.map((revision) => (
+            <li key={revision.id}>
+              <button
+                onClick={() =>
+                  setSelected((current) =>
+                    current?.id === revision.id ? null : revision,
+                  )
+                }
+                className={cn(
+                  "block w-full cursor-default rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/60",
+                  selected?.id === revision.id && "bg-accent",
+                )}
+              >
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-xs font-medium text-foreground">
+                    {SOURCE_LABELS[revision.author] ?? revision.author}
+                  </span>
+                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                    {formatWhen(revision.timestamp)}
+                  </span>
+                </span>
+                <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                  {revision.message}
+                </span>
+              </button>
+
+              {selected?.id === revision.id && (
+                <div className="mt-1 mb-2 px-2">
+                  <pre className="max-h-52 overflow-auto rounded-md border border-border bg-muted/40 p-2 text-[11px] leading-4 whitespace-pre-wrap text-muted-foreground">
+                    {preview ?? "Loading…"}
+                  </pre>
+                  <TooltipButton
+                    variant="outline"
+                    size="xs"
+                    onClick={() => void restore()}
+                    tooltip="Writes this text as a new revision; nothing is lost"
+                    className="mt-2 w-full gap-1.5"
+                  >
+                    <RotateCcw />
+                    Restore this version
+                  </TooltipButton>
+                </div>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </aside>
+  );
+}

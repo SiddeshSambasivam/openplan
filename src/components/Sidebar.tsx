@@ -1,9 +1,11 @@
 import { FileText, Search, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { filterLibraryItems } from "../lib/tree";
 import type { FileLibraryItem, LibraryItem } from "../lib/types";
 import { cn } from "../lib/utils";
 import { FolderTree } from "./FolderTree";
+import { PlanList } from "./PlanList";
+import { searchPlans, type PlanSummary, type SearchHit } from "@/lib/planBase";
 import { MarqueeText } from "./MarqueeText";
 import {
   Tooltip,
@@ -16,6 +18,9 @@ import { TooltipButton } from "./TooltipButton";
 
 interface SidebarProps {
   items: LibraryItem[];
+  plans: PlanSummary[];
+  activePlanPath: string | null;
+  onSelectPlan: (plan: PlanSummary) => void;
   activeId: string | null;
   expanded: Set<string>;
   onToggleDir: (path: string) => void;
@@ -77,6 +82,9 @@ function LooseFileRow({
 
 export function Sidebar({
   items,
+  plans,
+  activePlanPath,
+  onSelectPlan,
   activeId,
   expanded,
   onToggleDir,
@@ -93,6 +101,36 @@ export function Sidebar({
     [items, trimmedQuery],
   );
   const hasFolders = displayItems.some((item) => item.kind === "folder");
+
+  // Searching reads the base on demand; the pause keeps a fast typist from
+  // starting a scan per keystroke.
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  useEffect(() => {
+    if (!trimmedQuery) {
+      setHits([]);
+      return;
+    }
+    let stale = false;
+    const timer = setTimeout(() => {
+      void searchPlans(trimmedQuery).then((found) => {
+        if (!stale) setHits(found);
+      });
+    }, 150);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [trimmedQuery]);
+
+  const hitsByPlan = useMemo(() => {
+    const grouped = new Map<string, SearchHit[]>();
+    for (const hit of hits) {
+      const group = grouped.get(hit.path);
+      if (group) group.push(hit);
+      else grouped.set(hit.path, [hit]);
+    }
+    return [...grouped.entries()];
+  }, [hits]);
   const treeCtx = {
     activeId,
     expanded,
@@ -149,24 +187,56 @@ export function Sidebar({
         </div>
       </div>
 
-      <p className="shrink-0 px-4 pb-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-        Library
-      </p>
-
       <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-2">
-        {displayItems.length === 0 ? (
-          <p className="px-2 py-8 text-center text-xs leading-5 text-muted-foreground">
-            {trimmedQuery ? (
-              <>No files match &ldquo;{trimmedQuery}&rdquo;.</>
+        {!trimmedQuery && (
+          <PlanList
+            plans={plans}
+            activePath={activePlanPath}
+            onSelect={onSelectPlan}
+          />
+        )}
+        {trimmedQuery && (
+          <div className="pb-2">
+            <p className="px-2 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+              In plans
+              <span className="ml-1.5 tabular-nums opacity-60">{hits.length}</span>
+            </p>
+            {hitsByPlan.length === 0 ? (
+              <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+                Nothing matches &ldquo;{trimmedQuery}&rdquo;.
+              </p>
             ) : (
-              <>
-                No plans yet.
-                <br />
-                Drop Markdown here to begin.
-              </>
+              hitsByPlan.map(([path, group]) => (
+                <div key={path} className="pb-1.5">
+                  <button
+                    onClick={() => {
+                      const plan = plans.find((p) => p.path === path);
+                      if (plan) onSelectPlan(plan);
+                    }}
+                    className="w-full cursor-default truncate rounded-md px-2 py-1 text-left text-sm text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent/60"
+                  >
+                    {group[0].title}
+                  </button>
+                  {group.slice(0, 4).map((hit) => (
+                    <p
+                      key={hit.line}
+                      className="truncate px-2 py-0.5 pl-4 text-[11px] text-muted-foreground"
+                    >
+                      <span className="tabular-nums opacity-60">{hit.line}</span>{" "}
+                      {hit.text}
+                    </p>
+                  ))}
+                </div>
+              ))
             )}
+          </div>
+        )}
+        {displayItems.length > 0 && (
+          <p className="px-2 pt-3 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+            Opened
           </p>
-        ) : (
+        )}
+        {displayItems.length > 0 && (
           <ul className="flex flex-col gap-px">
             {displayItems.map((item) =>
               item.kind === "file" ? (

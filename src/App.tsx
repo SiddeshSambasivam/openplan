@@ -14,6 +14,9 @@ import { EmptyState } from "./components/EmptyState";
 import { FindBar } from "./components/FindBar";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
+import { PlanMetaBar } from "./components/PlanMetaBar";
+import { HistoryPanel } from "./features/history/HistoryPanel";
+import { SettingsDialog } from "./features/settings/SettingsDialog";
 import { Outline } from "./components/Outline";
 import { Viewer } from "./components/Viewer";
 import { directoryEntryToTree, fileListToTree } from "./lib/browserFs";
@@ -42,6 +45,14 @@ import {
 import { isFontSize, FONT_SIZE_SCALES, type FontSize } from "./lib/fontSize";
 import type { DocFile, FolderNode, LibraryItem, ViewMode } from "./lib/types";
 import { useOutline } from "./lib/useOutline";
+import { usePlanBase } from "./lib/usePlanBase";
+import {
+  commitBase,
+  setPlanStatus,
+  SOURCE_LABELS,
+  type PlanStatus,
+  type PlanSummary,
+} from "./lib/planBase";
 import { cn } from "./lib/utils";
 import { WELCOME_DOC_ID, WELCOME_MARKDOWN } from "./lib/welcome";
 import {
@@ -208,6 +219,10 @@ export default function App() {
   // purpose, and never carries over from a wider window.
   const [floatingOutlineOpen, setFloatingOutlineOpen] = useState(false);
 
+  const { base, plans, refresh: refreshPlans, arrivals } = usePlanBase();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const [dirty, setDirty] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   // Bumped on every ⌘F, even while already open, so FindBar can re-focus
@@ -222,6 +237,8 @@ export default function App() {
   const loadSeq = useRef(0);
   const lastLoadedId = useRef<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const basePathRef = useRef<string | null>(null);
+  basePathRef.current = base?.root ?? null;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<EditorApi | null>(null);
@@ -274,6 +291,11 @@ export default function App() {
       if (seq === loadSeq.current) setLoading(false);
     }
   }, []);
+
+  const activePlan = useMemo(
+    () => plans.find((plan) => plan.path === activeDoc?.path) ?? null,
+    [plans, activeDoc?.path],
+  );
 
   const activeDocId = activeDoc?.id ?? null;
   useEffect(() => {
@@ -335,6 +357,9 @@ export default function App() {
         setItems((prev) => updateInlineDoc(prev, doc.id, text));
       } else {
         return;
+      }
+      if (doc.path && basePathRef.current && doc.path.startsWith(basePathRef.current)) {
+        void commitBase(`edit: ${doc.name}`);
       }
       // Only mark clean if nothing changed while the write was in flight.
       if (editGen.current === gen) {
@@ -420,6 +445,21 @@ export default function App() {
     }
     return true;
   }, [flushSave]);
+
+  const selectPlan = useCallback(
+    (plan: PlanSummary) => {
+      openFilePaths([plan.path]);
+    },
+    [openFilePaths],
+  );
+
+  const changeStatus = useCallback(
+    (status: PlanStatus) => {
+      if (!activePlan) return;
+      void setPlanStatus(activePlan.path, status).then(refreshPlans);
+    },
+    [activePlan, refreshPlans],
+  );
 
   /* ---------- opening folders ---------- */
 
@@ -696,6 +736,17 @@ export default function App() {
       // best-effort
     }
   }, [expanded]);
+
+  useEffect(() => {
+    if (arrivals.length === 0) return;
+    const [first] = arrivals;
+    const who = SOURCE_LABELS[first.source] ?? first.source;
+    notify(
+      arrivals.length === 1
+        ? `New plan from ${who}: ${first.title}`
+        : `${arrivals.length} new plans`,
+    );
+  }, [arrivals, notify]);
 
   const toggleSidebar = useCallback(() => setSidebarOpen((o) => !o), []);
 
@@ -1000,6 +1051,9 @@ export default function App() {
       } else if (key === "t" && e.shiftKey) {
         e.preventDefault();
         toggleOutline();
+      } else if (key === ",") {
+        e.preventDefault();
+        setSettingsOpen(true);
       } else if (key === "f" && !e.shiftKey) {
         // Editing has its own find (CodeMirror's built-in panel, bound via
         // searchKeymap on the editor itself) — don't intercept there.
@@ -1049,7 +1103,16 @@ export default function App() {
         aria-hidden={!sidebarOpen}
       >
         <Sidebar
-          items={items}
+          items={
+            base
+              ? items.filter(
+                  (item) => !("path" in item && item.path?.startsWith(base.root)),
+                )
+              : items
+          }
+          plans={plans}
+          activePlanPath={activePlan?.path ?? null}
+          onSelectPlan={selectPlan}
           activeId={activeDocId}
           expanded={expanded}
           onToggleDir={toggleDir}
@@ -1099,6 +1162,7 @@ export default function App() {
           onFontSizeChange={setFontSize}
           outlineOpen={outlineShown}
           onToggleOutline={toggleOutline}
+          onOpenSettings={() => setSettingsOpen(true)}
           onOpenFind={() => {
             setFindOpen(true);
             setFindFocusSeq((s) => s + 1);
@@ -1124,6 +1188,18 @@ export default function App() {
                 : "overflow-y-auto",
             )}
           >
+            {activePlan && view === "preview" && (
+              <div
+                className="mx-auto w-full px-10 pt-8"
+                style={{ maxWidth: "var(--content-max-width, 48rem)" }}
+              >
+                <PlanMetaBar
+                  plan={activePlan}
+                  onStatusChange={changeStatus}
+                  onOpenHistory={() => setHistoryOpen(true)}
+                />
+              </div>
+            )}
             {activeDoc ? (
               <Viewer
                 doc={activeDoc}
@@ -1147,6 +1223,17 @@ export default function App() {
               />
             )}
           </div>
+          {activePlan && (
+            <HistoryPanel
+              path={activePlan.path}
+              open={historyOpen}
+              onClose={() => setHistoryOpen(false)}
+              onRestored={() => {
+                refreshPlans();
+                setReloadKey((k) => k + 1);
+              }}
+            />
+          )}
           {showOutline && (
             <Outline
               items={outlineItems}
@@ -1158,6 +1245,18 @@ export default function App() {
           )}
         </div>
       </main>
+
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        dark={dark}
+        onToggleTheme={toggleTheme}
+        fontSize={fontSize}
+        onFontSizeChange={setFontSize}
+        contentWidth={contentWidth}
+        onContentWidthChange={setContentWidth}
+        base={base}
+      />
 
       <FindBar
         articleRef={articleRef}
