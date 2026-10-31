@@ -86,7 +86,7 @@ Plans are managed by the `{}` MCP server, not by loose files.
 fn upsert_block_in_file(path: &Path, content: &str, dry_run: bool) -> Result<Step, String> {
     if dry_run {
         return Ok(step(
-            &format!("Update {}", path.display()),
+            format!("Update {}", path.display()),
             true,
             "would add the OpenPlan block",
         ));
@@ -100,7 +100,7 @@ fn upsert_block_in_file(path: &Path, content: &str, dry_run: bool) -> Result<Ste
     let changed = updated != existing;
     crate::fs::atomic_write(path, &updated)?;
     Ok(step(
-        &format!("Update {}", path.display()),
+        format!("Update {}", path.display()),
         true,
         if changed { "written" } else { "already current" },
     ))
@@ -217,7 +217,7 @@ pub fn install_cursor(home: &Path, cli: &Path) -> Result<Vec<Step>, String> {
         .ok_or("~/.cursor/mcp.json isn't a JSON object.")?
         .entry("mcpServers")
         .or_insert_with(|| serde_json::json!({}));
-    let already = servers.get(&crate::profile::name()).is_some();
+    let already = servers.get(crate::profile::name().as_str()).is_some();
     servers.as_object_mut().ok_or("mcpServers isn't an object.")?.insert(
         crate::profile::name(),
         serde_json::json!({ "command": cli.display().to_string(), "args": ["mcp"] }),
