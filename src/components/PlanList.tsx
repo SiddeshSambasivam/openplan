@@ -1,5 +1,5 @@
-import { FileText } from "lucide-react";
-import { useMemo } from "react";
+import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   PLAN_STATUSES,
   SOURCE_LABELS,
@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { buildSetTree, type SetNode } from "@/lib/planTree";
 import { MarqueeText } from "./MarqueeText";
 import { StatusBadge } from "./StatusBadge";
 
@@ -51,11 +52,95 @@ interface PlanListProps {
   onSelectDocument: (plan: PlanSummary, document: string) => void;
 }
 
-/** `01-current-state.md` reads as "Current state" in a list. */
-function documentLabel(name: string): string {
-  const base = name.replace(/\.mdx?$/i, "").split("/").pop() ?? name;
-  const withoutNumber = base.replace(/^\d+[-_]/, "");
-  return withoutNumber.replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase());
+/** One level of a set's tree. Folders start open — a set is small, and a
+ * closed folder hides the thing someone came looking for. */
+function SetBranch({
+  nodes,
+  depth,
+  activePath,
+  onOpen,
+}: {
+  nodes: SetNode[];
+  depth: number;
+  activePath: string | null;
+  onOpen: (document: string) => void;
+}) {
+  return (
+    <ul className="flex flex-col gap-px">
+      {nodes.map((node) =>
+        node.kind === "document" ? (
+          <li key={node.path}>
+            <button
+              onClick={() => onOpen(node.path)}
+              style={{ paddingLeft: 22 + depth * 12 }}
+              className={cn(
+                "flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                activePath?.endsWith("/" + node.path)
+                  ? "bg-sidebar-accent/70 text-sidebar-foreground"
+                  : "text-muted-foreground",
+              )}
+            >
+              <FileText className="size-3.5 shrink-0 opacity-70" />
+              <span className="truncate">{node.label}</span>
+            </button>
+          </li>
+        ) : (
+          <SetFolder
+            key={node.name}
+            node={node}
+            depth={depth}
+            activePath={activePath}
+            onOpen={onOpen}
+          />
+        ),
+      )}
+    </ul>
+  );
+}
+
+function SetFolder({
+  node,
+  depth,
+  activePath,
+  onOpen,
+}: {
+  node: Extract<SetNode, { kind: "folder" }>;
+  depth: number;
+  activePath: string | null;
+  onOpen: (document: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const Icon = open ? FolderOpen : Folder;
+  return (
+    <li>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{ paddingLeft: 10 + depth * 12 }}
+        className="flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+      >
+        <ChevronRight
+          className={cn(
+            "size-3 shrink-0 transition-transform duration-150",
+            open && "rotate-90",
+          )}
+        />
+        <Icon className="size-3.5 shrink-0 opacity-70" />
+        <span className="truncate">{node.name}</span>
+        <span className="ml-auto shrink-0 tabular-nums opacity-60">
+          {node.children.length}
+        </span>
+      </button>
+      {open && (
+        <SetBranch
+          nodes={node.children}
+          depth={depth + 1}
+          activePath={activePath}
+          onOpen={onOpen}
+        />
+      )}
+    </li>
+  );
 }
 
 export function PlanList({
@@ -85,7 +170,11 @@ export function PlanList({
             <span className="ml-1.5 tabular-nums opacity-60">{group.length}</span>
           </p>
           <ul className="flex flex-col gap-px">
-            {group.map((plan) => (
+            {group.map((plan) => {
+              const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
+              const isOpenSet =
+                plan.documents.length > 1 && !!activePath?.startsWith(folder);
+              return (
               <li key={plan.path}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -93,7 +182,7 @@ export function PlanList({
                       onClick={() => onSelect(plan)}
                       className={cn(
                         "flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-                        plan.path === activePath &&
+                        (plan.path === activePath || isOpenSet) &&
                           "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
                       )}
                     >
@@ -116,22 +205,19 @@ export function PlanList({
 
                 {/* A set opens at its entry point; the rest of it is only
                     reachable if the documents are listed. */}
-                {plan.path === activePath && plan.documents.length > 1 && (
-                  <ul className="mb-1 flex flex-col gap-px">
-                    {plan.documents.map((document) => (
-                      <li key={document}>
-                        <button
-                          onClick={() => onSelectDocument(plan, document)}
-                          className="block w-full cursor-default truncate rounded-md py-1 pr-2 pl-9 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
-                        >
-                          {documentLabel(document)}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                {isOpenSet && (
+                  <div className="mb-1">
+                    <SetBranch
+                      nodes={buildSetTree(plan.documents)}
+                      depth={0}
+                      activePath={activePath}
+                      onOpen={(document) => onSelectDocument(plan, document)}
+                    />
+                  </div>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       ))}
