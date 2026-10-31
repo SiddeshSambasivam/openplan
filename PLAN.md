@@ -198,7 +198,7 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 | NFR-6 | Cross-platform: macOS, Windows, Linux (existing CI matrix). Watch out: paths (existing code handles `\\`), and git availability (§5.3 — we bundle libgit2, no system git needed). |
 | NFR-7 | All `src/lib/` modules, Rust crates, and Tauri commands have tests written before implementation. |
 | NFR-8 | **Resource budget**: usable on old hardware. ~0% CPU idle; watcher is OS-event-driven (no polling); no background indexing or periodic scans; memory stays modest (system webview; large docs only cost while open); battery-invisible when idle. |
-| NFR-9 | **Security**: base dir created `0700`; MCP server is stdio-only (no listening ports); zero network traffic except explicit user-initiated remote push/pull (FR-12); every change attributed via git author (FR-6); history is append-only from the UI (restore commits, never rewrites). |
+| NFR-9 | **Security**: base dir created `0700`; MCP server is stdio-only (no listening ports); zero network traffic except explicit user-initiated remote push/pull (FR-12), the owner avatar `<img>`, and reads of pull request state through the person's own `gh` CLI on plan open, a board refresh, or a plan's last session leaving (R4.5); every change attributed via git author (FR-6); history is append-only from the UI (restore commits, never rewrites). |
 
 ---
 
@@ -956,6 +956,29 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [x] R3.2 A board with no plans in its open columns shows the animated empty state
 - [x] R3.3 Profile: the person sets a picture, a display name and an email
 
+#### GATE 7 findings, round 4 (Sid, 2026-10-30)
+Specification and answers q1 to q17: the filed plan "Ask alignment questions during
+review, slim the todo panel, and drop dead sessions (GATE 7 round 4)". Work lands on
+main with no PRs (q10).
+- [x] R4.1 Alignment runs alongside review: the first sent review moves a draft to
+      alignment, `record_alignment` merges rounds by question id, and a Build button
+      sends a `Build` event that carries unsent comments
+- [x] R4.2 Questions come from four personas (product owner, tech lead, designer,
+      on-call) with vendored avatars, go easy to hard, always offer options with one
+      recommendation, and cover errors, edge cases and scale; no "Accept all" or
+      "Let the agent decide"
+- [x] R4.3 Todos have a one-line title and a detail; a row opens its detail with a
+      slide; the panel minimizes to a rail on its edge; old todos split on the first
+      sentence
+- [x] R4.4 A `github.com` repo shows its owner's avatar
+- [x] R4.5 The app reads unmerged PRs with `gh` on plan open, when the last session
+      leaves, and from a board refresh button; "All PRs merged. Mark completed?"
+- [x] R4.6 A session whose process dies mid-poll leaves the session list at once
+- [x] R4.7 A sent review or Build wakes an idle Claude Code session through its inbox
+      socket, with a fallback line and a setting
+- [x] R4.8 Agents post questions with `ask_questions`; the person answers on the
+      Alignment tab; questions carry illustrations; cards show pending counts
+
 #### GATE 7 QA script
 
 Run a release build of 0.3.0 against the real base, with Claude Code connected
@@ -1017,7 +1040,7 @@ through `openplan install claude-code` (which now writes the two hooks).
     writes no commit.
 
 Known and decided, not bugs: an idle session hears about a review on its next
-keystroke, not at once (D11); record decisions render as plain text; only the
+keystroke, not at once (D11, superseded 2026-10-31 by the inbox wake-up); record decisions render as plain text; only the
 upright Inter face is vendored, so italics are synthesised.
 
 ---
@@ -1192,6 +1215,16 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | Archive and delete of several plans commit once (`edit: archive N plans`, `delete: N plans`); delete is the person's only, refuses any path outside the base, a hidden component or a non-plan, and checks every path before removing anything; a folder change on several plans commits once per plan | Sid (R2.1, R2.3). One command per kind of bulk change keeps the Tauri surface small, and git history keeps a deleted plan restorable |
 | 2026-10-29 | Deleting asks twice in one dialog: the first press arms the button as "Confirm delete" for 4 seconds, the second deletes; focus starts on Cancel | Sid asked for double confirmation. A second dialog would ask the same question twice |
 | 2026-10-29 | The webview's own context menu is suppressed everywhere except inputs, editors and a page with a text selection | Sid (R2.2): it offered Reload. Copy still has to work on selected text |
+| 2026-10-31 | Round 4 lands directly on main with no PRs | Sid (q10) |
+| 2026-10-31 | A plan is a draft only until the first review is sent, which moves it to alignment. Review and alignment run together until the person presses Build (shortcut `mod+shift+enter`, since every `+b` key belongs to the navbar). The status picker no longer sends an align event, and `Event::Align` is gone | Sid (R4.1): questions spread over the review rounds instead of one blocking batch. Build carries unsent comments (q2) and queues when no session is on the plan (q1) |
+| 2026-10-31 | `record_alignment` and `ask_questions` merge by question id. A question keeps the round it was first asked in, and only new ids get the next round | Resending a question to record its answer must not make it look like a new round |
+| 2026-10-31 | Agents post questions with `ask_questions` and answer through the Alignment tab or the session. They no longer open a harness question prompt | Sid (q4): fewer switches between the harness and OpenPlan. The app cannot close a harness prompt, so asking in both places would leave one open after an answer in the app |
+| 2026-10-31 | Each question names a role (product, engineering, design, oncall), shown as a drawn persona avatar in a chart colour. The agent picks the roles a plan needs, and the tab names the ones that did not ask. Every question has at least two options and one recommendation, with no "Accept all" or "Let the agent decide" | Sid (q3, q8, q9): help the person build taste, not decide for them. Inline SVG follows the theme and loads nothing |
+| 2026-10-31 | A dead session leaves the list when its poll socket closes: a second blocked thread reads the poll's socket and wakes the poll on end of file | R4.6: a poll with no event never wrote, so a killed `openplan mcp` stayed counted. Two blocked threads cost no cycles, unlike a timed wake |
+| 2026-10-31 | Supersedes D11. The `openplan mcp` process wakes an idle Claude Code session by writing to its inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`): an auth line, then one `{"type":"user",...}` line. It reports the result to the app, which shows "Agent woken." or "Couldn't wake the session. It will hear on your next message." The setting "Wake the agent when I send a review" is on by default and lives in the app's server, which tells the process on each poll | Sid (R4.7, q16, q17). The format is undocumented. It was verified on 2026-10-31 by a child process writing to its own session, which got the message with no approval prompt. A session mid-turn hears through the Stop hook and then gets the wake after its turn, which costs one extra turn. Channels were rejected: research preview, a development-only startup flag, nothing on the desktop app |
+| 2026-10-31 | Events for a plan nobody is on wait for the first session that takes it, except status changes | The plan file already says where it stands, so a replayed status is noise |
+| 2026-10-31 | `read_plan` ends with each alignment question and its answer | An agent woken by answers given in the app needs to read them somewhere |
+| 2026-10-31 | The app reads unmerged PRs with the person's `gh` CLI on plan open, from a board Refresh control, and when a plan's last session leaves. When every PR reads merged it offers "All PRs merged. Mark completed?". It never completes a plan on its own | Sid (q5, q6, q15). The agent's reports go stale once its session ends. `gh` uses the person's own login and needs no stored secret. The person stays the one who completes (2026-10-28) |
 
 ---
 
