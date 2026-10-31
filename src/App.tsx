@@ -1031,6 +1031,31 @@ export default function App() {
     }
   }, [refreshActive, rescanFolderItem]);
 
+  // macOS hides the traffic lights in fullscreen; the room the sidebar and
+  // header reserve for them goes with them.
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    void (async () => {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const win = getCurrentWindow();
+      const check = () =>
+        void win.isFullscreen().then((f) => {
+          if (!cancelled) setFullscreen(f);
+        });
+      check();
+      const un = await win.onResized(check);
+      if (cancelled) un();
+      else unlisten = un;
+    })();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
+
   useEffect(() => {
     if (isTauri) {
       let unlisten: (() => void) | undefined;
@@ -1252,7 +1277,7 @@ export default function App() {
           onToggleDir={toggleDir}
           onSelect={selectFile}
           onRemove={removeItem}
-          padTop={isTauri && isMac}
+          padTop={isTauri && isMac && !fullscreen}
         />
       </div>
 
@@ -1303,7 +1328,7 @@ export default function App() {
             setFindOpen(true);
             setFindFocusSeq((s) => s + 1);
           }}
-          trafficLightGap={isTauri && isMac}
+          trafficLightGap={isTauri && isMac && !fullscreen}
         />
         {/* Clips the outline while it sits translated off-screen — otherwise
             it enlarges the scrollable area and the browser can scroll the

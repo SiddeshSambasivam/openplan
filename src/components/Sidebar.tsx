@@ -141,14 +141,14 @@ export function Sidebar({
 
   return (
     <aside className="flex h-full w-full flex-col border-r border-sidebar-border bg-sidebar">
-      {padTop && <div data-tauri-drag-region className="h-6 shrink-0" />}
+      {padTop && <div data-tauri-drag-region className="h-8 shrink-0" />}
 
       <div
         data-tauri-drag-region
         className="flex shrink-0 items-center gap-2.5 px-4 pt-4 pb-4"
       >
-        <BrandMark className="pointer-events-none size-4 shrink-0 text-sidebar-foreground" />
-        <span className="pointer-events-none font-serif text-xl tracking-[-0.01em] text-sidebar-foreground">
+        <BrandMark className="pointer-events-none size-5 shrink-0 text-sidebar-foreground" />
+        <span className="pointer-events-none font-serif text-2xl tracking-[-0.01em] text-sidebar-foreground">
           OpenPlan
         </span>
       </div>
