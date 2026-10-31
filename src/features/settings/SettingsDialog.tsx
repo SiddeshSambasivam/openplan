@@ -289,7 +289,9 @@ export function SettingsDialog({
             ))}
           </nav>
 
-          <div className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
+          {/* The right gutter keeps scrolled controls out from under the
+              dialog's close button. */}
+          <div className="min-w-0 flex-1 overflow-y-auto py-5 pr-12 pl-6">
             {section === "profile" && (
               <ProfileSettings
                 identity={identity}
