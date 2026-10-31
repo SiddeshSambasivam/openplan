@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stripFrontmatter } from "./frontmatter";
+import { splitFrontmatter, stripFrontmatter } from "./frontmatter";
 
 describe("stripFrontmatter", () => {
   it("removes the metadata block so it is not read as the opening paragraph", () => {
@@ -22,5 +22,23 @@ describe("stripFrontmatter", () => {
     const text = "---\ntitle: A\n---\n# A\n\n---\n\nafter the rule\n";
 
     expect(stripFrontmatter(text)).toBe("# A\n\n---\n\nafter the rule\n");
+  });
+});
+
+describe("splitFrontmatter", () => {
+  it("keeps the block verbatim so it can be put back unchanged", () => {
+    const text = "---\nid: a\ntitle: Alpha\n---\n# Alpha\n";
+
+    const { header, body } = splitFrontmatter(text);
+
+    expect(header + body).toBe(text);
+    expect(body).toBe("# Alpha\n");
+  });
+
+  it("has no block for a plan that carries none", () => {
+    const { header, body } = splitFrontmatter("# Alpha\n");
+
+    expect(header).toBe("");
+    expect(body).toBe("# Alpha\n");
   });
 });

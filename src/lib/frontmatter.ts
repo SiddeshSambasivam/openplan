@@ -2,6 +2,16 @@
 const FENCE = "---";
 
 /**
+ * The metadata block and the text separately. The block is kept verbatim so
+ * it can be put back exactly as it was — editing a plan edits the plan, not
+ * the bookkeeping above it.
+ */
+export function splitFrontmatter(text: string): { header: string; body: string } {
+  const body = stripFrontmatter(text);
+  return { header: text.slice(0, text.length - body.length), body };
+}
+
+/**
  * Splits a plan's metadata block from the text a reader should see. The block
  * is shown as a header, not as the first paragraph of the plan, so preview
  * renders only what remains.

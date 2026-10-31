@@ -44,7 +44,7 @@ import {
 } from "./lib/tree";
 import { isFontSize, FONT_SIZE_SCALES, type FontSize } from "./lib/fontSize";
 import type { DocFile, FolderNode, LibraryItem, ViewMode } from "./lib/types";
-import { stripFrontmatter } from "./lib/frontmatter";
+import { splitFrontmatter } from "./lib/frontmatter";
 import { useOutline } from "./lib/useOutline";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
@@ -352,7 +352,8 @@ export default function App() {
     const doc = findDocInItems(itemsRef.current, activeIdRef.current);
     const api = editorRef.current;
     if (!doc || !api) return;
-    const text = api.getText();
+    // Whatever was above the text goes back exactly as it was.
+    const text = planHeaderRef.current + api.getText();
     const gen = editGen.current;
     if (autosaveTimer.current) {
       clearTimeout(autosaveTimer.current);
@@ -1106,12 +1107,18 @@ export default function App() {
 
   /* ---------- render ---------- */
 
-  // The metadata block is shown as a header, so the preview renders what is
-  // left. Editing still works on the whole file.
-  const previewContent = useMemo(
-    () => (content != null && activePlan ? stripFrontmatter(content) : content),
+  // A plan's metadata is the app's bookkeeping: shown as a header, never as
+  // the opening paragraph, and never something to edit by hand. Both reading
+  // and editing see the text below it, and the block is put back on save.
+  const { header: planHeader, body: planBody } = useMemo(
+    () =>
+      content != null && activePlan
+        ? splitFrontmatter(content)
+        : { header: "", body: content ?? "" },
     [content, activePlan],
   );
+  const planHeaderRef = useRef("");
+  planHeaderRef.current = planHeader;
 
   const wordCount = useMemo(() => {
     if (content == null) return null;
@@ -1232,7 +1239,7 @@ export default function App() {
             {activeDoc ? (
               <Viewer
                 doc={activeDoc}
-                content={view === "preview" ? previewContent : content}
+                content={content == null ? null : planBody}
                 error={error}
                 loading={loading}
                 view={view}
