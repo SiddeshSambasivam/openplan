@@ -1,0 +1,52 @@
+[
+  {
+    "id": "demo-theme",
+    "quote": "it always uses the light theme",
+    "lineStart": 16,
+    "lineEnd": 16,
+    "resolved": false,
+    "pending": false,
+    "resolvedBy": null,
+    "resolvedAt": null,
+    "sentAt": "{now}",
+    "comments": [
+      {
+        "id": "demo-theme-1",
+        "text": "Should someone in the dark theme get a dark PDF?",
+        "createdAt": "{now}",
+        "author": "user"
+      },
+      {
+        "id": "demo-theme-2",
+        "text": "I kept light only. Most exported PDFs get printed, and a dark page uses a lot of ink. A dark option can come later if people ask for it.",
+        "createdAt": "{now}",
+        "author": "claude-code"
+      }
+    ]
+  },
+  {
+    "id": "demo-tall-images",
+    "quote": "a tall image splits across pages",
+    "lineStart": 26,
+    "lineEnd": 26,
+    "resolved": true,
+    "pending": false,
+    "resolvedBy": "claude-code",
+    "resolvedAt": "{now}",
+    "sentAt": "{now}",
+    "comments": [
+      {
+        "id": "demo-tall-images-1",
+        "text": "What happens to a screenshot taller than one page?",
+        "createdAt": "{now}",
+        "author": "user"
+      },
+      {
+        "id": "demo-tall-images-2",
+        "text": "It splits across pages at the page height. I added that to the Approach.",
+        "createdAt": "{now}",
+        "author": "claude-code"
+      }
+    ]
+  }
+]

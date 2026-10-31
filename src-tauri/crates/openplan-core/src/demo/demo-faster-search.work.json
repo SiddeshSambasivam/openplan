@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "repos": [
+    {
+      "path": "~/code/notes",
+      "remote": "github.com/example/notes",
+      "branch": "search-index"
+    }
+  ],
+  "decisions": [],
+  "todos": [
+    {
+      "id": "t1",
+      "text": "Build the word index in `search/index.ts`",
+      "detail": "Tests cover adding, changing and deleting a note.",
+      "state": "done",
+      "by": "cursor",
+      "at": "{now}"
+    },
+    {
+      "id": "t2",
+      "text": "Keep the index current from the note store's change events",
+      "detail": "One note is indexed again each time it changes.",
+      "state": "done",
+      "by": "cursor",
+      "at": "{now}"
+    },
+    {
+      "id": "t3",
+      "text": "Answer queries from the index in `search/search.ts`",
+      "detail": "Falls back to the old scan until the first index build is done.",
+      "state": "done",
+      "by": "cursor",
+      "at": "{now}"
+    }
+  ],
+  "prs": [
+    {
+      "url": "https://github.com/example/notes/pull/38",
+      "repo": "github.com/example/notes",
+      "branch": "search-index",
+      "todos": ["t1", "t2", "t3"],
+      "state": "merged",
+      "checks": "passing",
+      "review": "approved",
+      "reportedAt": "{now}",
+      "by": "cursor"
+    }
+  ]
+}
