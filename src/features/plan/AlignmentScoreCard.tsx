@@ -31,8 +31,8 @@ export function AlignmentScoreCard({ score }: { score: AlignmentScore }) {
             strokeWidth="5"
             strokeLinecap="round"
             strokeDasharray={RING_LENGTH}
-            strokeDashoffset={RING_LENGTH * (1 - shown / 100)}
-            className={cn("stroke-foreground", shown === 0 && "opacity-0")}
+            strokeDashoffset={RING_LENGTH * (1 - score.total / 100)}
+            className={cn("stroke-foreground", score.total === 0 && "opacity-0")}
           />
         </svg>
         <span className="absolute inset-0 grid place-items-center text-base font-semibold tabular-nums">
@@ -111,7 +111,8 @@ function Chip({ tip, className, children }: { tip: string; className?: string; c
   );
 }
 
-/** Counts from the last score to this one, with the ring alongside. A
+/** Counts the number from the last score to this one. The ring takes its
+ * new length at once, since only transform and opacity may animate. A
  * reader who asks for less motion sees the number at once. */
 function useCountUp(target: number): number {
   const [shown, setShown] = useState(target);
