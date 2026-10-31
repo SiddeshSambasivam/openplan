@@ -1125,7 +1125,7 @@ update the app in place". Started 2026-10-31 on Sid's recorded GATE 7 waiver (§
 | Bucket | `openplan-updates-941377150511`: all public access blocked, bucket-owner-enforced. Its policy lets only the distribution below `s3:GetObject` |
 | CloudFront | `E1UM1Z5TY8K8X0`, `https://d1a9q4jq770jc6.cloudfront.net`, origin access control `E3THDAAGI5GG0H`, PriceClass_100. Default behaviour uses the managed CachingOptimized policy; `latest.json` uses CachingDisabled. **Never delete it**: every installed copy has this URL |
 | OIDC | Provider `token.actions.githubusercontent.com`, audience `sts.amazonaws.com` |
-| Role | `openplan-updates-publisher`: assumable only by `repo:SiddeshSambasivam/openplan:ref:refs/tags/v*`; one inline policy, `s3:PutObject` on the bucket |
+| Role | `openplan-updates-publisher`: assumable only by `repo:SiddeshSambasivam@42883007/openplan@1334961710:ref:refs/tags/v*`; one inline policy, `s3:PutObject` on the bucket. The repo issues GitHub's immutable OIDC subject (owner and repo IDs), so a name-only pattern never matches; it failed the first 0.6.1 publish |
 | Budget | `openplan-updates`: monthly, $0.01, emails when actual spend passes it |
 | Repo variables | `UPDATES_ROLE_ARN`, `UPDATES_REGION`, `UPDATES_BUCKET`, `UPDATES_HOST` |
 | Repo secrets | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (Sid, P8.1) |
