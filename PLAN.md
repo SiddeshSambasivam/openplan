@@ -586,14 +586,14 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 - [x] P1.2 `openplan-core::plan` — frontmatter parse/serialize, meta derivation
       **(T: round-trip byte-identical body)**
 - [x] P1.3 `openplan-core::repo` — git2 init/commit/log/diff **(T: temp repos)**
-- [ ] P1.4 Tauri commands: `get_base`, `create_base`, `scan_base` (meta included),
+- [x] P1.4 Tauri commands: `get_base`, `create_base`, `scan_base` (meta included),
       `set_plan_status` **(T)**
 - [ ] P1.5 First-run silent base creation wired into app startup (no UI — §4.1
       step 1; the sync screen comes in P3)
 - [ ] P1.6 Sidebar: base as root, status badges, group-by-status, filter extension
 - [ ] P1.7 Metadata header in preview (status chip editable, source, dates);
       frontmatter hidden from body **(T: lib logic)**
-- [ ] P1.8 Watcher: `notify` + debounce + `base-changed` event; `usePlanBase` hook
+- [x] P1.8 Watcher: `notify` + debounce + `base-changed` event; `usePlanBase` hook
       subscribes; toast on new plan **(T: Rust debounce/queue logic)**
 - [ ] P1.9 Auto-commit on app writes + external-write catch-up commits **(T)**
 - [ ] P1.10 History panel: revision list (with git-author attribution), diff view,

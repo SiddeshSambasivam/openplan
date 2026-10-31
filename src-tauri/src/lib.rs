@@ -1,3 +1,5 @@
+mod plans;
+
 use std::path::Path;
 
 const MARKDOWN_EXTENSIONS: [&str; 7] = ["md", "markdown", "mdown", "mkd", "mkdn", "mdx", "txt"];
@@ -194,7 +196,19 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            plans::setup(app);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
+            plans::get_base,
+            plans::scan_plans,
+            plans::search_plans,
+            plans::set_plan_status,
+            plans::commit_base,
+            plans::plan_history,
+            plans::plan_at_revision,
+            plans::restore_plan_revision,
             read_markdown,
             write_markdown,
             scan_folder,

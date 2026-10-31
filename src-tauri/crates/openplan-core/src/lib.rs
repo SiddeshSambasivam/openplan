@@ -3,6 +3,7 @@
 
 pub mod base;
 pub mod fs;
+pub mod library;
 pub mod plan;
 pub mod repo;
 pub mod settings;

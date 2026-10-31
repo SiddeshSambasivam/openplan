@@ -41,6 +41,12 @@ pub fn write_settings(path: &Path, settings: &Settings) -> Result<(), String> {
     atomic_write(path, &format!("{json}\n"))
 }
 
+/// The base this machine should use, found the way a running app finds it.
+pub fn resolve_default_base() -> Result<Base, String> {
+    let home = dirs::home_dir().ok_or_else(|| "Couldn't find your home directory.".to_string())?;
+    resolve_base(&settings_path()?, &home)
+}
+
 /// The base this machine should use: whichever one was chosen before, or a
 /// fresh one in the home directory. Either way it exists by the time this
 /// returns, and the choice is recorded so the next caller agrees.
