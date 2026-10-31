@@ -945,6 +945,9 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [ ] R2.7 Alignment questions carry more detail: why the question matters, what the
       agent found, and each option's trade-off
 
+- [ ] R2.8 Profile: one profile, the app's existing identity, shown as a generated
+      avatar at the bottom of the navbar; its menu holds Settings, the theme switch
+      and the shortcut list; the theme toggle leaves the top bar
 #### GATE 7 QA script
 
 Run a release build of 0.3.0 against the real base, with Claude Code connected
@@ -1166,6 +1169,7 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-29 | On macOS the navbar keeps a 36px spacer above the mark in both modes, and in minimized mode the top bar's content starts at x 84 | The traffic lights overlapped the rail and the top bar's first control (R1.10). A spacer that changed with the mode would jump the rows during the transition |
 | 2026-10-29 | Folders the person creates live in the base's `openplan.json` `folders` list; the navbar and the pickers show the union with frontmatter; removing drops the list entry only | A folder with no plans has no frontmatter to live in. Plans keep their own folders, so one still in use reappears |
 | 2026-10-29 | Search is a navbar row, not a control in the top row | Both modes then share one layout and the transition moves nothing |
+| 2026-10-29 | One profile for now: the identity the app already holds (settings name and email), drawn as a generated avatar. Multiple profiles and their routing are designed in §10, not built | Sid wants browser-style profiles eventually and asked to start with one. Building the list before the routing is agreed would fix the wrong storage |
 
 ---
 
@@ -1186,3 +1190,22 @@ contains the answer — don't invent a new one when the time comes:
 - Constraint to preserve until then: **nothing in v1 may assume it is the only
   writer**, and all coordination stays at the filesystem/git layer — that's what
   keeps the remote story cheap later.
+
+**Profiles (designed 2026-10-29, not built).** A profile is a separate base with its
+own directory (`~/.openplan` stays the default, others are `~/.openplan-<name>`), its
+own git history, its own identity and avatar, and its own settings. The app shows one
+profile at a time and switches like a browser profile. Plans route to a profile at
+`create_plan`, in the CLI, by rules on each profile checked in order:
+
+1. The git remote's owner or organisation, for example `github.com/HypotenuseAI/*`
+   goes to Work. It survives worktrees and clones in any folder.
+2. A path prefix, for example `~/Personal/` goes to Personal. It covers folders with
+   no remote.
+3. Otherwise the default profile.
+
+The agent already passes its repos (path and remote) to `create_plan`, and the
+server's working directory is the session's, so routing needs nothing from the agent
+or the person after the rules are set. A plan never moves between profiles on its own;
+moving one is an explicit action that copies it and commits in both bases. Rejected:
+routing to whichever profile is open in the app (wrong as soon as two sessions run in
+different projects), and asking the agent to name a profile (it cannot know).
