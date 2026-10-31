@@ -82,7 +82,8 @@ function Segmented<T extends string>({
           aria-pressed={option.value === value}
           className={cn(
             "px-2.5",
-            option.value === value && "bg-background text-foreground shadow-xs",
+            option.value === value &&
+              "bg-background text-foreground shadow-xs hover:bg-background dark:hover:bg-background",
           )}
         >
           {option.label}
