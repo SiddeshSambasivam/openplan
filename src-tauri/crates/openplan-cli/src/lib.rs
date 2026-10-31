@@ -3,6 +3,8 @@
 //! writes and what the app reads cannot drift.
 
 pub mod mcp;
+#[cfg(unix)]
+mod wake;
 mod work_tools;
 
 use openplan_core::base::Base;
@@ -147,14 +149,21 @@ pub fn pending(args: &[String], hook_input: &str) -> Option<String> {
 /// hook that is JSON that keeps the agent going, unless a stop hook already
 /// kept it going this turn, which would otherwise loop.
 pub fn pending_output(events: &[Event], client: &str, format: &str, hook_input: &str) -> Option<String> {
-    if events.is_empty() {
+    let input: serde_json::Value = serde_json::from_str(hook_input).unwrap_or_default();
+    // A turn the wake message started already carries these lines.
+    let prompt = input["prompt"].as_str().unwrap_or("");
+    let lines: Vec<String> = events
+        .iter()
+        .map(pending_line)
+        .filter(|line| !prompt.contains(line.as_str()))
+        .collect();
+    if lines.is_empty() {
         return None;
     }
-    let text = events.iter().map(pending_line).collect::<Vec<_>>().join("\n");
+    let text = lines.join("\n");
     if format != "stop" {
         return Some(text);
     }
-    let input: serde_json::Value = serde_json::from_str(hook_input).unwrap_or_default();
     let continuing = input["stop_hook_active"] == true
         || input["loop_count"].as_u64().is_some_and(|n| n > 0);
     if continuing {
@@ -168,6 +177,17 @@ pub fn pending_output(events: &[Event], client: &str, format: &str, hook_input: 
     Some(output.to_string())
 }
 
+/// The message that starts an idle agent's turn: the hook's lines for what
+/// the person did. `None` when nothing in `events` is worth waking for.
+pub fn wake_text(events: &[Event]) -> Option<String> {
+    let lines: Vec<String> = events
+        .iter()
+        .filter(|event| !matches!(event, Event::Status { .. }))
+        .map(pending_line)
+        .collect();
+    (!lines.is_empty()).then(|| lines.join("\n"))
+}
+
 fn pending_line(event: &Event) -> String {
     match event {
         Event::Comments { plan, threads } => format!(
@@ -175,8 +195,11 @@ fn pending_line(event: &Event) -> String {
             threads.len(),
             if threads.len() == 1 { "" } else { "s" }
         ),
-        Event::Align { plan } => format!(
-            "OpenPlan: the plan {plan} is in alignment. Ask your questions and call record_alignment."
+        Event::Build { plan, .. } => format!(
+            "OpenPlan: the person pressed Build on {plan}. Answer the open comments, then post every question left with ask_questions, or add todos, set in-progress and start."
+        ),
+        Event::Answers { plan } => format!(
+            "OpenPlan: the person answered your questions on {plan}. Call read_plan to see the answers, then continue."
         ),
         Event::Status { plan, status } => format!("OpenPlan: {plan} is now {status}."),
     }
@@ -438,21 +461,30 @@ mod tests {
         }
     }
 
-    fn align(plan: &str) -> Event {
-        Event::Align {
+    fn build(plan: &str) -> Event {
+        Event::Build {
             plan: plan.to_string(),
+            threads: Vec::new(),
         }
     }
 
+    const BUILD_SYNC: &str = "OpenPlan: the person pressed Build on sync. Answer the open comments, then post every question left with ask_questions, or add todos, set in-progress and start.";
+
     #[test]
     fn pending_prints_plain_lines_for_a_prompt_hook() {
-        let out = pending_output(&[review("auth", 2), align("sync")], "claude-code", "context", "")
+        let answers = Event::Answers {
+            plan: "auth".to_string(),
+        };
+        let out = pending_output(&[review("auth", 2), build("sync"), answers], "claude-code", "context", "")
             .unwrap();
 
         assert_eq!(
             out,
-            "OpenPlan: a review with 2 comments arrived on auth. Call get_comments.\n\
-             OpenPlan: the plan sync is in alignment. Ask your questions and call record_alignment."
+            format!(
+                "OpenPlan: a review with 2 comments arrived on auth. Call get_comments.\n\
+                 {BUILD_SYNC}\n\
+                 OpenPlan: the person answered your questions on auth. Call read_plan to see the answers, then continue."
+            )
         );
         assert_eq!(
             pending_output(&[review("auth", 1)], "claude-code", "context", "").unwrap(),
@@ -464,14 +496,36 @@ mod tests {
     fn pending_keeps_a_claude_code_session_going_from_a_stop_hook() {
         let input = r#"{"session_id":"abc","hook_event_name":"Stop","stop_hook_active":false}"#;
 
-        let out = pending_output(&[align("sync")], "claude-code", "stop", input).unwrap();
+        let out = pending_output(&[build("sync")], "claude-code", "stop", input).unwrap();
 
         let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed["decision"], "block");
+        assert_eq!(parsed["reason"], BUILD_SYNC);
+    }
+
+    #[test]
+    fn a_prompt_that_already_says_it_is_not_said_again() {
+        // The wake message is the hook's own lines, so the turn it starts
+        // does not hear them twice.
+        let wake = wake_text(&[review("auth", 2), build("sync")]).unwrap();
+        let input = serde_json::json!({ "prompt": format!("From another session:\n{wake}") }).to_string();
+
+        assert_eq!(pending_output(&[review("auth", 2), build("sync")], "claude-code", "context", &input), None);
         assert_eq!(
-            parsed["reason"],
-            "OpenPlan: the plan sync is in alignment. Ask your questions and call record_alignment."
+            pending_output(&[review("auth", 2), build("sync")], "claude-code", "context", r#"{"prompt":"hi"}"#).unwrap(),
+            wake
         );
+    }
+
+    #[test]
+    fn only_what_the_person_did_wakes_the_agent() {
+        let status = Event::Status {
+            plan: "auth".to_string(),
+            status: "in-review".to_string(),
+        };
+
+        assert_eq!(wake_text(std::slice::from_ref(&status)), None);
+        assert_eq!(wake_text(&[status, build("sync")]).as_deref(), Some(BUILD_SYNC));
     }
 
     #[test]
@@ -491,8 +545,8 @@ mod tests {
         assert_eq!(pending_output(&[], "claude-code", "stop", ""), None);
         assert_eq!(pending_output(&[], "claude-code", "context", ""), None);
         let again = r#"{"stop_hook_active":true}"#;
-        assert_eq!(pending_output(&[align("sync")], "claude-code", "stop", again), None);
-        assert_eq!(pending_output(&[align("sync")], "cursor", "stop", r#"{"loop_count":1}"#), None);
+        assert_eq!(pending_output(&[build("sync")], "claude-code", "stop", again), None);
+        assert_eq!(pending_output(&[build("sync")], "cursor", "stop", r#"{"loop_count":1}"#), None);
     }
 
     #[test]

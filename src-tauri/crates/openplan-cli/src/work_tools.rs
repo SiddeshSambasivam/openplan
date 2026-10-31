@@ -506,6 +506,23 @@ pub fn summary(body: &str) -> String {
     section.unwrap_or(lead).join("\n").trim().to_string()
 }
 
+/// The questions and the person's answers, for an agent reading the plan.
+/// Empty while nothing has been asked.
+pub fn alignment_note(record: &WorkRecord) -> String {
+    let Some(alignment) = record.alignment.as_ref().filter(|a| !a.questions.is_empty()) else {
+        return String::new();
+    };
+    let mut out = "\n\nAlignment, from the plan's work record:\n".to_string();
+    for question in &alignment.questions {
+        let answer = match question.answer {
+            Some(_) => answer_line(question),
+            None => "Not answered yet.".to_string(),
+        };
+        out.push_str(&format!("- {}: {} Answer: {answer}\n", question.id, question.question));
+    }
+    out
+}
+
 fn answer_line(question: &Question) -> String {
     let label = |id: &str| {
         question

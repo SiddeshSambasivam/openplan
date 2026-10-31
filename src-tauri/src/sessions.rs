@@ -5,8 +5,11 @@
 
 use openplan_core::base::Base;
 use openplan_core::comments::CommentThread;
+use openplan_core::library::PlanEntry;
 use openplan_core::local::{self, AppInfo, CommentNote, Event, Notice, SessionInfo};
-use openplan_core::{comments, library};
+use openplan_core::{comments, library, repo, settings};
+use serde::Serialize;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tauri::Emitter;
 
@@ -31,20 +34,8 @@ pub async fn send_comments(
     let Some(server) = SERVER.get() else {
         return Ok(0);
     };
-    let base = state.get()?;
-    let path = std::path::PathBuf::from(&path);
-    // A set keeps its threads on the document they were written on, so the
-    // plan a comment belongs to can be the folder's, not the file's.
-    let plan = library::scan(base)
-        .into_iter()
-        .find(|entry| {
-            entry.path == path
-                || entry
-                    .path
-                    .parent()
-                    .is_some_and(|folder| !entry.documents.is_empty() && path.starts_with(folder))
-        })
-        .ok_or_else(|| "That plan isn't in the plan base.".to_string())?;
+    let path = PathBuf::from(&path);
+    let plan = plan_of(state.get()?, &path)?;
 
     let notes = notes(&comments::read_threads(&path), &thread_ids);
     if notes.is_empty() {
@@ -59,14 +50,96 @@ pub async fn send_comments(
     ))
 }
 
-/// Tells every session on the plan that the person set it to alignment, and
-/// says how many heard. Zero means the hooks deliver it on the next prompt.
+/// Tells the sessions on the plan to start the work, with whatever review
+/// comments were still unsent, and says how many heard. Zero means the next
+/// session to take the plan hears it.
 #[tauri::command]
-pub async fn send_align(plan: String) -> usize {
-    SERVER
-        .get()
-        .map(|server| server.send(&plan, Event::Align { plan: plan.clone() }))
-        .unwrap_or(0)
+pub async fn send_build(
+    path: String,
+    state: tauri::State<'_, crate::plans::BaseState>,
+) -> Result<usize, String> {
+    let base = state.get()?;
+    let plan = plan_of(base, Path::new(&path))?;
+    let threads = send_documents_unsent(base, &plan)?;
+    Ok(send(
+        &plan.meta.id,
+        Event::Build {
+            plan: plan.meta.id.clone(),
+            threads,
+        },
+    ))
+}
+
+/// Tells the sessions on the plan the person answered its questions, and
+/// says how many heard.
+#[tauri::command]
+pub async fn send_answers(plan: String) -> usize {
+    send(&plan, Event::Answers { plan: plan.clone() })
+}
+
+/// Whether a send starts the agent's turn in an idle session.
+pub fn set_wake(on: bool) {
+    if let Some(server) = SERVER.get() {
+        server.set_wake(on);
+    }
+}
+
+fn send(plan_id: &str, event: Event) -> usize {
+    SERVER.get().map(|server| server.send(plan_id, event)).unwrap_or(0)
+}
+
+/// The plan a document belongs to. A set keeps its threads on the document
+/// they were written on, so that can be the folder's plan, not the file's.
+fn plan_of(base: &Base, path: &Path) -> Result<PlanEntry, String> {
+    library::scan(base)
+        .into_iter()
+        .find(|entry| {
+            entry.path == path
+                || entry
+                    .path
+                    .parent()
+                    .is_some_and(|folder| !entry.documents.is_empty() && path.starts_with(folder))
+        })
+        .ok_or_else(|| "That plan isn't in the plan base.".to_string())
+}
+
+/// Sends every unsent thread on each of the plan's documents, and records
+/// the review when there was one.
+fn send_documents_unsent(base: &Base, plan: &PlanEntry) -> Result<Vec<CommentNote>, String> {
+    let documents: Vec<PathBuf> = match plan.path.parent() {
+        Some(folder) if !plan.documents.is_empty() => {
+            plan.documents.iter().map(|d| folder.join(d)).collect()
+        }
+        _ => vec![plan.path.clone()],
+    };
+    let now = openplan_core::import::now_iso();
+    let mut sent = Vec::new();
+    for document in documents {
+        let mut threads = comments::read_threads(&document);
+        let notes = send_unsent(&mut threads, &now);
+        if !notes.is_empty() {
+            comments::write_threads(&document, &threads)?;
+            sent.extend(notes);
+        }
+    }
+    if !sent.is_empty() {
+        let label = if sent.len() == 1 { "thread" } else { "threads" };
+        let message = format!("review: {} ({} {label})", plan.meta.id, sent.len());
+        let _ = repo::commit_all(&base.root, &settings::me(), &message);
+    }
+    Ok(sent)
+}
+
+/// Marks the threads the person was still writing as sent, and returns them
+/// as they go out. A thread closed before it was sent was thrown away.
+fn send_unsent(threads: &mut [CommentThread], now: &str) -> Vec<CommentNote> {
+    let mut ids = Vec::new();
+    for thread in threads.iter_mut().filter(|t| t.pending && !t.resolved) {
+        thread.pending = false;
+        thread.sent_at = Some(now.to_string());
+        ids.push(thread.id.clone());
+    }
+    notes(threads, &ids)
 }
 
 /// The named threads, each as its newest comment: that is what is being sent,
@@ -92,21 +165,27 @@ fn notes(threads: &[CommentThread], wanted: &[String]) -> Vec<CommentNote> {
         .collect()
 }
 
+/// A session tried to start its agent's turn, for the line after a send.
+#[derive(Clone, Serialize)]
+struct Woke {
+    ok: bool,
+    plans: Vec<String>,
+}
+
 pub fn setup(app: &tauri::App, base: Option<Base>) {
     if base.is_none() {
         return;
     }
     let handle = app.handle().clone();
     let Ok(server) = local::Server::start(move |notice| {
-        let _ = handle.emit(
-            match notice {
-                Notice::SessionsChanged => "sessions-changed",
-            },
-            (),
-        );
+        let _ = match notice {
+            Notice::SessionsChanged => handle.emit("sessions-changed", ()),
+            Notice::Woke { ok, plans } => handle.emit("session-woke", Woke { ok, plans }),
+        };
     }) else {
         return;
     };
+    server.set_wake(settings::current_wake());
     if let Ok(path) = local::app_path() {
         let _ = local::write_app(
             &path,
@@ -202,6 +281,26 @@ mod tests {
         unsent.pending = true;
 
         assert!(notes(&[unsent], &["t1".to_string()]).is_empty());
+    }
+
+    #[test]
+    fn build_sends_the_threads_still_unsent_and_marks_them_sent() {
+        let mut unsent = thread("t1", vec![entry("user", Some("Sid"), "half a thought")]);
+        unsent.pending = true;
+        let mut closed = thread("t3", vec![entry("user", Some("Sid"), "never mind")]);
+        closed.pending = true;
+        closed.resolved = true;
+        let mut threads = vec![unsent, thread("t2", vec![entry("user", Some("Sid"), "sent already")]), closed];
+
+        let sent = send_unsent(&mut threads, "2026-10-31T09:00:00Z");
+
+        assert_eq!(sent.iter().map(|n| n.id.as_str()).collect::<Vec<_>>(), vec!["t1"]);
+        assert_eq!(sent[0].text, "half a thought");
+        assert!(!threads[0].pending);
+        assert_eq!(threads[0].sent_at.as_deref(), Some("2026-10-31T09:00:00Z"));
+        assert_eq!(threads[1].sent_at, None, "a thread sent before keeps its own time");
+        assert!(threads[2].pending, "a draft thrown away is not sent");
+        assert!(send_unsent(&mut threads, "later").is_empty());
     }
 
     #[test]

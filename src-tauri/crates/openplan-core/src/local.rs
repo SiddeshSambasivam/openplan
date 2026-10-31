@@ -52,8 +52,14 @@ pub enum Event {
         plan: String,
         status: String,
     },
-    /// The person set the plan to alignment, so the agent asks its questions.
-    Align {
+    /// The person pressed Build. The threads are the review comments that
+    /// were still unsent, which went out with it.
+    Build {
+        plan: String,
+        threads: Vec<CommentNote>,
+    },
+    /// The person answered posted questions in the app.
+    Answers {
         plan: String,
     },
 }
@@ -69,10 +75,21 @@ pub struct SessionInfo {
 }
 
 /// What the app should tell the interface after a request changed something.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Notice {
     /// Who is working, or on what, is different.
     SessionsChanged,
+    /// A session tried to start its agent's turn, on the plans it is on.
+    Woke { ok: bool, plans: Vec<String> },
+}
+
+/// What one poll hands a session: the events, and whether the person wants
+/// its agent woken for them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Polled {
+    pub events: Vec<Event>,
+    #[serde(default)]
+    pub wake: bool,
 }
 
 struct Session {
@@ -89,11 +106,26 @@ struct Session {
     polling: bool,
 }
 
-#[derive(Default)]
 struct State {
     sessions: HashMap<String, Session>,
+    /// Events sent to a plan nobody was on, by plan, for the first session
+    /// that takes it.
+    held: HashMap<String, Vec<Event>>,
     next: u64,
     stopped: bool,
+    wake: bool,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        State {
+            sessions: HashMap::new(),
+            held: HashMap::new(),
+            next: 0,
+            stopped: false,
+            wake: true,
+        }
+    }
 }
 
 /// The lock guards the sessions; the condition variable is what lets a poll
@@ -144,7 +176,7 @@ impl Server {
     }
 
     /// Hands an event to every session working on that plan, and says how many
-    /// got it.
+    /// got it. With none, the event waits for the next session on the plan.
     pub fn send(&self, plan_id: &str, event: Event) -> usize {
         let (lock, waiting) = &*self.shared;
         let Ok(mut state) = lock.lock() else {
@@ -158,8 +190,18 @@ impl Server {
                 sent += 1;
             }
         }
+        if sent == 0 {
+            state.held.entry(plan_id.to_string()).or_default().push(event);
+        }
         waiting.notify_all();
         sent
+    }
+
+    /// Whether polls ask sessions to start their agent's turn.
+    pub fn set_wake(&self, on: bool) {
+        if let Ok(mut state) = self.shared.0.lock() {
+            state.wake = on;
+        }
     }
 
     /// Releases every held-open poll. The listener stops at its next
@@ -226,6 +268,7 @@ fn handle(shared: &Shared, notify: &dyn Fn(Notice), mut stream: TcpStream) {
         ("GET", ["sessions", id, "events"]) => poll(shared, notify, id, &mut stream),
         ("GET", ["sessions", id, "pending"]) => pending_events(shared, id, &mut stream),
         ("POST", ["sessions", id, "heard"]) => heard(shared, id, &request.body, &mut stream),
+        ("POST", ["sessions", id, "woke"]) => woke(shared, notify, id, &request.body, &mut stream),
         _ => {
             let _ = respond(&mut stream, "404 Not Found", "{}");
         }
@@ -279,15 +322,22 @@ fn take_plan(
         return;
     };
     {
-        let Ok(mut state) = shared.0.lock() else {
+        let (lock, waiting) = &**shared;
+        let Ok(mut guard) = lock.lock() else {
             let _ = respond(stream, "500 Internal Server Error", "{}");
             return;
         };
+        let state = &mut *guard;
         let Some(session) = state.sessions.get_mut(id) else {
             let _ = respond(stream, "404 Not Found", "{}");
             return;
         };
         session.seen = Instant::now();
+        if let Some(held) = state.held.remove(&plan_id) {
+            session.events.extend(held.iter().cloned());
+            session.unheard.extend(held);
+            waiting.notify_all();
+        }
         if !session.plans.iter().any(|p| p == &plan_id) {
             session.plans.push(plan_id);
         }
@@ -326,6 +376,26 @@ fn heard(shared: &Shared, id: &str, body: &str, stream: &mut TcpStream) {
     });
     let status = if found.is_some() { "200 OK" } else { "404 Not Found" };
     let _ = respond(stream, status, "{}");
+}
+
+/// The session tried to start its agent's turn. Only the interface cares, so
+/// this answers and passes it on.
+fn woke(shared: &Shared, notify: &dyn Fn(Notice), id: &str, body: &str, stream: &mut TcpStream) {
+    let ok = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| v.get("ok")?.as_bool())
+        .unwrap_or(false);
+    let plans = shared
+        .0
+        .lock()
+        .ok()
+        .and_then(|state| state.sessions.get(id).map(|s| s.plans.clone()));
+    let Some(plans) = plans else {
+        let _ = respond(stream, "404 Not Found", "{}");
+        return;
+    };
+    let _ = respond(stream, "200 OK", "{}");
+    notify(Notice::Woke { ok, plans });
 }
 
 /// Holds the connection until there is something to say, or until the client
@@ -388,9 +458,13 @@ fn answer_poll(shared: &Shared, id: &str, hung_up: &AtomicBool, stream: &mut Tcp
             std::mem::take(&mut session.events)
         })
         .unwrap_or_default();
+    let polled = Polled {
+        events,
+        wake: state.wake,
+    };
     drop(state);
 
-    let body = format!("{{\"events\":{}}}", json_array(&events));
+    let body = serde_json::to_string(&polled).unwrap_or_else(|_| "{\"events\":[]}".to_string());
     respond(stream, "200 OK", &body).is_ok()
 }
 
@@ -485,13 +559,20 @@ impl Client {
         let _ = request(self.port, "POST", &path, &body, Some(REPLY_TIMEOUT));
     }
 
+    /// Says whether this session managed to start its agent's turn. Best
+    /// effort, like `take_plan`.
+    pub fn woke(&self, ok: bool) {
+        let path = format!("/sessions/{}/woke", self.id);
+        let body = format!("{{\"ok\":{ok}}}");
+        let _ = request(self.port, "POST", &path, &body, Some(REPLY_TIMEOUT));
+    }
+
     /// Blocks until the app has something for this session. `None` once the
     /// session is over, whichever side ended it.
-    pub fn events(&self) -> Option<Vec<Event>> {
+    pub fn events(&self) -> Option<Polled> {
         let path = format!("/sessions/{}/events", self.id);
         let reply = request(self.port, "GET", &path, "", None)?;
-        let events: EventsReply = serde_json::from_str(&reply).ok()?;
-        Some(events.events)
+        serde_json::from_str(&reply).ok()
     }
 
     pub fn end(&self) {
@@ -706,9 +787,10 @@ mod tests {
         }
     }
 
-    fn align(plan: &str) -> Event {
-        Event::Align {
+    fn build(plan: &str) -> Event {
+        Event::Build {
             plan: plan.to_string(),
+            threads: Vec::new(),
         }
     }
 
@@ -748,11 +830,11 @@ mod tests {
         // Nothing waiting is an empty answer, not a held connection.
         assert_eq!(pending_at(server.port, "claude-code", None), Vec::<Event>::new());
 
-        server.send("auth-refactor", align("auth-refactor"));
+        server.send("auth-refactor", build("auth-refactor"));
         // The session's own poll takes the event, and the hook still sees it.
-        assert_eq!(client.events().unwrap(), vec![align("auth-refactor")]);
-        assert_eq!(pending_at(server.port, "claude-code", None), vec![align("auth-refactor")]);
-        assert_eq!(pending_at(server.port, "claude-code", None), vec![align("auth-refactor")]);
+        assert_eq!(client.events().unwrap().events, vec![build("auth-refactor")]);
+        assert_eq!(pending_at(server.port, "claude-code", None), vec![build("auth-refactor")]);
+        assert_eq!(pending_at(server.port, "claude-code", None), vec![build("auth-refactor")]);
 
         // Once a tool result carried it, the hook has nothing left to say.
         client.heard(1);
@@ -772,14 +854,14 @@ mod tests {
         let cursor = open(&server, "cursor");
         cursor.take_plan("cursor-plan");
         for plan in ["old-plan", "new-plan", "cursor-plan"] {
-            server.send(plan, align(plan));
+            server.send(plan, build(plan));
         }
 
-        assert_eq!(pending_at(server.port, "claude-code", None), vec![align("new-plan")]);
-        assert_eq!(pending_at(server.port, "cursor", None), vec![align("cursor-plan")]);
+        assert_eq!(pending_at(server.port, "claude-code", None), vec![build("new-plan")]);
+        assert_eq!(pending_at(server.port, "cursor", None), vec![build("cursor-plan")]);
         assert_eq!(
             pending_at(server.port, "claude-code", Some(older.id())),
-            vec![align("old-plan")]
+            vec![build("old-plan")]
         );
         assert_eq!(pending_at(server.port, "codex", None), Vec::<Event>::new());
         assert_eq!(pending_at(server.port, "claude-code", Some(idle.id())), Vec::<Event>::new());
@@ -826,7 +908,7 @@ mod tests {
         );
         assert_eq!(sent, 1);
 
-        let events = reader.join().unwrap().unwrap();
+        let events = reader.join().unwrap().unwrap().events;
         assert_eq!(
             events,
             vec![Event::Comments {
@@ -851,7 +933,7 @@ mod tests {
             },
         );
         assert_eq!(
-            client.events().unwrap(),
+            client.events().unwrap().events,
             vec![Event::Status {
                 plan: "auth-refactor".to_string(),
                 status: "in-review".to_string(),
@@ -905,14 +987,14 @@ mod tests {
         client.take_plan("auth-refactor");
         while notices.try_recv().is_ok() {}
 
-        server.send("auth-refactor", align("auth-refactor"));
-        assert_eq!(client.events().unwrap(), vec![align("auth-refactor")]);
+        server.send("auth-refactor", build("auth-refactor"));
+        assert_eq!(client.events().unwrap().events, vec![build("auth-refactor")]);
 
         // The client asks again at once, as its loop does.
         let polling = client.clone();
         let reader = std::thread::spawn(move || polling.events());
-        assert_eq!(server.send("auth-refactor", align("auth-refactor")), 1);
-        assert_eq!(reader.join().unwrap().unwrap(), vec![align("auth-refactor")]);
+        assert_eq!(server.send("auth-refactor", build("auth-refactor")), 1);
+        assert_eq!(reader.join().unwrap().unwrap().events, vec![build("auth-refactor")]);
 
         assert_eq!(server.sessions().len(), 1);
         assert!(notices.try_recv().is_err(), "the session count never changed");
@@ -921,11 +1003,66 @@ mod tests {
     }
 
     #[test]
-    fn a_plan_nobody_is_working_on_gets_nothing() {
+    fn an_event_for_a_plan_nobody_is_on_waits_for_the_next_session_to_take_it() {
         let server = Server::start(|_| {}).unwrap();
-        open(&server, "cursor").take_plan("auth-refactor");
+        let elsewhere = open(&server, "cursor");
+        elsewhere.take_plan("auth-refactor");
 
-        assert_eq!(server.send("some-other-plan", align("some-other-plan")), 0);
+        assert_eq!(server.send("sync", build("sync")), 0);
+        assert_eq!(pending_at(server.port, "cursor", Some(elsewhere.id())), Vec::<Event>::new());
+
+        let later = open(&server, "claude-code");
+        later.take_plan("sync");
+        assert_eq!(later.events().unwrap().events, vec![build("sync")]);
+        assert_eq!(pending_at(server.port, "claude-code", Some(later.id())), vec![build("sync")]);
+
+        // The first session to take the plan got it, so a second gets nothing.
+        let second = open(&server, "claude-code");
+        second.take_plan("sync");
+        assert_eq!(pending_at(server.port, "claude-code", Some(second.id())), Vec::<Event>::new());
+
+        server.shutdown();
+    }
+
+    #[test]
+    fn a_poll_says_whether_the_app_wants_the_session_woken() {
+        let server = Server::start(|_| {}).unwrap();
+        let client = open(&server, "claude-code");
+        client.take_plan("auth-refactor");
+
+        server.send("auth-refactor", build("auth-refactor"));
+        assert!(client.events().unwrap().wake, "on until the person turns it off");
+
+        server.set_wake(false);
+        server.send("auth-refactor", build("auth-refactor"));
+        assert!(!client.events().unwrap().wake);
+
+        server.shutdown();
+    }
+
+    #[test]
+    fn a_session_reports_whether_it_woke_its_agent() {
+        let (server, notices) = a_listened_server();
+        let client = open(&server, "claude-code");
+        client.take_plan("auth-refactor");
+        while notices.try_recv().is_ok() {}
+
+        client.woke(true);
+        assert_eq!(
+            notices.recv_timeout(Duration::from_secs(5)),
+            Ok(Notice::Woke {
+                ok: true,
+                plans: vec!["auth-refactor".to_string()],
+            })
+        );
+        client.woke(false);
+        assert_eq!(
+            notices.recv_timeout(Duration::from_secs(5)),
+            Ok(Notice::Woke {
+                ok: false,
+                plans: vec!["auth-refactor".to_string()],
+            })
+        );
 
         server.shutdown();
     }
@@ -970,8 +1107,15 @@ mod tests {
         assert!(json.contains("\"kind\":\"status\""), "{json}");
         assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), status);
 
-        let json = serde_json::to_string(&align("auth-refactor")).unwrap();
-        assert_eq!(json, "{\"kind\":\"align\",\"plan\":\"auth-refactor\"}");
-        assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), align("auth-refactor"));
+        let json = serde_json::to_string(&build("auth-refactor")).unwrap();
+        assert_eq!(json, "{\"kind\":\"build\",\"plan\":\"auth-refactor\",\"threads\":[]}");
+        assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), build("auth-refactor"));
+
+        let answers = Event::Answers {
+            plan: "auth-refactor".to_string(),
+        };
+        let json = serde_json::to_string(&answers).unwrap();
+        assert_eq!(json, "{\"kind\":\"answers\",\"plan\":\"auth-refactor\"}");
+        assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), answers);
     }
 }

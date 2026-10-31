@@ -35,6 +35,10 @@ pub struct Settings {
     /// person turns it on, which reads as off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub media: Option<bool>,
+    /// Whether sending a review starts the agent's turn in an idle session.
+    /// Absent reads as on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wake: Option<bool>,
     /// Days a completed plan waits before the app archives it. Absent reads
     /// as the default, and 0 means never.
     #[serde(rename = "archiveAfterDays", default, skip_serializing_if = "Option::is_none")]
@@ -72,6 +76,15 @@ pub fn media_on(stored: Option<bool>) -> bool {
 /// What this machine is set to, read the way the MCP server reads it.
 pub fn current_media() -> bool {
     media_on(saved().and_then(|s| s.media))
+}
+
+/// On unless someone turned it off: an agent that hears at once is the point.
+pub fn wake_on(stored: Option<bool>) -> bool {
+    stored.unwrap_or(true)
+}
+
+pub fn current_wake() -> bool {
+    wake_on(saved().and_then(|s| s.wake))
 }
 
 pub const DEFAULT_ARCHIVE_AFTER_DAYS: u32 = 7;
@@ -392,6 +405,20 @@ mod tests {
     }
 
     #[test]
+    fn waking_the_agent_is_on_until_someone_turns_it_off() {
+        let dir = temp_dir("openplan-core-settings-wake");
+        let file = dir.join("settings.json");
+        std::fs::write(&file, "{\"basePath\":\"/somewhere\"}\n").unwrap();
+
+        let saved = read_settings(&file).unwrap().unwrap();
+
+        assert_eq!(saved.wake, None);
+        assert!(wake_on(saved.wake));
+        assert!(!wake_on(Some(false)));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn completed_plans_are_archived_after_a_week_unless_someone_chose_otherwise() {
         let dir = temp_dir("openplan-core-settings-archive-days");
         let file = dir.join("settings.json");
@@ -576,6 +603,7 @@ mod tests {
             onboarded: true,
             authoring: Some("html".to_string()),
             media: Some(true),
+            wake: Some(false),
             archive_after_days: Some(0),
             avatar: Some("avatar-100.png".to_string()),
         };

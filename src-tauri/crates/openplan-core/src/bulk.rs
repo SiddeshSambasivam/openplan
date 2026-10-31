@@ -135,8 +135,7 @@ mod tests {
         let git = git2::Repository::open(&base.root).unwrap();
         let mut walk = git.revwalk().unwrap();
         walk.push_head().unwrap();
-        let count = walk.count();
-        count
+        walk.count()
     }
 
     #[test]

@@ -114,7 +114,7 @@ fn tool_list(authoring: &str, media: bool) -> Value {
         }),
         json!({
             "name": "read_plan",
-            "description": "The full text of one plan, by id.",
+            "description": "The full text of one plan, by id, followed by its alignment questions and the person's answers.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "id": { "type": "string" } },
@@ -417,7 +417,10 @@ fn read_plan(base: &Base, args: &Value) -> Value {
     };
     match library::scan(base).into_iter().find(|e| e.meta.id == id) {
         Some(entry) => match fs::read_to_string(&entry.path) {
-            Ok(text) => text_result(text, false),
+            Ok(text) => {
+                let record = work::read(&entry.path).ok().flatten().unwrap_or_default();
+                text_result(format!("{text}{}", work_tools::alignment_note(&record)), false)
+            }
             Err(e) => text_result(e, true),
         },
         None => text_result(format!("No plan called {id}. list_plans shows what there is."), true),
@@ -516,16 +519,37 @@ fn join(client_name: &str, inbox: &Inbox) -> Option<local::Client> {
     std::thread::spawn(move || {
         // Each read blocks in the app until there is something to say; an
         // empty answer is how the end of the session arrives.
-        while let Some(events) = polling.events() {
-            if events.is_empty() {
+        while let Some(polled) = polling.events() {
+            if polled.events.is_empty() {
                 return;
             }
+            let wake = polled.wake.then(|| crate::wake_text(&polled.events)).flatten();
             let Ok(mut waiting) = sink.lock() else { return };
-            waiting.extend(events);
+            waiting.extend(polled.events);
+            // Queued first, so the turn the wake starts finds the events.
+            drop(waiting);
+            if let Some(text) = wake {
+                wake_agent(&polling, text);
+            }
         }
     });
     Some(client)
 }
+
+/// Starts the agent's turn and tells the app whether it did, on a thread of
+/// its own so the poll never waits on the inbox. A session with no inbox
+/// tells the app nothing, and its hooks deliver as they always have.
+#[cfg(unix)]
+fn wake_agent(client: &local::Client, text: String) {
+    let Some(inbox) = crate::wake::Inbox::from_env() else {
+        return;
+    };
+    let client = client.clone();
+    std::thread::spawn(move || client.woke(inbox.wake(&text).is_ok()));
+}
+
+#[cfg(not(unix))]
+fn wake_agent(_client: &local::Client, _text: String) {}
 
 /// The plan a successful call worked on, which is what puts this session on
 /// it. Filing counts: the session that filed a plan is the one that hears
@@ -546,28 +570,47 @@ fn news(events: &[Event]) -> String {
         match event {
             Event::Comments { plan, threads } => {
                 let mut block = vec![format!("New comments on {plan} since your last call:")];
-                for thread in threads {
-                    block.push(format!(
-                        "thread {} (lines {}-{}): {:?}",
-                        thread.id, thread.line_start, thread.line_end, thread.quote
-                    ));
-                    block.push(thread.text.clone());
-                }
+                block.extend(thread_lines(threads));
                 block.push("Reply in each thread with reply_comment.".to_string());
                 blocks.push(block.join("\n"));
             }
-            Event::Status { plan, status } => blocks.push(format!("{plan} is now {status}.")),
-            Event::Align { plan } => blocks.push(format!(
-                "The person set {plan} to alignment. Ask your questions in the harness, then call record_alignment."
+            Event::Build { plan, threads } => {
+                let mut block = vec![format!("The person pressed Build on {plan}.")];
+                if !threads.is_empty() {
+                    block.push("These review comments came with it. Answer them first: revise the plan with update_plan, reply in each thread with reply_comment, and resolve each thread you acted on.".to_string());
+                    block.extend(thread_lines(threads));
+                }
+                block.push("Then, if questions are left, post all of them in one round with ask_questions and wait for the answers before you write code. Once every question has an answer, call add_decisions for the consequential answers, add_todos for the work, and set_status with in-progress. Then start.".to_string());
+                blocks.push(block.join("\n"));
+            }
+            Event::Answers { plan } => blocks.push(format!(
+                "The person answered your questions on the Alignment tab of {plan}. Call read_plan to see the answers, then continue."
             )),
+            Event::Status { plan, status } => blocks.push(format!("{plan} is now {status}.")),
         }
     }
     blocks.join("\n\n")
 }
 
+fn thread_lines(threads: &[local::CommentNote]) -> Vec<String> {
+    threads
+        .iter()
+        .flat_map(|thread| {
+            [
+                format!(
+                    "thread {} (lines {}-{}): {:?}",
+                    thread.id, thread.line_start, thread.line_end, thread.quote
+                ),
+                thread.text.clone(),
+            ]
+        })
+        .collect()
+}
+
 /// Appends whatever the app sent to this result, and tells the app the agent
-/// has seen it, so a hook does not say it again.
-fn deliver(inbox: &Inbox, session: Option<&local::Client>, reply: &mut Value) {
+/// has seen it, so a hook does not say it again. A result that lists a plan's
+/// comments already says what a review of that plan would.
+fn deliver(inbox: &Inbox, session: Option<&local::Client>, comments_of: Option<&str>, reply: &mut Value) {
     let Some(text) = reply
         .pointer("/content/0/text")
         .and_then(Value::as_str)
@@ -582,7 +625,14 @@ fn deliver(inbox: &Inbox, session: Option<&local::Client>, reply: &mut Value) {
     if waiting.is_empty() {
         return;
     }
-    reply["content"][0]["text"] = Value::String(format!("{text}\n\n{}", news(&waiting)));
+    let fresh: Vec<Event> = waiting
+        .iter()
+        .filter(|event| !matches!(event, Event::Comments { plan, .. } if Some(plan.as_str()) == comments_of))
+        .cloned()
+        .collect();
+    if !fresh.is_empty() {
+        reply["content"][0]["text"] = Value::String(format!("{text}\n\n{}", news(&fresh)));
+    }
     if let Some(client) = session {
         client.heard(waiting.len());
     }
@@ -672,7 +722,8 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                             }
                         }
                     }
-                    deliver(&inbox, session.as_ref(), &mut reply);
+                    let comments_of = (name == "get_comments").then(|| args.get("id").and_then(Value::as_str)).flatten();
+                    deliver(&inbox, session.as_ref(), comments_of, &mut reply);
                     reply
                 })
             }
@@ -815,13 +866,83 @@ mod tests {
         }
     }
 
+    fn note(id: &str, text: &str) -> local::CommentNote {
+        local::CommentNote {
+            id: id.to_string(),
+            quote: "Auth refactor".to_string(),
+            line_start: 1,
+            line_end: 1,
+            text: text.to_string(),
+            author: "Sid".to_string(),
+        }
+    }
+
     #[test]
-    fn news_tells_the_agent_to_align() {
-        let text = news(&[Event::Align {
+    fn news_of_build_answers_the_comments_that_came_with_it_and_then_starts() {
+        let text = news(&[Event::Build {
+            plan: "auth-refactor".to_string(),
+            threads: vec![note("t1", "Say what breaks.")],
+        }]);
+
+        assert!(text.contains("pressed Build on auth-refactor"), "{text}");
+        assert!(text.contains("thread t1") && text.contains("Say what breaks."), "{text}");
+        let order: Vec<usize> = ["reply_comment", "ask_questions", "add_decisions", "add_todos", "in-progress"]
+            .iter()
+            .map(|tool| text.find(tool).unwrap_or_else(|| panic!("{tool}: {text}")))
+            .collect();
+        assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "{text}");
+
+        let bare = news(&[Event::Build {
+            plan: "auth-refactor".to_string(),
+            threads: Vec::new(),
+        }]);
+        assert!(!bare.contains("reply_comment"), "no comments came with it: {bare}");
+    }
+
+    #[test]
+    fn news_of_answers_points_at_the_work_record() {
+        let text = news(&[Event::Answers {
             plan: "auth-refactor".to_string(),
         }]);
 
-        assert!(text.contains("auth-refactor"), "{text}");
-        assert!(text.contains("record_alignment"), "{text}");
+        assert!(text.contains("Alignment tab") && text.contains("auth-refactor"), "{text}");
+        assert!(text.contains("read_plan"), "{text}");
+    }
+
+    #[test]
+    fn an_agent_reading_the_plan_sees_each_question_and_its_answer() {
+        let mut record = aligned();
+        let mut waiting = record.alignment.as_ref().unwrap().questions[0].clone();
+        waiting.id = "q2".to_string();
+        waiting.question = "Where does it live?".to_string();
+        waiting.answer = None;
+        work::ask_questions(&mut record, vec![waiting]).unwrap();
+
+        let note = work_tools::alignment_note(&record);
+
+        assert!(note.contains("- q1: Which tests? Answer: Agent decided."), "{note}");
+        assert!(note.contains("- q2: Where does it live? Answer: Not answered yet."), "{note}");
+        assert_eq!(work_tools::alignment_note(&WorkRecord::default()), "");
+    }
+
+    #[test]
+    fn get_comments_does_not_repeat_the_comments_it_already_lists() {
+        let waiting: Inbox = Arc::new(Mutex::new(vec![
+            Event::Comments {
+                plan: "auth-refactor".to_string(),
+                threads: vec![note("t1", "Say what breaks.")],
+            },
+            Event::Answers {
+                plan: "auth-refactor".to_string(),
+            },
+        ]));
+        let mut reply = text_result("thread t1: Say what breaks.", false);
+
+        deliver(&waiting, None, Some("auth-refactor"), &mut reply);
+
+        let text = reply["content"][0]["text"].as_str().unwrap();
+        assert!(!text.contains("New comments"), "{text}");
+        assert!(text.contains("Alignment tab"), "{text}");
+        assert!(waiting.lock().unwrap().is_empty());
     }
 }

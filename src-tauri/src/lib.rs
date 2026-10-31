@@ -168,6 +168,7 @@ async fn list_work_progress(
 #[serde(rename_all = "camelCase")]
 pub struct Preferences {
     media: bool,
+    wake: bool,
     archive_after_days: u32,
 }
 
@@ -176,6 +177,7 @@ pub struct Preferences {
 async fn preferences() -> Preferences {
     Preferences {
         media: openplan_core::settings::current_media(),
+        wake: openplan_core::settings::current_wake(),
         archive_after_days: openplan_core::settings::current_archive_after_days(),
     }
 }
@@ -184,6 +186,13 @@ async fn preferences() -> Preferences {
 #[tauri::command]
 async fn set_media(on: bool) -> Result<(), String> {
     onboarding::update_settings(|s| s.media = Some(on))
+}
+
+#[tauri::command]
+async fn set_wake(on: bool) -> Result<(), String> {
+    onboarding::update_settings(|s| s.wake = Some(on))?;
+    sessions::set_wake(on);
+    Ok(())
 }
 
 #[tauri::command]
@@ -309,9 +318,11 @@ pub fn run() {
             review::review_summaries,
             sessions::live_sessions,
             sessions::send_comments,
-            sessions::send_align,
+            sessions::send_build,
+            sessions::send_answers,
             preferences,
             set_media,
+            set_wake,
             set_archive_after_days,
             archive_stale,
             read_markdown,

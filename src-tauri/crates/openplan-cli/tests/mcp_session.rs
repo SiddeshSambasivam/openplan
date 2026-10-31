@@ -477,7 +477,9 @@ fn in_html_mode_the_plan_on_disk_is_an_html_document() {
 #[cfg(unix)]
 #[test]
 fn a_session_registers_with_the_app_and_hears_about_comments() {
-    use openplan_core::local::{CommentNote, Event, Server};
+    use openplan_core::local::{CommentNote, Event, Notice, Server};
+    use std::os::unix::net::UnixListener;
+    use std::time::Duration;
 
     let home = std::env::temp_dir().join(format!("openplan-mcp-session-live-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&home);
@@ -492,7 +494,32 @@ fn a_session_registers_with_the_app_and_hears_about_comments() {
     .unwrap();
 
     // The app is up before the session starts, which is how the client finds it.
-    let server = Server::start(|_| {}).unwrap();
+    let (notices_in, notices) = std::sync::mpsc::channel();
+    let server = Server::start(move |notice| {
+        let _ = notices_in.send(notice);
+    })
+    .unwrap();
+    let woke = move || loop {
+        match notices.recv_timeout(Duration::from_secs(5)).expect("a notice") {
+            Notice::Woke { ok, plans } => return (ok, plans),
+            Notice::SessionsChanged => continue,
+        }
+    };
+
+    // The session's inbox, which the harness hands the server it spawns.
+    let socket = home.join("inbox.sock");
+    std::fs::create_dir_all(&home).unwrap();
+    let inbox = UnixListener::bind(&socket).unwrap();
+    let (messages_in, messages) = std::sync::mpsc::channel::<Vec<serde_json::Value>>();
+    std::thread::spawn(move || {
+        for stream in inbox.incoming() {
+            let lines = BufReader::new(stream.unwrap())
+                .lines()
+                .map(|line| serde_json::from_str(&line.unwrap()).unwrap())
+                .collect();
+            let _ = messages_in.send(lines);
+        }
+    });
     let settings = config_dir(&home).join(openplan_core::profile::name());
     std::fs::create_dir_all(&settings).unwrap();
     openplan_core::local::write_app(
@@ -508,6 +535,8 @@ fn a_session_registers_with_the_app_and_hears_about_comments() {
         .arg("mcp")
         .env("HOME", &home)
         .env_remove("XDG_CONFIG_HOME")
+        .env("CLAUDE_CODE_MESSAGING_SOCKET", &socket)
+        .env("CLAUDE_CODE_MESSAGING_TOKEN", "secret")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -559,6 +588,12 @@ fn a_session_registers_with_the_app_and_hears_about_comments() {
         },
     );
     assert_eq!(sent, 1);
+    // An idle agent is woken with one short message, and the app hears so.
+    let review_line = "OpenPlan: a review with 1 comment arrived on auth-refactor. Call get_comments.";
+    let message = messages.recv_timeout(Duration::from_secs(5)).expect("a wake message");
+    assert_eq!(message[0], serde_json::json!({ "type": "auth", "token": "secret" }));
+    assert_eq!(message[1]["message"]["content"], review_line);
+    assert_eq!(woke(), (true, vec!["auth-refactor".to_string()]));
     // Delivery rides the next call, so it is whichever call comes after it.
     let mut delivered = String::new();
     for _ in 0..200 {
@@ -599,27 +634,45 @@ fn a_session_registers_with_the_app_and_hears_about_comments() {
     assert_eq!(pending("context"), "", "the review already reached the agent");
     server.send(
         "auth-refactor",
-        Event::Align {
+        Event::Build {
             plan: "auth-refactor".to_string(),
+            threads: Vec::new(),
         },
     );
-    let line = "OpenPlan: the plan auth-refactor is in alignment. Ask your questions and call record_alignment.";
+    let line = "OpenPlan: the person pressed Build on auth-refactor. Answer the open comments, then post every question left with ask_questions, or add todos, set in-progress and start.";
     assert_eq!(pending("context"), format!("{line}\n"));
     let stop: serde_json::Value = serde_json::from_str(&pending("stop")).unwrap();
     assert_eq!(stop["decision"], "block");
     assert_eq!(stop["reason"], line);
+    let message = messages.recv_timeout(Duration::from_secs(5)).expect("a wake message");
+    assert_eq!(message[1]["message"]["content"], line);
+    assert_eq!(woke(), (true, vec!["auth-refactor".to_string()]));
 
-    // The next tool call carries it too, and after that the hook is quiet.
+    // The turn that wake starts does not hear it again from the prompt hook.
+    let hook = Command::new(env!("CARGO_BIN_EXE_openplan"))
+        .args(["pending", "--client", "claude-code", "--format", "context"])
+        .env("HOME", &home)
+        .env_remove("XDG_CONFIG_HOME")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let prompt = serde_json::json!({ "hook_event_name": "UserPromptSubmit", "prompt": line }).to_string();
+    hook.stdin.as_ref().unwrap().write_all(prompt.as_bytes()).unwrap();
+    let out = hook.wait_with_output().unwrap();
+    assert_eq!(String::from_utf8(out.stdout).unwrap(), "");
+
+    // The next tool call carries it, and after that the hook is quiet.
     let mut told = String::new();
     for _ in 0..200 {
         let listed = ask(r##"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"list_plans","arguments":{}}}"##);
         let text = listed["result"]["content"][0]["text"].as_str().unwrap().to_string();
-        if text.contains("alignment") {
+        if text.contains("pressed Build") {
             told = text;
             break;
         }
     }
-    assert!(told.contains("record_alignment"), "{told}");
+    assert!(told.contains("ask_questions"), "{told}");
     assert_eq!(pending("stop"), "");
 
     // The session ends when the client closes stdin.
