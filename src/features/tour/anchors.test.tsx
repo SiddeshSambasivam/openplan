@@ -205,7 +205,22 @@ describe("tour anchors", () => {
     expect(anchored(rail, "reviewers")).toBe(true);
   });
 
-  it("marks a question still open, and not one answered", () => {
+  it("marks a question still open, and not one answered or drafted", () => {
+    const drafted = (
+      <AlignmentMessage
+        question={question}
+        draft={{ text: "", option: "a" }}
+        answer={{ kind: "option", options: ["a"] }}
+        active={false}
+        sent={false}
+        onActivate={noop}
+        onPick={noop}
+        onWriteOwn={noop}
+        onChange={noop}
+        view={{ dark: false, media: false }}
+      />
+    );
+    expect(anchored(html(drafted), "open-question")).toBe(false);
     const message = (answered: boolean) =>
       html(
         <AlignmentMessage

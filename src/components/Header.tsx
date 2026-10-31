@@ -274,21 +274,20 @@ export function Header({
       )}
 
       {onPlan && offerCompletion && (
-        <>
+        <div data-tour="mark-completed" className="flex min-w-0 items-center gap-1.5">
           <span className="truncate pl-1 text-xs text-muted-foreground">
             {COMPLETION_PROMPT.said}
           </span>
           <TooltipButton
             size="xs"
             variant="outline"
-            data-tour="mark-completed"
             onClick={() => onStatusChange("completed")}
             tooltip="Move this plan to Completed"
           >
             <Check />
             {COMPLETION_PROMPT.asked}
           </TooltipButton>
-        </>
+        </div>
       )}
 
       {onPlan && onBuild && (

@@ -53,7 +53,7 @@ export function AlignmentMessage({
     <div
       className="flex flex-col gap-3"
       data-question={question.id}
-      data-tour={recorded ? undefined : "open-question"}
+      data-tour={recorded || answer ? undefined : "open-question"}
     >
       <div className="flex gap-2.5">
         <span className="w-8 shrink-0">

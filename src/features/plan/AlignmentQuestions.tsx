@@ -470,6 +470,8 @@ function ThreadHead({
         variant="ghost"
         size="sm"
         shortcut="peopleRail"
+        // With the rail hidden, the tour lights the way to it.
+        data-tour={railShown ? undefined : "reviewers"}
         tooltip={railShown ? "Hide the people" : "Show the people"}
         tooltipAlign="start"
         aria-label={railShown ? "Hide the people" : "Show the people"}
