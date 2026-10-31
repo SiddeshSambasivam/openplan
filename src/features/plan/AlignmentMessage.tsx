@@ -1,9 +1,7 @@
-import { useState } from "react";
 import { Markdown } from "@/components/Markdown";
-import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Textarea } from "@/components/ui/textarea";
 import type { ReplyDraft } from "@/lib/alignmentDrafts";
+import { cn } from "@/lib/utils";
 import { answerOf, PERSONAS, type Answer, type Choice, type Question } from "@/lib/work";
 import { PersonaAvatar } from "./PersonaAvatar";
 
@@ -15,16 +13,18 @@ export interface MediaContext {
 
 /**
  * One question as a message from the persona who asks it. Until it has an
- * answer the message holds the options and a reply box. Once answered, sent
- * or not, it shrinks to the question and the person's reply sits under it.
+ * answer the message holds the options, and clicking it makes it the one
+ * the composer replies to. Once answered, sent or not, it shrinks to the
+ * question and the person's reply sits under it.
  */
 export function AlignmentMessage({
   question,
   draft,
   answer,
+  active,
   sent,
-  onDraft,
-  onReply,
+  onActivate,
+  onPick,
   onChange,
   view,
 }: {
@@ -32,41 +32,50 @@ export function AlignmentMessage({
   draft: ReplyDraft | undefined;
   /** The reply waiting to be sent, when there is one. */
   answer: Answer | undefined;
+  /** The composer replies to it. */
+  active: boolean;
   /** Its answer went out in the last send. */
   sent: boolean;
-  onDraft: (draft: ReplyDraft) => void;
-  onReply: () => void;
+  onActivate: () => void;
+  onPick: (option: string) => void;
   onChange: () => void;
   view: MediaContext;
 }) {
   const replied = question.answer ?? answer;
   const persona = question.role ? PERSONAS[question.role] : null;
   return (
-    <div className="flex flex-col gap-4.5" data-question={question.id}>
-      <div className="flex gap-3">
-        <span className="w-11 shrink-0">
-          <PersonaAvatar role={question.role} className="mt-0.5 text-4xl" />
+    <div className="flex flex-col gap-3" data-question={question.id}>
+      <div className="flex gap-2.5">
+        <span className="w-8 shrink-0">
+          <PersonaAvatar role={question.role} className="mt-0.5 text-3xl" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="text-sm font-semibold text-foreground">{persona?.name ?? "Agent"}</span>
-            {persona && <span className="text-xs text-muted-foreground">{persona.title}</span>}
-            <span className="rounded-full bg-muted px-1.75 py-px text-xs text-muted-foreground">
+          <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
+            <span className="font-semibold text-foreground">{persona?.name ?? "Agent"}</span>
+            {persona && <span className="text-muted-foreground">{persona.title}</span>}
+            <span className="rounded-full bg-muted px-1.75 py-px text-muted-foreground">
               {question.aspect}
             </span>
             {question.mustAnswer && !replied && (
-              <span className="rounded-full border border-border px-1.75 text-xs text-muted-foreground">
+              <span className="rounded-full border border-border px-1.75 text-muted-foreground">
                 Must answer
               </span>
             )}
           </div>
-          <div className="max-w-160 rounded-lg rounded-tl-sm border border-border bg-muted/50 px-3.5 py-3">
-            <p className="mb-1.5 text-base leading-normal font-medium text-pretty text-foreground">
+          <div
+            data-active={active || undefined}
+            onClick={replied ? undefined : onActivate}
+            onFocus={replied ? undefined : onActivate}
+            tabIndex={!replied && question.options.length === 0 ? 0 : undefined}
+            className={cn(
+              "max-w-160 rounded-lg rounded-tl-sm border border-border bg-muted/50 px-3 py-2.5 outline-none data-active:border-ring",
+              !replied && "cursor-pointer",
+            )}
+          >
+            <p className="text-sm leading-normal font-medium text-pretty text-foreground">
               {question.question}
             </p>
-            {!replied && (
-              <Composer question={question} draft={draft} onDraft={onDraft} onReply={onReply} view={view} />
-            )}
+            {!replied && <Details question={question} draft={draft} onPick={onPick} view={view} />}
           </div>
         </div>
       </div>
@@ -82,52 +91,37 @@ export function AlignmentMessage({
   );
 }
 
-/** Why it was asked, what it looks like, the options and a reply box. A
- * reply needs a pick or some words. */
-function Composer({
+/** Why it was asked, what it looks like, and the options. */
+function Details({
   question,
   draft,
-  onDraft,
-  onReply,
+  onPick,
   view,
 }: {
   question: Question;
   draft: ReplyDraft | undefined;
-  onDraft: (draft: ReplyDraft) => void;
-  onReply: () => void;
+  onPick: (option: string) => void;
   view: MediaContext;
 }) {
-  const [missing, setMissing] = useState(false);
-  const text = draft?.text ?? "";
-  const update = (next: Partial<ReplyDraft>) => {
-    setMissing(false);
-    onDraft({ text, option: draft?.option, ...next, replied: false });
-  };
-  const reply = () => {
-    if (!draft?.option && !text.trim()) setMissing(true);
-    else onReply();
-  };
-  const name = question.role ? PERSONAS[question.role].name : "the agent";
-  const hasOptions = question.options.length > 0;
   return (
     <>
       {question.context && (
-        <p className="mb-2.5 max-w-prose text-sm leading-normal text-muted-foreground">{question.context}</p>
+        <p className="mt-1 max-w-prose text-xs leading-relaxed text-muted-foreground">{question.context}</p>
       )}
       {question.illustration && (
         <Markdown
           content={question.illustration}
           dark={view.dark}
           media={view.media}
-          className="alignment-illustration mb-3 overflow-x-auto rounded-md border border-border bg-background p-3"
+          className="alignment-illustration mt-2.5 overflow-x-auto rounded-md border border-border bg-background p-2.5"
         />
       )}
-      {hasOptions && (
+      {question.options.length > 0 && (
         <RadioGroup
           value={draft?.option ?? ""}
-          onValueChange={(option) => update({ option })}
+          onValueChange={onPick}
           aria-label={question.question}
-          className="gap-1.5"
+          className="mt-2.5 gap-1.5"
         >
           {question.options.map((option) => (
             <OptionChoice
@@ -139,24 +133,6 @@ function Composer({
             />
           ))}
         </RadioGroup>
-      )}
-      <div className="mt-2.5 flex items-end gap-2">
-        <Textarea
-          value={text}
-          onChange={(event) => update({ text: event.target.value })}
-          rows={1}
-          aria-label={hasOptions ? `Reply to ${name}, optional` : `Reply to ${name}`}
-          placeholder={hasOptions ? `Reply to ${name}, optional` : `Reply to ${name}`}
-          className="min-h-9 resize-y bg-background"
-        />
-        <Button variant="outline" onClick={reply}>
-          Reply
-        </Button>
-      </div>
-      {missing && (
-        <p role="alert" className="mt-1.5 text-xs text-destructive">
-          {hasOptions ? "Pick an option or write a reply." : "Write a reply first."}
-        </p>
       )}
     </>
   );
@@ -179,7 +155,7 @@ function OptionChoice({
   const id = `option-${questionId}-${option.id}`;
   return (
     <div className="rounded-md border border-border bg-background transition-transform duration-120 hover:border-ring active:scale-99.5 has-data-[state=checked]:border-primary">
-      <label htmlFor={id} className="flex cursor-pointer gap-2.5 px-3 py-2.5 text-sm leading-normal">
+      <label htmlFor={id} className="flex cursor-pointer gap-2.5 px-2.5 py-2 text-sm leading-normal">
         <RadioGroupItem id={id} value={option.id} className="mt-0.5 cursor-pointer" />
         <span className="min-w-0">
           <span className="flex flex-wrap items-center gap-2 font-medium text-foreground">
@@ -205,7 +181,7 @@ function OptionChoice({
           content={option.illustration}
           dark={view.dark}
           media={view.media}
-          className="overflow-x-auto px-3 pb-2.5 pl-9.5"
+          className="alignment-illustration overflow-x-auto px-2.5 pb-2 pl-9"
         />
       )}
     </div>
@@ -228,7 +204,7 @@ function YourReply({
   const words = answerOf({ ...question, answer });
   return (
     <div className="flex justify-end">
-      <div className="max-w-130 rounded-lg rounded-tr-sm bg-primary px-3.25 py-2.25 text-sm leading-normal text-primary-foreground">
+      <div className="max-w-130 rounded-lg rounded-tr-sm bg-primary px-3 py-2 text-sm leading-normal text-primary-foreground">
         <p className={words.kind === "option" ? "font-medium" : "whitespace-pre-wrap"}>{words.text}</p>
         {words.note && <p className="whitespace-pre-wrap">{words.note}</p>}
         {status === "sent" && <p className="mt-0.75 text-xs text-primary-foreground/70">Sent</p>}

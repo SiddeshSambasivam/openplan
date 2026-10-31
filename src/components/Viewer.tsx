@@ -62,8 +62,6 @@ interface ViewerProps {
   onEnterEdit: () => void;
   onRetry: () => void;
   onRemove: () => void;
-  /** Starts the work from the Alignment tab. None once it started. */
-  onBuild?: () => void;
 }
 
 export function Viewer({
@@ -84,7 +82,6 @@ export function Viewer({
   onEnterEdit,
   onRetry,
   onRemove,
-  onBuild,
 }: ViewerProps) {
   const html = isHtmlPath(doc.path);
   const isLarge = content != null && content.length > LARGE_PREVIEW_CHARS;
@@ -194,15 +191,16 @@ export function Viewer({
   }
 
   // The Alignment tab is a chat with a people rail beside it, so it takes
-  // a wider column than the reading width. Keyed apart, so the width does
-  // not animate when the tab changes.
+  // a wider column than the reading width, and the rest of the height,
+  // since only its thread scrolls. Keyed apart, so the width does not
+  // animate when the tab changes.
   return (
     <div
       key={alignment ? "alignment" : "page"}
       ref={articleRef}
       className={
         alignment
-          ? "mx-auto w-full max-w-6xl px-10 py-10"
+          ? "mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-10 pt-4 pb-4"
           : "mx-auto w-full px-10 py-10 transition-[max-width] duration-200 ease-in-out"
       }
       style={alignment ? undefined : { maxWidth: "var(--content-max-width, 48rem)" }}
@@ -221,7 +219,6 @@ export function Viewer({
         <AlignmentTab
           record={record}
           plan={{ path: plan.path, id: plan.id, dark, media }}
-          onBuild={onBuild}
         />
       ) : html ? (
         <HtmlDoc content={content} dark={dark} />

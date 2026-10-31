@@ -1105,6 +1105,8 @@ export default function App() {
     !isHtmlPath(activePlan.path) &&
     view === "preview";
   const planTab: PlanTab = planHome && activePlan ? tabFor(planTabs, activePlan.path) : "plan";
+  // Only the Alignment tab's thread scrolls, so the page around it stays put.
+  const alignmentShown = planTab === "alignment";
   const choosePlanTab = useCallback(
     (tab: PlanTab) => {
       if (activePlan) setPlanTabs((tabs) => withTab(tabs, activePlan.path, tab));
@@ -1918,12 +1920,14 @@ export default function App() {
               "relative min-h-0 min-w-0 flex-1",
               view === "edit" && activeDoc && content != null
                 ? "overflow-hidden"
-                : "overflow-y-auto",
+                : alignmentShown
+                  ? "flex flex-col overflow-hidden"
+                  : "overflow-y-auto",
             )}
           >
             {activePlan && view === "preview" && (
               <div
-                className="mx-auto w-full px-10 pt-8"
+                className="mx-auto w-full shrink-0 px-10 pt-8"
                 style={{ maxWidth: "var(--content-max-width, 48rem)" }}
               >
                 <PlanMetaBar
@@ -1980,7 +1984,6 @@ export default function App() {
                 onEnterEdit={toggleEdit}
                 onRetry={() => setReloadKey((k) => k + 1)}
                 onRemove={() => removeItem(activeDoc.id)}
-                onBuild={canBuild ? build : undefined}
               />
             ) : (
               <EmptyState />

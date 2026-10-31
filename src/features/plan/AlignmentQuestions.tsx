@@ -1,18 +1,23 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
-import { ShortcutLabel } from "@/components/ShortcutKeys";
+import { ArrowDown, ArrowUp, PanelLeftClose, PanelLeftOpen, Users } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { TooltipButton } from "@/components/TooltipButton";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  answeredCount,
+  loadRailShown,
   loadReplyDrafts,
+  newestWaiting,
+  nextWaiting,
+  queueReply,
   repliedAnswers,
+  saveRailShown,
   saveReplyDrafts,
   type ReplyDraft,
   type ReplyDrafts,
 } from "@/lib/alignmentDrafts";
-import { alignmentScore, sendBarBuild } from "@/lib/alignmentScore";
-import { keysLabel, PLATFORM, shortcut } from "@/lib/shortcuts";
+import { alignmentScore } from "@/lib/alignmentScore";
+import { PLATFORM, shortcutFor, useShortcuts } from "@/lib/shortcuts";
+import { cn } from "@/lib/utils";
 import {
   answerQuestions,
   PERSONAS,
@@ -20,7 +25,6 @@ import {
   ROLES,
   roundTitle,
   sendAnswers,
-  spokenList,
   unusedRoles,
   unusedRolesText,
   type Answer,
@@ -28,14 +32,11 @@ import {
   type Role,
   type WorkRecord,
 } from "@/lib/work";
+import { AlignmentComposer, type ComposerLine } from "./AlignmentComposer";
 import { AlignmentMessage, type MediaContext } from "./AlignmentMessage";
 import { AlignmentScoreCard } from "./AlignmentScoreCard";
 import { PersonaAvatar } from "./PersonaAvatar";
 import { celebrate } from "./personaMotion";
-
-/** The registry gives this key to Send review, so the tab takes it itself
- * while focus is inside it. */
-const SUBMIT_KEYS = shortcut("sendReview").keys;
 
 /** What the plan page needs to write answers and render illustrations. */
 export interface AlignmentContext extends MediaContext {
@@ -50,150 +51,303 @@ interface Sent {
   reached: number;
 }
 
-/** What the send bar says in place of its count, after an action. */
-interface BarLine {
-  text: string;
-  error?: boolean;
-}
-
 type Tab = Role | "everyone";
 
 /**
  * The questions agents posted on the plan, as a group chat with the personas
- * who asked them, oldest round first. Replies wait as drafts, which survive
- * a reload, until the person sends them together.
+ * who asked them, oldest round first. Only the thread scrolls. Replies queue
+ * from the composer as drafts, which survive a reload, until the person
+ * sends them together. `children` follow the thread, inside its scroll.
  */
 export function AlignmentQuestions({
   record,
   plan,
-  onBuild,
+  children,
 }: {
   record: WorkRecord | null;
   plan: AlignmentContext;
-  /** Starts the work, as the top bar's Build does. None once it started. */
-  onBuild?: () => void;
+  children?: ReactNode;
 }) {
   const [drafts, setDrafts] = useState<ReplyDrafts>(() => loadReplyDrafts(plan.id));
   const [tab, setTab] = useState<Tab>("everyone");
+  const [railShown, setRailShown] = useState(loadRailShown);
+  // The question the composer replies to. Unset follows the first waiting
+  // one. Null means the person cleared it.
+  const [chosen, setChosen] = useState<string | null | undefined>(undefined);
+  const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<Sent | null>(null);
-  const [line, setLine] = useState<BarLine | null>(null);
+  const [line, setLine] = useState<ComposerLine | null>(null);
   // The record the write returned shows until the watcher reads it back.
   const [written, setWritten] = useState<{ from: WorkRecord | null; record: WorkRecord } | null>(
     null,
   );
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => saveReplyDrafts(plan.id, drafts), [plan.id, drafts]);
+  useEffect(() => saveRailShown(railShown), [railShown]);
+  useShortcuts({ peopleRail: () => setRailShown((shown) => !shown) });
 
   const shown = written && written.from === record ? written.record : record;
   const questions = shown?.alignment?.questions ?? [];
   if (questions.length === 0) {
-    return <p className="text-sm text-muted-foreground">No alignment yet.</p>;
+    return (
+      <div className="alignment-thread min-h-0 flex-1 overflow-y-auto">
+        <p className="mb-8 text-sm text-muted-foreground">No alignment yet.</p>
+        {children}
+      </div>
+    );
   }
 
   const answers = repliedAnswers(questions, drafts);
-  const score = alignmentScore(questions, answers);
   const waiting = questions.filter((question) => !question.answer && !answers[question.id]);
   const ready = Object.keys(answers).length;
-  const build = sendBarBuild(score);
+  const inTab = questions.filter((question) => tab === "everyone" || question.role === tab);
+  const active =
+    chosen === null
+      ? undefined
+      : (waiting.find((question) => question.id === chosen && inTab.includes(question)) ??
+        nextWaiting(inTab, drafts));
 
-  /** Writes the replies ready to send and tells the agent. True once they
-   * are written. */
-  const submit = async (): Promise<boolean> => {
-    if (busy) return false;
+  /** Writes the queued replies and tells the agent. */
+  const submit = async () => {
+    if (busy) return;
     if (ready === 0) {
       setLine({ text: "Reply to at least one question first." });
-      return false;
+      return;
     }
     setBusy(true);
     setLine(null);
+    setMissing(false);
     const sending = Object.entries(answers).map(([id, answer]) => ({ id, answer }));
     const result = await submitAnswers(plan, sending);
     setBusy(false);
     if (result.kind === "error") {
       setLine({ text: `Your answers were not saved. ${result.message}`, error: true });
-      return false;
+      return;
     }
     const ids = Object.keys(answers);
     setWritten({ from: record, record: result.record });
     setDrafts((old) => withoutKeys(old, ids));
     setSent({ ids, roles: rolesOf(questions.filter((q) => answers[q.id])), reached: result.reached });
-    return true;
   };
 
-  const startBuild = async () => {
-    if (!onBuild || busy) return;
-    if (ready > 0 && !(await submit())) return;
-    onBuild();
-    setLine({ text: build.sent });
+  const edit = (id: string, change: Partial<ReplyDraft>) => {
+    setMissing(false);
+    setDrafts((old) => {
+      const draft = old[id];
+      return { ...old, [id]: { text: draft?.text ?? "", option: draft?.option, ...change, replied: false } };
+    });
   };
 
-  const reply = (question: Question) => {
-    const draft = drafts[question.id] ?? { text: "" };
-    const next = { ...drafts, [question.id]: { ...draft, replied: true } };
+  const choose = (id: string) => {
+    if (id === active?.id) return;
+    setChosen(id);
+    setMissing(false);
+  };
+
+  /** Queues the active question's reply and moves on to the next waiting
+   * one, so replies flow from the keyboard. */
+  const reply = () => {
+    if (!active) return;
+    const next = queueReply(active.id, drafts);
+    if (!next) return setMissing(true);
     setDrafts(next);
     setSent(null);
     setLine(null);
-    cheerFor(question, questions, repliedAnswers(questions, next));
-    const after = waiting.find(
-      (other) => other.id !== question.id && (tab === "everyone" || other.role === tab),
-    );
-    if (after) focusQuestion(after.id);
+    cheerFor(active, questions, repliedAnswers(questions, next));
+    const after = nextWaiting(inTab, next, active.id);
+    setChosen(after?.id ?? null);
+    if (after) revealQuestion(after.id);
+  };
+
+  const change = (question: Question) => {
+    setDrafts((old) => ({ ...old, [question.id]: { ...old[question.id], replied: false } }));
+    setChosen(question.id);
+    revealQuestion(question.id);
+    requestAnimationFrame(() => fieldRef.current?.focus());
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" || !modHeld(event)) return;
+    if (shortcutFor(event, PLATFORM, false) !== "sendReview") return;
     event.preventDefault();
     void submit();
   };
 
   const latestRound = Math.max(...questions.map((question) => question.round ?? 1));
-  const inTab = questions.filter((question) => tab === "everyone" || question.role === tab);
+  const newest = newestWaiting(inTab, drafts);
   return (
-    <section onKeyDown={onKeyDown} className="@container">
-      <div className="flex flex-col gap-5 @2xl:flex-row">
-        <PeopleRail tab={tab} onTab={setTab} waiting={waiting} />
-        <div className="flex min-w-0 flex-1 flex-col gap-4.5">
-          <ThreadHead tab={tab} />
-          <AlignmentScoreCard score={score} />
-          {inTab.length === 0 && tab !== "everyone" && <Note>{unusedRolesText([tab])}</Note>}
-          {questionsByRound(inTab).map((group) => (
-            <div key={group.round} className="flex flex-col gap-4.5">
-              <RoundDivider>{roundTitle(group.round, group.round === latestRound)}</RoundDivider>
-              {tab === "everyone" && group.round === latestRound && (
-                <Note>{unusedRolesText(unusedRoles(group.questions), "this round")}</Note>
-              )}
-              {group.questions.map((question) => (
-                <AlignmentMessage
-                  key={question.id}
-                  question={question}
-                  draft={drafts[question.id]}
-                  answer={answers[question.id]}
-                  sent={sent?.ids.includes(question.id) ?? false}
-                  onDraft={(draft: ReplyDraft) => setDrafts((old) => ({ ...old, [question.id]: draft }))}
-                  onReply={() => reply(question)}
-                  onChange={() =>
-                    setDrafts((old) => ({ ...old, [question.id]: { ...old[question.id], replied: false } }))
-                  }
-                  view={plan}
-                />
-              ))}
-            </div>
-          ))}
-          {sent && <SentLine sent={sent} />}
-          {(waiting.length + ready > 0 || sent || line || onBuild) && (
-            <SendBar
-              line={line ?? { text: barSummary(sent, ready, waiting.length) }}
-              ready={ready}
-              canSend={waiting.length + ready > 0}
-              busy={busy}
-              buildTooltip={build.tooltip}
-              onSend={() => void submit()}
-              onBuild={onBuild && (() => void startBuild())}
-            />
-          )}
+    <section onKeyDown={onKeyDown} className="@container flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border pb-2">
+        <AlignmentScoreCard score={alignmentScore(questions, answers)} />
+        <ThreadHead
+          tab={tab}
+          railShown={railShown}
+          waiting={waiting.length}
+          onToggleRail={() => setRailShown((old) => !old)}
+        />
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 @2xl:flex-row @2xl:gap-5">
+        {railShown && (
+          <PeopleRail
+            tab={tab}
+            onTab={(next) => {
+              setTab(next);
+              setChosen(undefined);
+            }}
+            waiting={waiting}
+          />
+        )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          <Thread latestId={newest?.id}>
+            {inTab.length === 0 && tab !== "everyone" && <Note>{unusedRolesText([tab])}</Note>}
+            {questionsByRound(inTab).map((group) => (
+              <div key={group.round} className="flex flex-col gap-4">
+                <RoundDivider>{roundTitle(group.round, group.round === latestRound)}</RoundDivider>
+                {tab === "everyone" && group.round === latestRound && (
+                  <Note>{unusedRolesText(unusedRoles(group.questions), "this round")}</Note>
+                )}
+                {group.questions.map((question) => (
+                  <AlignmentMessage
+                    key={question.id}
+                    question={question}
+                    draft={drafts[question.id]}
+                    answer={answers[question.id]}
+                    active={question.id === active?.id}
+                    sent={sent?.ids.includes(question.id) ?? false}
+                    onActivate={() => choose(question.id)}
+                    onPick={(option) => {
+                      edit(question.id, { option });
+                      choose(question.id);
+                    }}
+                    onChange={() => change(question)}
+                    view={plan}
+                  />
+                ))}
+              </div>
+            ))}
+            {sent && <SentLine sent={sent} />}
+            {children}
+          </Thread>
+          <AlignmentComposer
+            ref={fieldRef}
+            question={active}
+            text={active ? (drafts[active.id]?.text ?? "") : ""}
+            missing={missing}
+            line={line ?? { text: answeredCount(questions, drafts) }}
+            ready={ready}
+            busy={busy}
+            onText={(text) => active && edit(active.id, { text })}
+            onClear={() => {
+              setChosen(null);
+              setMissing(false);
+            }}
+            onReply={reply}
+            onSend={() => void submit()}
+          />
         </div>
       </div>
     </section>
+  );
+}
+
+/** The thread's own scroll, with no bar. An arrow shows at whichever end
+ * has more: down goes to the newest question still waiting, or the end,
+ * and up goes back to the top. Two sentinels at the ends tell an observer
+ * when either leaves the view, so nothing runs while the thread is still. */
+function Thread({ latestId, children }: { latestId?: string; children: ReactNode }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState({ above: false, below: false });
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || !topRef.current || !endRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) =>
+        setMore((old) => {
+          const next = { ...old };
+          for (const entry of entries) {
+            if (entry.target === topRef.current) next.above = !entry.isIntersecting;
+            else next.below = !entry.isIntersecting;
+          }
+          return next;
+        }),
+      { root },
+    );
+    observer.observe(topRef.current);
+    observer.observe(endRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const goDown = () => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const latest = latestId ? root.querySelector(`[data-question="${CSS.escape(latestId)}"]`) : null;
+    const top = latest ? offsetIn(root, latest) - 8 : null;
+    root.scrollTo({
+      top: top != null && top > root.scrollTop + 1 ? top : root.scrollHeight,
+      behavior: scrollBehavior(),
+    });
+  };
+
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div
+        ref={scrollRef}
+        tabIndex={0}
+        role="region"
+        aria-label="Questions"
+        className="alignment-thread min-h-0 flex-1 overflow-y-auto rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      >
+        <div ref={topRef} className="h-px" aria-hidden />
+        <div className="flex flex-col gap-4 pb-2">{children}</div>
+        <div ref={endRef} className="h-px" aria-hidden />
+      </div>
+      <ScrollArrow
+        direction="up"
+        shown={more.above}
+        onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: scrollBehavior() })}
+      />
+      <ScrollArrow direction="down" shown={more.below} onClick={goDown} />
+    </div>
+  );
+}
+
+function ScrollArrow({
+  direction,
+  shown,
+  onClick,
+}: {
+  direction: "up" | "down";
+  shown: boolean;
+  onClick: () => void;
+}) {
+  const up = direction === "up";
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute inset-x-0 flex justify-center",
+        up ? "top-1" : "bottom-1",
+      )}
+    >
+      <TooltipButton
+        variant="outline"
+        size="icon-xs"
+        tooltip={up ? "Back to the top" : "Go to the latest question"}
+        tooltipSide={up ? "bottom" : "top"}
+        aria-label={up ? "Back to the top" : "Go to the latest question"}
+        inert={!shown}
+        onClick={onClick}
+        className={cn(
+          "rounded-full shadow-sm transition-[opacity,scale,translate] duration-150 ease-out dark:bg-background dark:hover:bg-accent",
+          shown
+            ? "pointer-events-auto opacity-100"
+            : cn("scale-90 opacity-0", up ? "-translate-y-1" : "translate-y-1"),
+        )}
+      >
+        {up ? <ArrowUp /> : <ArrowDown />}
+      </TooltipButton>
+    </div>
   );
 }
 
@@ -213,11 +367,12 @@ function PeopleRail({
     ...ROLES.map((role) => ({ id: role, ...PERSONAS[role] })),
   ];
   return (
-    <nav className="flex shrink-0 flex-col @2xl:sticky @2xl:top-4 @2xl:w-58 @2xl:self-start">
-      <p className="mb-2 hidden text-sm font-medium text-muted-foreground @2xl:block">
-        Talking about this plan
-      </p>
-      <div role="tablist" aria-label="People asking" className="flex gap-1 overflow-x-auto pb-1 @2xl:flex-col @2xl:pb-0">
+    <nav className="flex shrink-0 animate-in flex-col fade-in-0 duration-150 @2xl:w-52 @2xl:overflow-y-auto">
+      <div
+        role="tablist"
+        aria-label="People asking"
+        className="flex gap-1 overflow-x-auto pb-1 @2xl:flex-col @2xl:pb-0"
+      >
         {tabs.map((item) => {
           const count = waiting.filter((q) => item.id === "everyone" || q.role === item.id).length;
           return (
@@ -227,21 +382,20 @@ function PeopleRail({
               role="tab"
               aria-selected={tab === item.id}
               onClick={() => onTab(item.id)}
-              className="flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-muted aria-selected:bg-muted @2xl:w-full"
+              className="flex shrink-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted aria-selected:bg-muted @2xl:w-full"
             >
-              {item.id === "everyone" ? <GroupIcon /> : <PersonaAvatar role={item.id} className="text-3xl" />}
+              {item.id === "everyone" ? (
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+                  <Users className="size-3.5" />
+                </span>
+              ) : (
+                <PersonaAvatar role={item.id} className="text-2xl" />
+              )}
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="font-medium text-foreground">{item.name}</span>
                 <span className="hidden text-xs text-muted-foreground @2xl:block">{item.title}</span>
               </span>
-              {count > 0 && (
-                <Badge
-                  className="h-5 min-w-5 rounded-full px-1.5 py-0 font-semibold tabular-nums"
-                  aria-label={`${count} waiting`}
-                >
-                  {count}
-                </Badge>
-              )}
+              {count > 0 && <WaitingBadge count={count} />}
             </button>
           );
         })}
@@ -250,32 +404,51 @@ function PeopleRail({
   );
 }
 
-function GroupIcon() {
+/** Names the view, beside the rail's toggle. A hidden rail still says how
+ * many questions wait, so none is missed. */
+function ThreadHead({
+  tab,
+  railShown,
+  waiting,
+  onToggleRail,
+}: {
+  tab: Tab;
+  railShown: boolean;
+  waiting: number;
+  onToggleRail: () => void;
+}) {
+  const persona = tab === "everyone" ? null : PERSONAS[tab];
   return (
-    <span className="grid size-8 shrink-0 grid-cols-2 gap-px">
-      {ROLES.map((role) => (
-        <PersonaAvatar key={role} role={role} className="text-base" />
-      ))}
-    </span>
+    <div className="flex min-w-0 items-center gap-1.5">
+      <h2 className="truncate text-sm font-medium text-foreground">
+        {persona ? `${persona.name}, ${persona.title.toLowerCase()}` : "Everyone"}
+      </h2>
+      <TooltipButton
+        variant="ghost"
+        size="sm"
+        shortcut="peopleRail"
+        tooltip={railShown ? "Hide the people" : "Show the people"}
+        tooltipAlign="end"
+        aria-label={railShown ? "Hide the people" : "Show the people"}
+        aria-pressed={railShown}
+        onClick={onToggleRail}
+        className="-mr-2 gap-1.5 px-2 text-muted-foreground"
+      >
+        {railShown ? <PanelLeftClose /> : <PanelLeftOpen />}
+        {!railShown && waiting > 0 && <WaitingBadge count={waiting} />}
+      </TooltipButton>
+    </div>
   );
 }
 
-function ThreadHead({ tab }: { tab: Tab }) {
-  const persona = tab === "everyone" ? null : PERSONAS[tab];
+function WaitingBadge({ count }: { count: number }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3.5">
-      <div>
-        <p className="text-xs tracking-wide text-muted-foreground">Alignment</p>
-        <h2 className="text-lg font-semibold text-balance text-foreground">
-          {persona ? `${persona.name}, ${persona.title.toLowerCase()}` : "Everyone"}
-        </h2>
-      </div>
-      <div className="flex items-center pl-1.5" aria-hidden>
-        {(tab === "everyone" ? ROLES : [tab]).map((role) => (
-          <PersonaAvatar key={role} role={role} className="-ml-1.5 text-3xl" />
-        ))}
-      </div>
-    </div>
+    <Badge
+      className="h-4.5 min-w-4.5 rounded-full px-1.25 py-0 text-xs font-semibold tabular-nums"
+      aria-label={`${count} waiting`}
+    >
+      {count}
+    </Badge>
   );
 }
 
@@ -292,59 +465,6 @@ function Note({ children }: { children: string | null }) {
   return <p className="text-center text-xs text-muted-foreground">{children}</p>;
 }
 
-/** Pinned under the thread: how many replies are ready, Build, and the
- * send. Build goes left of Send, so Send stays the primary action. */
-function SendBar({
-  line,
-  ready,
-  canSend,
-  busy,
-  buildTooltip,
-  onSend,
-  onBuild,
-}: {
-  line: BarLine;
-  ready: number;
-  canSend: boolean;
-  busy: boolean;
-  buildTooltip: string;
-  onSend: () => void;
-  onBuild?: () => void;
-}) {
-  return (
-    <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-[color-mix(in_oklch,var(--muted)_50%,var(--background))] py-2.5 pr-3 pl-3.5">
-      <p
-        role={line.error ? "alert" : "status"}
-        className={line.error ? "text-sm text-destructive" : "text-sm text-muted-foreground"}
-      >
-        {line.text}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {onBuild && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" disabled={busy} onClick={onBuild}>
-                Build
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6}>
-              <ShortcutLabel label={buildTooltip} keys={shortcut("build").keys} />
-            </TooltipContent>
-          </Tooltip>
-        )}
-        {canSend && (
-          <Button disabled={busy} onClick={onSend}>
-            {busy ? "Sending..." : `Send ${ready === 0 ? "answers" : answerCount(ready)}`}
-            <Kbd className="h-4.5 min-w-0 rounded-sm border border-primary-foreground/25 bg-transparent text-primary-foreground/80">
-              {keysLabel(SUBMIT_KEYS, PLATFORM)}
-            </Kbd>
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /** Under the thread after a send. When a session heard it, the first
  * persona who asked reads along. */
 function SentLine({ sent }: { sent: Sent }) {
@@ -355,8 +475,8 @@ function SentLine({ sent }: { sent: Sent }) {
   return (
     <>
       <Note>Sent. The agent has your answers.</Note>
-      <p className="flex items-center gap-2.5 text-sm text-muted-foreground">
-        <PersonaAvatar role={reader} typing className="text-2xl" />
+      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+        <PersonaAvatar role={reader} typing className="text-xl" />
         <span>{PERSONAS[reader].name} is reading your answers</span>
         <span className="typing-dots" aria-hidden>
           <span />
@@ -376,24 +496,24 @@ function cheerFor(question: Question, questions: Question[], answers: Record<str
   if (role && questions.every((q) => q.role !== role || q.answer || answers[q.id])) celebrate(role);
 }
 
-/** Moves to the next question waiting in view, so replies flow from the
- * keyboard. */
-function focusQuestion(id: string) {
+/** Brings the next question to the top of the thread once it has rendered
+ * as active. Only the thread moves, never the page around it. */
+function revealQuestion(id: string) {
   requestAnimationFrame(() => {
-    const message = document.querySelector(`[data-question="${CSS.escape(id)}"]`);
-    message?.querySelector<HTMLElement>('[role="radio"], textarea')?.focus();
+    const question = document.querySelector(`[data-question="${CSS.escape(id)}"]`);
+    const thread = question?.closest<HTMLElement>(".alignment-thread");
+    if (!question || !thread) return;
+    thread.scrollTo({ top: offsetIn(thread, question) - 8, behavior: scrollBehavior() });
   });
 }
 
-/** The send bar's count, or once everything went out, who has it. */
-function barSummary(sent: Sent | null, ready: number, waiting: number): string {
-  if (sent && ready + waiting === 0) {
-    if (sent.roles.length === 0) return "The agent has what it asked for.";
-    const names = spokenList(sent.roles.map((role) => PERSONAS[role].name));
-    return `${names} ${sent.roles.length === 1 ? "has" : "have"} what they asked for.`;
-  }
-  if (ready === 0) return "Answer the waiting questions. They reach the agent together, so it wakes once.";
-  return `${answerCount(ready)} ready.${waiting > 0 ? ` ${waiting} still waiting.` : ""}`;
+function scrollBehavior(): ScrollBehavior {
+  return matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
+/** How far down its scroll an element sits, whatever lies between. */
+function offsetIn(root: HTMLElement, element: Element): number {
+  return element.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop;
 }
 
 function rolesOf(questions: Question[]): Role[] {
@@ -402,14 +522,6 @@ function rolesOf(questions: Question[]): Role[] {
 
 function withoutKeys<T>(record: Record<string, T>, keys: string[]): Record<string, T> {
   return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.includes(key)));
-}
-
-function answerCount(count: number): string {
-  return `${count} ${count === 1 ? "answer" : "answers"}`;
-}
-
-function modHeld(event: KeyboardEvent): boolean {
-  return PLATFORM === "mac" ? event.metaKey : event.ctrlKey;
 }
 
 /** Writes the answers, then tells the agent. A failed write comes back in

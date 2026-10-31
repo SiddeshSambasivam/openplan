@@ -1,6 +1,8 @@
-import { Check } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AlignmentArea, AlignmentScore } from "@/lib/alignmentScore";
 import { cn } from "@/lib/utils";
@@ -13,30 +15,46 @@ const COUNT_MS = 600;
 const LEFT_HALF = "M29 53 A24 24 0 0 1 29 5";
 const RIGHT_HALF = "M29 5 A24 24 0 0 1 29 53";
 
-/** The alignment score as a ring, what it is made of, and a chip per area. */
+/** The alignment score on one line: a small ring, and how many areas are
+ * settled. The areas and how the score adds up open from the count. */
 export function AlignmentScoreCard({ score }: { score: AlignmentScore }) {
   const shown = useCountUp(score.total);
   const settled = score.areas.filter((area) => area.settled).length;
   return (
-    <section
-      aria-label="Alignment score"
-      className="flex flex-wrap items-center gap-3.5 rounded-lg border border-border bg-muted/50 px-3.5 py-3"
-    >
-      <div role="img" aria-label={`Alignment score ${score.total} out of 100`} className="relative size-14.5 shrink-0">
+    <section aria-label="Alignment score" className="flex shrink-0 items-center gap-2">
+      <div role="img" aria-label={`Alignment score ${score.total} out of 100`} className="relative size-8 shrink-0">
         <ScoreRing value={shown} />
-        <span className="absolute inset-0 grid place-items-center text-lg font-semibold tabular-nums">
+        <span className="absolute inset-0 grid place-items-center text-xs font-semibold tabular-nums">
           {Math.round(shown)}
         </span>
       </div>
-      <div className="flex min-w-37.5 flex-col gap-0.5 text-xs leading-normal text-muted-foreground">
-        <p className="flex items-center gap-2 text-sm leading-normal font-semibold text-foreground">
-          Alignment
-          {score.total === 100 && (
-            <Badge className="rounded-full border-transparent bg-success/15 px-2 font-semibold text-success">
-              Fully aligned
-            </Badge>
-          )}
-        </p>
+      <p className="text-sm font-medium text-foreground">Alignment</p>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="xs" className="-ml-1 font-normal text-muted-foreground">
+            {settled} of {score.areas.length} {score.areas.length === 1 ? "area" : "areas"} settled
+            <ChevronDown />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-80 p-3">
+          <ScoreDetails score={score} />
+        </PopoverContent>
+      </Popover>
+      {score.total === 100 && (
+        <Badge className="rounded-full border-transparent bg-success/15 px-2 font-semibold text-success">
+          Fully aligned
+        </Badge>
+      )}
+    </section>
+  );
+}
+
+/** How the score adds up, then a chip per area. */
+export function ScoreDetails({ score }: { score: AlignmentScore }) {
+  const settled = score.areas.filter((area) => area.settled).length;
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-0.5 text-xs leading-normal text-muted-foreground">
         <p>
           {settled} of {score.areas.length} {score.areas.length === 1 ? "area" : "areas"} settled ·{" "}
           {score.coverage} of 80
@@ -46,7 +64,7 @@ export function AlignmentScoreCard({ score }: { score: AlignmentScore }) {
           why · {score.reasoning} of 20
         </p>
       </div>
-      <ul className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+      <ul className="flex flex-wrap gap-1.5">
         {score.areas.map((area) => (
           <AreaChip key={area.name} area={area} />
         ))}
@@ -56,7 +74,7 @@ export function AlignmentScoreCard({ score }: { score: AlignmentScore }) {
           </Chip>
         ))}
       </ul>
-    </section>
+    </div>
   );
 }
 

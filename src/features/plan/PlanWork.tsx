@@ -199,28 +199,19 @@ function PanelBody({ record, onMinimize }: { record: WorkRecord; onMinimize: () 
 /** The plan's Alignment tab: the questions the agents asked, to answer or
  * as answered, then the decisions the agents recorded. Keyed by the plan, so
  * a draft answer never carries over to another plan. */
-export function AlignmentTab({
-  record,
-  plan,
-  onBuild,
-}: {
-  record: WorkRecord | null;
-  plan: AlignmentContext;
-  onBuild?: () => void;
-}) {
+export function AlignmentTab({ record, plan }: { record: WorkRecord | null; plan: AlignmentContext }) {
   const decisions = record?.decisions ?? [];
   return (
-    <div className="flex flex-col gap-8">
-      <AlignmentQuestions key={plan.path} record={record} plan={plan} onBuild={onBuild} />
+    <AlignmentQuestions key={plan.path} record={record} plan={plan}>
       {decisions.length > 0 && <RecordedDecisions decisions={decisions} />}
-    </div>
+    </AlignmentQuestions>
   );
 }
 
 /** The record's decisions, as the same cards a body's decisions render as. */
 function RecordedDecisions({ decisions }: { decisions: Decision[] }) {
   return (
-    <section>
+    <section className="mt-4">
       <WorkHeading title="Decisions" />
       {decisions.map((decision) => (
         <div key={decision.id} className="plan-decision">

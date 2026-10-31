@@ -1061,6 +1061,15 @@
   border-bottom: 0;
 }
 
+/* The alignment thread scrolls without a bar. Arrows say when there is
+   more above or below. */
+.alignment-thread {
+  scrollbar-width: none;
+}
+.alignment-thread::-webkit-scrollbar {
+  display: none;
+}
+
 /* Decisions: one card per decision, with its labels quietened. */
 .plan-decision {
   border: 1px solid var(--color-border);

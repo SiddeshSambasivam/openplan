@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { Decision, Todo, TodoState, WorkRecord } from "@/lib/work";
+import type { Decision, Question, Todo, TodoState, WorkRecord } from "@/lib/work";
+import { alignmentScore } from "@/lib/alignmentScore";
+import { ScoreDetails } from "./AlignmentScoreCard";
 import { AlignmentTab, WorkPanel } from "./PlanWork";
 
 const todo = (id: string, state: TodoState, extra: Partial<Todo> = {}): Todo => ({
@@ -37,14 +39,10 @@ function panel(work: WorkRecord | null, minimized = false): string {
   );
 }
 
-function alignmentTab(work: WorkRecord | null, onBuild?: () => void): string {
+function alignmentTab(work: WorkRecord | null): string {
   return renderToStaticMarkup(
     <TooltipProvider>
-      <AlignmentTab
-        record={work}
-        plan={{ path: "/base/p.md", id: "p", dark: false, media: false }}
-        onBuild={onBuild}
-      />
+      <AlignmentTab record={work} plan={{ path: "/base/p.md", id: "p", dark: false, media: false }} />
     </TooltipProvider>,
   );
 }
@@ -224,8 +222,10 @@ describe("AlignmentTab", () => {
     expect(html).toContain("The board opens at once after launch.");
     expect(html).toContain("Trade-off: A second copy that can go stale.");
     expect(html).toContain("Recommended");
-    expect(html).toContain("Reply to Theo, optional");
-    expect(html).toContain("Send answers");
+    expect(html).toContain("Replying to <span");
+    expect(html).toContain('placeholder="Reply to Theo"');
+    expect(html).toContain("0 of 1 waiting question answered");
+    expect(html).not.toContain(">Reply</button>");
   });
 
   it("reads oldest round first, and says who had nothing to ask in the latest round", () => {
@@ -273,40 +273,41 @@ describe("AlignmentTab", () => {
     expect(html).toContain('aria-label="1 waiting"');
   });
 
-  it("scores the areas settled and names the required ones nobody asked about", () => {
-    const html = alignmentTab(
-      record({
-        alignment: {
-          askedAt: "2026-10-28T09:00:00Z",
-          questions: [
-            {
-              id: "q1",
-              aspect: "scale",
-              role: "engineering",
-              question: "How many plans?",
-              options: [{ id: "a", label: "Fifty" }],
-              mustAnswer: false,
-              answer: { kind: "option", options: ["a"], note: "The largest base we know." },
-            },
-            {
-              id: "q2",
-              aspect: "UX",
-              role: "design",
-              question: "Where does it sit?",
-              options: [{ id: "a", label: "Top bar" }],
-              mustAnswer: false,
-            },
-          ],
-        },
-      }),
+  it("scores the areas settled, and names the required ones nobody asked about", () => {
+    const questions: Question[] = [
+      {
+        id: "q1",
+        aspect: "scale",
+        role: "engineering",
+        question: "How many plans?",
+        options: [{ id: "a", label: "Fifty" }],
+        mustAnswer: false,
+        answer: { kind: "option", options: ["a"], note: "The largest base we know." },
+      },
+      {
+        id: "q2",
+        aspect: "UX",
+        role: "design",
+        question: "Where does it sit?",
+        options: [{ id: "a", label: "Top bar" }],
+        mustAnswer: false,
+      },
+    ];
+    const html = alignmentTab(record({ alignment: { askedAt: "2026-10-28T09:00:00Z", questions } }));
+    const details = renderToStaticMarkup(
+      <TooltipProvider>
+        <ScoreDetails score={alignmentScore(questions, {})} />
+      </TooltipProvider>,
     );
 
     expect(html).toContain("Alignment score 60 out of 100");
-    expect(html).toContain("1 of 2 areas settled · 40 of 80");
-    expect(html).toContain("1 of 1 answer explains why · 20 of 20");
-    expect(html).toContain("Not asked yet: edge cases");
-    expect(html).toContain("Not asked yet: error handling");
-    expect(html).not.toContain("Not asked yet: scale");
+    expect(html).toContain("1 of 2 areas settled");
+    expect(html.indexOf("Alignment score")).toBeLessThan(html.indexOf("Where does it sit?"));
+    expect(details).toContain("1 of 2 areas settled · 40 of 80");
+    expect(details).toContain("1 of 1 answer explains why · 20 of 20");
+    expect(details).toContain("Not asked yet: edge cases");
+    expect(details).toContain("Not asked yet: error handling");
+    expect(details).not.toContain("Not asked yet: scale");
   });
 
   it("shows the note written beside a picked option under it", () => {
@@ -343,24 +344,28 @@ describe("AlignmentTab", () => {
     );
   });
 
-  it("offers Build beside Send while the work can still start", () => {
-    const work = record({
-      alignment: {
-        askedAt: "2026-10-28T09:00:00Z",
-        questions: [
-          {
-            id: "q1",
-            aspect: "scale",
-            role: "engineering",
-            question: "How many plans?",
-            options: [{ id: "a", label: "Fifty" }],
-            mustAnswer: false,
-          },
-        ],
-      },
-    });
+  it("hides the people rail until shown, and names the view with a waiting count", () => {
+    const html = alignmentTab(
+      record({
+        alignment: {
+          askedAt: "2026-10-28T09:00:00Z",
+          questions: [
+            {
+              id: "q1",
+              aspect: "scale",
+              role: "engineering",
+              question: "How many plans?",
+              options: [{ id: "a", label: "Fifty" }],
+              mustAnswer: false,
+            },
+          ],
+        },
+      }),
+    );
 
-    expect(alignmentTab(work, () => {})).toMatch(/>Build<\/button>/);
-    expect(alignmentTab(work)).not.toMatch(/>Build<\/button>/);
+    expect(html).not.toContain('role="tablist"');
+    expect(html).toContain("Everyone</h2>");
+    expect(html).toContain('aria-label="1 waiting"');
+    expect(html).not.toMatch(/>Build<\/button>/);
   });
 });
