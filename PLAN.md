@@ -1109,7 +1109,7 @@ upright Inter face is vendored, so italics are synthesised.
 Specification and decisions q1 to q6: the filed plan "Ship OpenPlan builds from S3 and
 update the app in place". Started 2026-10-31 on Sid's recorded GATE 7 waiver (§9).
 - [ ] P8.1 Updater key pair in GitHub secrets and the password manager (Sid)
-- [ ] P8.2 AWS: private bucket, CloudFront with origin access control, GitHub OIDC
+- [x] P8.2 AWS: private bucket, CloudFront with origin access control, GitHub OIDC
       role, monthly budget alarm; the commands and the host recorded here
 - [ ] P8.3 `latest.json` from the `.sig` files and the host **(T)**
 - [ ] P8.4 CI: updater artifacts, signing secrets, a `publish` job that uploads
@@ -1119,6 +1119,23 @@ update the app in place". Started 2026-10-31 on Sid's recorded GATE 7 waiver (§
 - [ ] P8.6 Settings > Updates, the top bar notice, the package-install hint, the
       unsaved-edits guard; checks at launch and on focus after 24 hours **(T)**
 - [ ] P8.7 Release 0.6.0 by hand, then update it to 0.6.1 on each platform
+#### Update hosting (set up 2026-10-31, AWS account 941377150511, us-east-1)
+| Resource | Value |
+|---|---|
+| Bucket | `openplan-updates-941377150511`: all public access blocked, bucket-owner-enforced. Its policy lets only the distribution below `s3:GetObject` |
+| CloudFront | `E1UM1Z5TY8K8X0`, `https://d1a9q4jq770jc6.cloudfront.net`, origin access control `E3THDAAGI5GG0H`, PriceClass_100. Default behaviour uses the managed CachingOptimized policy; `latest.json` uses CachingDisabled. **Never delete it**: every installed copy has this URL |
+| OIDC | Provider `token.actions.githubusercontent.com`, audience `sts.amazonaws.com` |
+| Role | `openplan-updates-publisher`: assumable only by `repo:SiddeshSambasivam/openplan:ref:refs/tags/v*`; one inline policy, `s3:PutObject` on the bucket |
+| Budget | `openplan-updates`: monthly, $0.01, emails when actual spend passes it |
+| Repo variables | `UPDATES_ROLE_ARN`, `UPDATES_REGION`, `UPDATES_BUCKET`, `UPDATES_HOST` |
+| Repo secrets | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (Sid, P8.1) |
+
+Commands, run once with the `sid-aws` profile: `s3api create-bucket`,
+`put-public-access-block`, `put-bucket-ownership-controls`, `put-bucket-policy`;
+`cloudfront create-origin-access-control` and `create-distribution` with the two
+behaviours above; `iam create-open-id-connect-provider`, `create-role`,
+`put-role-policy`; `budgets create-budget`; `gh variable set` for each variable.
+
 - [ ] **GATE 8 — Sid manual QA & approval** (0.6.0 updates to 0.6.1 on macOS,
       Windows with a live agent session, and Linux AppImage; a `.deb` copy shows the
       download hint; idle CPU ~0%)
