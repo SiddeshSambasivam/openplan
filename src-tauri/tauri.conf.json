@@ -20,7 +20,10 @@
         "center": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 20, "y": 27 },
+        "trafficLightPosition": {
+          "x": 20,
+          "y": 27
+        },
         "dragDropEnabled": true
       }
     ],
@@ -28,7 +31,9 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       }
     }
   },
@@ -45,5 +50,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
-  }
+  },
+  "mainBinaryName": "openplan-app"
 }

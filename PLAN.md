@@ -546,11 +546,18 @@ with `pdb-projects-overhaul` no longer arriving twice as its README and its PLAN
 the folder someone already keeps. Under test and verified against the real
 corpus, which still holds all 109 documents afterwards.
 
-**Open: the CLI hangs resolving the real base.** `openplan help` against the
-real `$HOME` blocks before dispatch; the same binary against a *copy* of that
-same base under a different `$HOME` returns instantly, as do all 66 tests. So
-it is in `settings::resolve_default_base`, environment-dependent, and not the
-base's contents. Unexplained — needs a proper look before the CLI ships.
+**The "hang" was the wrong binary.** The Tauri package is named `openplan` and
+the CLI declared `[[bin]] name = "openplan"`, and they share one workspace
+target directory — so `target/debug/openplan` was whichever built last.
+Every "hang" was the desktop app starting a webview and ignoring its arguments.
+The app's binary is now `openplan-app` (`mainBinaryName` in `tauri.conf.json`),
+leaving `openplan` to the CLI. The same import that appeared to hang for five
+minutes finishes in **0.41s** for 10 plans across 109 documents.
+
+Worth remembering: it presented exactly like a deadlock — blocked, ~0% CPU,
+worse as state grew. What identified it was sampling the stuck process, which
+showed `NSEventThread`, `JavaScriptCore` and `WebCore: Scrolling` in something
+that was supposed to be a command line tool.
 
 The contract (§6.1) previously assumed one plan is one file,
 but the standards tell people to use a directory for anything large, and Sid's
