@@ -10,6 +10,7 @@ import {
   Sun,
   TableOfContents,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import type { FontSize } from "../lib/fontSize";
 import type { DocFile, MainView, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
@@ -60,6 +61,8 @@ interface HeaderProps {
   folders: string[];
   folder: FolderFilter;
   onSelectFolder: (folder: FolderFilter) => void;
+  /** The current view's own controls, beside the folder filter. */
+  viewTools?: ReactNode;
   doc: DocFile | null;
   wordCount: number | null;
   view: ViewMode;
@@ -107,6 +110,7 @@ export function Header({
   folders,
   folder,
   onSelectFolder,
+  viewTools,
   doc,
   wordCount,
   view,
@@ -245,6 +249,7 @@ export function Header({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+      {!onPlan && viewTools}
 
       {onPlan && plan && (
         // Keyed to the plan: opening another one is not a change of status,

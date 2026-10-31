@@ -1,10 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { PlanSummary, Status } from "@/lib/planBase";
+import { CARD_DISPLAY_DEFAULTS, type CardDisplay } from "@/lib/cardDisplay";
+import type { PlanProgress } from "@/lib/work";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BoardView } from "./BoardView";
 
-function plan(id: string, status: Status): PlanSummary {
+function plan(id: string, status: Status, extra: Partial<PlanSummary> = {}): PlanSummary {
   return {
     id,
     title: `Plan ${id}`,
@@ -19,17 +21,23 @@ function plan(id: string, status: Status): PlanSummary {
     documents: [],
     folders: [],
     completed: null,
+    ...extra,
   };
 }
 
-function board(plans: PlanSummary[]) {
+function board(
+  plans: PlanSummary[],
+  display: CardDisplay = CARD_DISPLAY_DEFAULTS,
+  progress: Map<string, PlanProgress> = new Map(),
+) {
   return renderToStaticMarkup(
     <TooltipProvider>
       <BoardView
         plans={plans}
         summaries={[]}
         sessions={new Map()}
-        progress={new Map()}
+        progress={progress}
+        display={display}
         folders={[]}
         onFoldersChange={() => {}}
         onOpen={() => {}}
@@ -57,5 +65,51 @@ describe("BoardView hidden columns", () => {
 
   it("keeps a lifted card inside the column's clip", () => {
     expect(board([plan("a", "draft")])).toContain("overflow-y-auto px-1 pt-1");
+  });
+});
+
+describe("BoardView card display", () => {
+  const long = plan("a", "draft", { title: "A long plan title that wraps" });
+
+  it("clamps the title to two lines and puts the full title in the tooltip", () => {
+    const html = board([long], { ...CARD_DISPLAY_DEFAULTS, clampTitle: true });
+
+    expect(html).toContain("line-clamp-2");
+    expect(html).toContain('title="A long plan title that wraps"');
+  });
+
+  it("shows the whole title without a tooltip when the clamp is off", () => {
+    const html = board([long]);
+
+    expect(html).not.toContain("line-clamp-2");
+    expect(html).not.toContain('title="A long plan title that wraps"');
+  });
+
+  it("shows the plan's repos with their branch and its PRs, unless switched off", () => {
+    const work: PlanProgress = {
+      path: long.path,
+      done: 0,
+      total: 0,
+      repos: [{ path: "~/code/openplan", remote: "github.com/owner/openplan", branch: "feat/x" }],
+      prs: { total: 1, merged: 0 },
+    };
+    const progress = new Map([[long.path, work]]);
+
+    const shown = board([long], CARD_DISPLAY_DEFAULTS, progress);
+    expect(shown).toContain("owner/openplan");
+    expect(shown).toContain("feat/x");
+    expect(shown).toContain("1 pull request, 0 merged");
+
+    const hidden = board([long], { ...CARD_DISPLAY_DEFAULTS, repos: false, prs: false }, progress);
+    expect(hidden).not.toContain("owner/openplan");
+    expect(hidden).not.toContain("0 merged");
+  });
+
+  it("tags a plan filed in the last few minutes as New", () => {
+    const fresh = plan("b", "draft", { created: new Date().toISOString() });
+    const old = plan("c", "draft", { created: "2020-01-01T00:00:00Z" });
+
+    expect(board([fresh])).toContain(">New<");
+    expect(board([old])).not.toContain(">New<");
   });
 });

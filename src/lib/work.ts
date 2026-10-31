@@ -97,13 +97,21 @@ export interface TodoCount {
   total: number;
 }
 
-/** One plan's todo count, as the board reads it for every card at once. */
-export interface PlanProgress extends TodoCount {
-  path: string;
+export interface PrSummary {
+  total: number;
+  merged: number;
 }
 
-/** Progress for every plan that has a work record, in one call. Empty in
- * the browser build. */
+/** What a card shows of one plan's work record, read for every card at
+ * once. */
+export interface PlanProgress extends TodoCount {
+  path: string;
+  repos: Repo[];
+  prs: PrSummary;
+}
+
+/** The card facts for every plan that has a work record, in one call. Empty
+ * in the browser build. */
 export async function listWorkProgress(paths: string[]): Promise<PlanProgress[]> {
   if (!isTauri) return [];
   return invoke<PlanProgress[]>("list_work_progress", { paths });
@@ -120,6 +128,18 @@ export function progress(record: WorkRecord): TodoCount {
 
 export function progressText({ done, total }: TodoCount): string {
   return `${done} of ${total} done`;
+}
+
+export function prSummaryText({ total, merged }: PrSummary): string {
+  return `${total} pull ${total === 1 ? "request" : "requests"}, ${merged} merged`;
+}
+
+/** `owner/repo` from the remote, whatever its URL shape, or the folder's
+ * name for a repo without one. */
+export function repoLabel(repo: Repo): string {
+  const source = (repo.remote ?? repo.path).replace(/\.git\/?$/, "");
+  const parts = source.split(/[/\\:]+/).filter(Boolean);
+  return parts.slice(repo.remote ? -2 : -1).join("/");
 }
 
 /** How each todo state reads. The tones match the status glyphs: doing is

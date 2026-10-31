@@ -1,7 +1,9 @@
 import { MessageSquareText } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
-import { PlanRowFacts } from "@/components/PlanFacts";
-import type { TodoCount } from "@/lib/work";
+import { NewBadge, PlanRowFacts } from "@/components/PlanFacts";
+import type { CardDisplay } from "@/lib/cardDisplay";
+import { useNewPlans } from "@/lib/newPlans";
+import type { PlanProgress } from "@/lib/work";
 import { StatusGlyph } from "@/components/StatusGlyph";
 import { forYou, type ReviewSummary } from "@/lib/board";
 import { entrance, useMountedKeys } from "@/lib/motion";
@@ -12,8 +14,10 @@ interface ForYouViewProps {
   summaries: ReviewSummary[];
   /** Live agent sessions by plan id. */
   sessions: Map<string, number>;
-  /** Todo progress by plan path, for the plans with a work record. */
-  progress: Map<string, TodoCount>;
+  /** What the work record says, by plan path, for the plans with one. */
+  progress: Map<string, PlanProgress>;
+  /** Which facts a row shows. */
+  display: CardDisplay;
   onOpen: (plan: PlanSummary) => void;
 }
 
@@ -24,6 +28,7 @@ function Group({
   openThreads,
   sessions,
   progress,
+  display,
   onOpen,
 }: {
   icon: ReactNode;
@@ -31,10 +36,12 @@ function Group({
   plans: PlanSummary[];
   openThreads: Map<string, number>;
   sessions: Map<string, number>;
-  progress: Map<string, TodoCount>;
+  progress: Map<string, PlanProgress>;
+  display: CardDisplay;
   onOpen: (plan: PlanSummary) => void;
 }) {
   const mounted = useMountedKeys(plans.map((plan) => plan.path));
+  const fresh = useNewPlans(plans);
   if (plans.length === 0) return null;
   return (
     <section>
@@ -55,13 +62,17 @@ function Group({
                 className="flex w-full cursor-default items-center gap-3 border-b border-border px-4 py-2 text-left text-sm transition-colors hover:bg-sidebar"
               >
                 <StatusGlyph status={plan.status} />
-                <span className="flex-1 truncate font-medium">{plan.title}</span>
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="truncate font-medium">{plan.title}</span>
+                  {fresh.has(plan.path) && <NewBadge />}
+                </span>
                 <span className="flex items-center gap-3 text-xs text-muted-foreground">
                   <PlanRowFacts
                     plan={plan}
                     open={openThreads.get(plan.path) ?? 0}
                     sessions={sessions.get(plan.id) ?? 0}
-                    progress={progress.get(plan.path)}
+                    work={progress.get(plan.path)}
+                    display={display}
                   />
                 </span>
               </button>
@@ -80,6 +91,7 @@ export function ForYouView({
   sessions,
   onOpen,
   progress,
+  display,
 }: ForYouViewProps) {
   const groups = useMemo(() => forYou(plans, summaries), [plans, summaries]);
   const openThreads = useMemo(
@@ -110,6 +122,7 @@ export function ForYouView({
             openThreads={openThreads}
             sessions={sessions}
             progress={progress}
+            display={display}
             onOpen={onOpen}
           />
           <Group
@@ -121,6 +134,7 @@ export function ForYouView({
             openThreads={openThreads}
             sessions={sessions}
             progress={progress}
+            display={display}
             onOpen={onOpen}
           />
         </>

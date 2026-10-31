@@ -5,7 +5,9 @@ import {
   answerOf,
   prBadges,
   prLabel,
+  prSummaryText,
   progress,
+  repoLabel,
   progressText,
   questionsByAspect,
   TODO_MARKS,
@@ -244,5 +246,29 @@ describe("offersCompletion", () => {
 
     expect(offersCompletion("in-progress", merged)).toBe(false);
     expect(offersCompletion("completed", merged)).toBe(false);
+  });
+});
+
+describe("repoLabel", () => {
+  it("names a repo by owner and name from its remote", () => {
+    const named = (remote: string) => repoLabel({ path: "~/code/x", remote });
+
+    expect(named("github.com/owner/repo")).toBe("owner/repo");
+    expect(named("https://github.com/owner/repo.git")).toBe("owner/repo");
+    expect(named("git@github.com:owner/repo.git")).toBe("owner/repo");
+    expect(named("gitlab.com/owner/repo/")).toBe("owner/repo");
+  });
+
+  it("names a plain folder by the last part of its path", () => {
+    expect(repoLabel({ path: "~/Personal/notes" })).toBe("notes");
+    expect(repoLabel({ path: "~/Personal/notes/" })).toBe("notes");
+    expect(repoLabel({ path: "C:\\work\\thing" })).toBe("thing");
+  });
+});
+
+describe("prSummaryText", () => {
+  it("says how many pull requests there are and how many are merged", () => {
+    expect(prSummaryText({ total: 2, merged: 1 })).toBe("2 pull requests, 1 merged");
+    expect(prSummaryText({ total: 1, merged: 0 })).toBe("1 pull request, 0 merged");
   });
 });
