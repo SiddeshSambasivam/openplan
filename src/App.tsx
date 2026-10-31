@@ -8,11 +8,6 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { CommentComposer } from "./components/CommentComposer";
-import { CommentDraftPopover } from "./components/CommentDraftPopover";
-import { CommentHighlightOverlay } from "./components/CommentHighlightOverlay";
-import { CommentsPanel } from "./components/CommentsPanel";
-import { CommentThreadPopover } from "./components/CommentThreadPopover";
 import { DropOverlay } from "./components/DropOverlay";
 import type { EditorApi } from "./components/Editor";
 import { EmptyState } from "./components/EmptyState";
@@ -22,8 +17,6 @@ import { Sidebar } from "./components/Sidebar";
 import { Outline } from "./components/Outline";
 import { Viewer } from "./components/Viewer";
 import { directoryEntryToTree, fileListToTree } from "./lib/browserFs";
-import type { CommentThread, PendingDraft } from "./lib/comments";
-import { findQuoteRange, lineRangeForSelection } from "./lib/domRange";
 import {
   basename,
   classifyPaths,
@@ -48,7 +41,6 @@ import {
 } from "./lib/tree";
 import { isFontSize, FONT_SIZE_SCALES, type FontSize } from "./lib/fontSize";
 import type { DocFile, FolderNode, LibraryItem, ViewMode } from "./lib/types";
-import { useComments } from "./lib/useComments";
 import { useOutline } from "./lib/useOutline";
 import { cn } from "./lib/utils";
 import { WELCOME_DOC_ID, WELCOME_MARKDOWN } from "./lib/welcome";
@@ -79,10 +71,6 @@ function clampSidebarWidth(width: number): number {
   const max = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth * SIDEBAR_MAX_RATIO);
   return Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), max);
 }
-
-/** Below this the comments panel floats over the content instead of
- * permanently claiming layout width from it. */
-const NARROW_VIEWPORT_BREAKPOINT = 900;
 
 /** The main area needs at least this much room to give the outline a column
  * of its own and still leave a comfortable reading measure beside it. */
@@ -225,20 +213,6 @@ export default function App() {
   // Bumped on every ⌘F, even while already open, so FindBar can re-focus
   // and re-select its query — pressing ⌘F again shouldn't be a no-op.
   const [findFocusSeq, setFindFocusSeq] = useState(0);
-  const [commentsOpen, setCommentsOpen] = useState(false);
-  // The thread shown in a floating "view" popover after clicking its
-  // highlight while the panel is CLOSED — mutually exclusive with the panel
-  // (see toggleCommentsPanel / the click-to-open handler below).
-  const [viewingThreadId, setViewingThreadId] = useState<string | null>(null);
-  // The thread the panel should scroll to + briefly emphasize — set when a
-  // highlight is clicked while the panel is already OPEN (no popover in
-  // that case, the panel just scrolls to it), or when a thread's quote
-  // button is clicked from within the panel itself.
-  const [focusThreadId, setFocusThreadId] = useState<string | null>(null);
-  // Briefly highlighted in the "active" color after jumping to it from the
-  // panel's quote button.
-  const [flashThreadId, setFlashThreadId] = useState<string | null>(null);
-
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const activeIdRef = useRef(activeId);
@@ -318,11 +292,7 @@ export default function App() {
       findDocInItems(itemsRef.current, activeIdRef.current),
       switched,
     );
-    if (switched) {
-      setFindOpen(false);
-      setViewingThreadId(null);
-      setFocusThreadId(null);
-    }
+    if (switched) setFindOpen(false);
   }, [activeDocId, reloadKey, loadDoc]);
 
   // Find only searches the rendered preview — close it if that's no longer
@@ -330,157 +300,6 @@ export default function App() {
   useEffect(() => {
     if (view !== "preview") setFindOpen(false);
   }, [view]);
-
-  /* ---------- comments ---------- */
-
-  const {
-    threads: commentThreads,
-    addThread,
-    addReply,
-    setResolved,
-    updateComment,
-    deleteComment,
-  } = useComments(activeDocId, activeDoc?.path);
-
-  const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null);
-
-  // Selecting text to comment only makes sense while actually reading the
-  // rendered doc — same preview-only scope as Find and the TOC. The Welcome
-  // page is excluded too, matching how it's also not editable.
-  const canComment =
-    view === "preview" &&
-    activeDoc != null &&
-    activeDoc.id !== WELCOME_DOC_ID &&
-    content != null;
-  const canCommentRef = useRef(canComment);
-  canCommentRef.current = canComment;
-
-  const commentDocLabel = activeDoc?.path ?? activeDoc?.name ?? "";
-  const viewingThread = viewingThreadId
-    ? (commentThreads.find((t) => t.id === viewingThreadId) ?? null)
-    : null;
-  // The highlight painted in the darker "active" color — the thread whose
-  // popover is currently open, or (briefly) one just jumped to from the panel.
-  const activeThreadId = viewingThreadId ?? flashThreadId;
-
-  // Clear a stale draft if it can no longer be composed (doc switched away,
-  // left preview, etc.) — matches how findOpen already resets in a sibling
-  // effect below.
-  useEffect(() => {
-    if (!canComment) setPendingDraft(null);
-  }, [canComment]);
-
-  /** Captures a selection's anchor into a standalone draft popover — shared
-   * by the floating trigger button and the ⇧⌘C shortcut. Deliberately does
-   * NOT open the Comments panel: starting a new comment shouldn't force the
-   * whole thread list open, just show a small composer next to what you
-   * selected. */
-  const beginComment = useCallback(
-    (quote: string, lineStart: number, lineEnd: number) => {
-      setPendingDraft({ quote, lineStart, lineEnd });
-    },
-    [],
-  );
-
-  // Opening the panel (browse-all-threads mode) and showing a single
-  // thread's view popover are mutually exclusive surfaces — never show both
-  // at once. If a popover was open, its thread carries over as the panel's
-  // focus target (scrolled to + emphasized) rather than just vanishing.
-  // Composing a NEW draft is deliberately NOT touched here: it's unsaved
-  // user input, so an incidental panel-open shouldn't discard it.
-  const toggleCommentsPanel = useCallback(() => {
-    setCommentsOpen((o) => {
-      const next = !o;
-      if (next) {
-        setViewingThreadId((id) => {
-          if (id) setFocusThreadId(id);
-          return null;
-        });
-      }
-      return next;
-    });
-  }, []);
-
-  const beginCommentFromSelection = useCallback(() => {
-    const root = articleRef.current;
-    const sel = window.getSelection();
-    const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
-    if (!root || !sel || sel.isCollapsed || !range || !root.contains(range.commonAncestorContainer)) {
-      // Nothing selected to anchor a new comment to — reveal the panel
-      // instead of silently doing nothing.
-      toggleCommentsPanel();
-      return;
-    }
-    const quote = sel.toString().trim();
-    const lines = lineRangeForSelection(sel, root);
-    if (!quote || !lines) {
-      toggleCommentsPanel();
-      return;
-    }
-    beginComment(quote, lines.lineStart, lines.lineEnd);
-    sel.removeAllRanges();
-  }, [beginComment, toggleCommentsPanel]);
-
-  // Submitting just leaves the comment's highlight behind — same as any
-  // other saved thread, found either by clicking that highlight or opening
-  // the panel manually. No forced panel-open/scroll-to on creation.
-  const submitDraft = useCallback(
-    (text: string) => {
-      if (!pendingDraft) return;
-      addThread(pendingDraft.quote, pendingDraft.lineStart, pendingDraft.lineEnd, text);
-      setPendingDraft(null);
-    },
-    [pendingDraft, addThread],
-  );
-
-  const cancelDraft = useCallback(() => setPendingDraft(null), []);
-
-  // Scrolls the document to a thread clicked in the panel and briefly
-  // flashes its highlight in the "active" color.
-  const jumpToThread = useCallback((thread: CommentThread) => {
-    const root = articleRef.current;
-    if (!root) return;
-    const range = findQuoteRange(root, thread.quote, thread.lineStart, thread.lineEnd);
-    if (!range) return;
-    range.startContainer.parentElement?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-    setFlashThreadId(thread.id);
-    setTimeout(() => setFlashThreadId((id) => (id === thread.id ? null : id)), 1400);
-  }, []);
-
-  // Clicking already-commented (highlighted) text: if the panel is closed,
-  // opens a floating "view" popover for just that thread (mutually
-  // exclusive with the panel — see toggleCommentsPanel above); if the panel
-  // is already open, scrolls it to that thread's card instead (no popover,
-  // the thread is already visible in the list). Ignored whenever there's an
-  // active, non-collapsed selection: that means the user just finished
-  // dragging out a NEW selection (handled by CommentComposer's own
-  // listener), not clicking on existing commented text.
-  useEffect(() => {
-    if (!canComment) return;
-    const root = articleRef.current;
-    if (!root) return;
-    const onClick = (e: MouseEvent) => {
-      const sel = window.getSelection();
-      if (sel && !sel.isCollapsed && sel.toString().trim()) return;
-      if (!(e.target instanceof Node) || !root.contains(e.target)) return;
-      const caretRange = document.caretRangeFromPoint?.(e.clientX, e.clientY);
-      if (!caretRange) return;
-      for (const thread of commentThreads) {
-        if (thread.resolved) continue;
-        const range = findQuoteRange(root, thread.quote, thread.lineStart, thread.lineEnd);
-        if (range?.isPointInRange(caretRange.startContainer, caretRange.startOffset)) {
-          if (commentsOpen) setFocusThreadId(thread.id);
-          else setViewingThreadId(thread.id);
-          return;
-        }
-      }
-    };
-    root.addEventListener("click", onClick);
-    return () => root.removeEventListener("click", onClick);
-  }, [canComment, commentThreads, commentsOpen]);
 
   const refreshActive = useCallback(() => {
     const doc = findDocInItems(itemsRef.current, activeIdRef.current);
@@ -1186,11 +1005,6 @@ export default function App() {
           setFindOpen(true);
           setFindFocusSeq((s) => s + 1);
         }
-      } else if (key === "c" && e.shiftKey) {
-        if (canCommentRef.current) {
-          e.preventDefault();
-          beginCommentFromSelection();
-        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -1198,7 +1012,6 @@ export default function App() {
   }, [
     openFileDialog,
     openFolderDialog,
-    beginCommentFromSelection,
     toggleSidebar,
     flushSave,
     toggleEdit,
@@ -1221,8 +1034,6 @@ export default function App() {
   }, [content]);
 
   const showOutline = view === "preview" && activeDoc != null && content != null;
-  const isNarrowViewport = viewportWidth < NARROW_VIEWPORT_BREAKPOINT;
-  const openCommentCount = commentThreads.filter((t) => !t.resolved).length;
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
@@ -1286,9 +1097,6 @@ export default function App() {
             setFindOpen(true);
             setFindFocusSeq((s) => s + 1);
           }}
-          commentsOpen={commentsOpen}
-          onToggleComments={toggleCommentsPanel}
-          openCommentCount={openCommentCount}
           trafficLightGap={isTauri && isMac}
         />
         {/* Clips the outline while it sits translated off-screen — otherwise
@@ -1332,15 +1140,6 @@ export default function App() {
                 onOpenFolderDialog={() => void openFolderDialog()}
               />
             )}
-            {canComment && (
-              <CommentHighlightOverlay
-                articleRef={articleRef}
-                scrollRef={scrollRef}
-                threads={commentThreads}
-                pendingDraft={pendingDraft}
-                activeThreadId={activeThreadId}
-              />
-            )}
           </div>
           {showOutline && (
             <Outline
@@ -1354,43 +1153,6 @@ export default function App() {
         </div>
       </main>
 
-      <CommentsPanel
-        open={commentsOpen}
-        threads={commentThreads}
-        docLabel={commentDocLabel}
-        focusThreadId={focusThreadId}
-        overlay={isNarrowViewport}
-        onClose={() => setCommentsOpen(false)}
-        onReply={addReply}
-        onToggleResolved={setResolved}
-        onEditComment={updateComment}
-        onDeleteComment={deleteComment}
-        onJumpToThread={jumpToThread}
-      />
-
-      {pendingDraft && (
-        <CommentDraftPopover
-          draft={pendingDraft}
-          articleRef={articleRef}
-          scrollRef={scrollRef}
-          onSubmit={submitDraft}
-          onCancel={cancelDraft}
-        />
-      )}
-
-      {viewingThread && (
-        <CommentThreadPopover
-          thread={viewingThread}
-          articleRef={articleRef}
-          scrollRef={scrollRef}
-          onReply={(text) => addReply(viewingThread.id, text)}
-          onToggleResolved={() => setResolved(viewingThread.id, !viewingThread.resolved)}
-          onEditComment={(commentId, text) => updateComment(viewingThread.id, commentId, text)}
-          onDeleteComment={(commentId) => deleteComment(viewingThread.id, commentId)}
-          onClose={() => setViewingThreadId(null)}
-        />
-      )}
-
       <FindBar
         articleRef={articleRef}
         open={findOpen}
@@ -1398,13 +1160,6 @@ export default function App() {
         onClose={() => setFindOpen(false)}
       />
 
-      <CommentComposer
-        articleRef={articleRef}
-        scrollRef={scrollRef}
-        enabled={canComment}
-        suppressed={pendingDraft != null}
-        onBegin={beginComment}
-      />
       {dragging && <DropOverlay />}
 
       {notice && (

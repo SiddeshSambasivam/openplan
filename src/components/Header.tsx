@@ -1,6 +1,5 @@
 import {
   Eye,
-  MessageSquareText,
   Moon,
   PanelLeft,
   Search,
@@ -37,10 +36,6 @@ interface HeaderProps {
   outlineOpen: boolean;
   onToggleOutline: () => void;
   onOpenFind: () => void;
-  commentsOpen: boolean;
-  onToggleComments: () => void;
-  /** Unresolved comment count, shown as a small badge on the icon. */
-  openCommentCount: number;
   /** Keep clear of the macOS traffic lights when the sidebar is hidden. */
   trafficLightGap: boolean;
 }
@@ -63,9 +58,6 @@ export function Header({
   outlineOpen,
   onToggleOutline,
   onOpenFind,
-  commentsOpen,
-  onToggleComments,
-  openCommentCount,
   trafficLightGap,
 }: HeaderProps) {
   const mod = isMac ? "⌘" : "Ctrl+";
@@ -153,29 +145,6 @@ export function Header({
           className={cn(outlineOpen && "bg-accent text-accent-foreground")}
         >
           <TableOfContents className="size-4" />
-        </Button>
-      )}
-
-      {doc && inPreview && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggleComments}
-          tooltip="Comments"
-          tooltipSide="bottom-end"
-          aria-label="Comments"
-          aria-expanded={commentsOpen}
-          className={cn(
-            "relative",
-            commentsOpen && "bg-accent text-accent-foreground",
-          )}
-        >
-          <MessageSquareText className="size-4" />
-          {openCommentCount > 0 && (
-            <span className="absolute top-0.5 right-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground">
-              {openCommentCount > 9 ? "9+" : openCommentCount}
-            </span>
-          )}
         </Button>
       )}
 

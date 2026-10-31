@@ -563,9 +563,11 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       — Vitest itself was set up in P0.1, which needed it for its test
 - [ ] P0.5 Vendor shadcn/ui CLI + replace `Button.tsx`, `Tooltip.tsx` with shadcn
       equivalents (visual parity)
-- [ ] P0.6 Hide the existing (buggy) comments UI behind nothing — remove its entry
-      points (header icon, `⇧⌘C`, selection trigger) so it can't be reached; code
-      deleted for real in Phase 4
+- [x] P0.6 Remove the comments UI outright — the 6 `Comment*` components,
+      `useComments`, the popover positioning hook, and quote anchoring in
+      `domRange.ts` (find-in-document keeps the rest). `lib/comments.ts` stays
+      as the sidecar + agent-export spec, now under test. Phase 4 rebuilds the
+      UI on source-line anchoring (§6.2b)
 - [x] P0.7 Outline (was "table of contents") rebuilt as an in-flow column that
       cannot overlap the text, collapsing to a dismissable floating panel only
       when the main area is too narrow; sidebar file/folder footer removed;
@@ -651,8 +653,8 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       re-run discovery idempotent; skip paths all work)
 
 ### Phase 4 — Comments v2 (full rebuild — replaces the buggy system)
-- [ ] P4.1 Delete old comments code: 6 `Comment*` components, `useComments`,
-      `domRange.ts`, `comments.ts` UI paths (sidecar schema/spec stays)
+- [x] P4.1 Delete old comments code — done early in P0.6, so that the shadcn
+      migration had no dead components to carry
 - [ ] P4.2 Remark position-stamp plugin (`data-line-start/end` on blocks) **(T)**
 - [ ] P4.3 Anchoring lib: selection→lines, lines→blocks, quote drift detection,
       ambiguity → degrade rules of §6.2b **(T: pure functions, exhaustive cases)**
@@ -706,6 +708,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Default reading settings: small font, compact width | Sid's preference |
 | 2026-08-15 | Shared motion utilities in `index.css` (transform/opacity entrances, `prefers-reduced-motion` guard) | Sid: interactions felt too sudden; keeps motion consistent instead of per-component ad hoc |
 | 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
+| 2026-08-15 | The comments UI was deleted in P0.6 rather than merely disabled (P4.1 pulled forward) | Keeping ~1400 lines of unreachable code through three phases fights "less code", and it would have had to be migrated to shadcn for no reason |
 | 2026-08-15 | No autostart/daemon for MCP; instead the MCP server is self-sufficient (auto-creates the base if missing) | Clients spawn `openplan mcp` per session over stdio — the app is never a runtime dependency; autostart would violate NFR-8 |
 | 2026-08-15 | Single design system: shadcn components + tokens only; Tailwind is plumbing, never a second design language | Sid: don't maintain two design systems |
 | 2026-08-15 | Settings page (FR-14) is the canonical preference surface; header keeps quick toggles only | Sid's request; Claude Code-style settings |
