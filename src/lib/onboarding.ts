@@ -40,17 +40,21 @@ export interface OnboardingState {
   setup: SetupRow[];
 }
 
+/** What an install reports about one tool. */
+export type InstallEvent =
+  | { type: "installing"; tool: string }
+  | { type: "installed"; tool: string; steps: InstallStep[] }
+  | { type: "failed"; tool: string; error: string };
+
 export type OnboardingEvent =
+  | InstallEvent
   | { type: "next" }
   | { type: "skip" }
   | { type: "back" }
   | { type: "name"; name: string }
   | { type: "pickRole"; role: PersonRoleId }
   | { type: "toggleAgent"; id: string }
-  | { type: "detected"; agents: AgentOption[] }
-  | { type: "installing"; tool: string }
-  | { type: "installed"; tool: string; steps: InstallStep[] }
-  | { type: "failed"; tool: string; error: string };
+  | { type: "detected"; agents: AgentOption[] };
 
 /** What onboarding hands the app when the person opens their board. */
 export interface OnboardingResult {
@@ -83,26 +87,20 @@ export function step(state: OnboardingState, event: OnboardingEvent): Onboarding
     case "pickRole":
       return { ...state, role: event.role };
     case "toggleAgent":
-      return toggled(state, event.id);
+      return { ...state, picked: togglePick(state.agents, state.picked, event.id) };
     case "detected":
-      return {
-        ...state,
-        agents: event.agents,
-        picked: event.agents.filter((agent) => agent.installed).map((agent) => agent.id),
-      };
+      return { ...state, agents: event.agents, picked: pickedByDefault(event.agents) };
     case "installing":
-      return withRow(state, event.tool, { status: "running", error: undefined });
     case "installed":
-      return withRow(state, event.tool, { status: "ready", steps: event.steps });
     case "failed":
-      return withRow(state, event.tool, { status: "failed", error: event.error });
+      return { ...state, setup: setupStep(state.setup, event) };
   }
 }
 
 /** Whether the main button does anything yet. */
 export function canContinue(state: OnboardingState): boolean {
   if (state.step === "role") return state.role != null;
-  if (state.step === "setup") return settled(state);
+  if (state.step === "setup") return setupSettled(state.setup);
   return true;
 }
 
@@ -131,12 +129,53 @@ export function onboardingKey(
   return null;
 }
 
+/** The agent tools discovery looks for, and whether each is on this machine. */
+export async function detectAgents(call: Invoke): Promise<AgentOption[]> {
+  const found = (await call("discover_sources")) as { agents: AgentOption[] };
+  return found.agents.map(({ id, name, installed }) => ({ id, name, installed }));
+}
+
+/** Every tool on this machine starts picked. */
+export function pickedByDefault(agents: AgentOption[]): string[] {
+  return agents.filter((agent) => agent.installed).map((agent) => agent.id);
+}
+
+/** The picks after one card is pressed, in the order the cards show. A tool
+ * that is not installed cannot be picked. */
+export function togglePick(agents: AgentOption[], picked: string[], id: string): string[] {
+  if (!agents.some((agent) => agent.id === id && agent.installed)) return picked;
+  const on = !picked.includes(id);
+  return agents.map((agent) => agent.id).filter((each) => (each === id ? on : picked.includes(each)));
+}
+
+/** One row per tool, each waiting its turn. */
+export function waitingRows(tools: string[]): SetupRow[] {
+  return tools.map((tool) => ({ tool, status: "waiting", steps: [] }));
+}
+
+/** Where one install event leaves the setup rows. A retry clears the
+ * row's error. */
+export function setupStep(rows: SetupRow[], event: InstallEvent): SetupRow[] {
+  const change: Partial<SetupRow> =
+    event.type === "installing"
+      ? { status: "running", error: undefined }
+      : event.type === "installed"
+        ? { status: "ready", steps: event.steps }
+        : { status: "failed", error: event.error };
+  return rows.map((row) => (row.tool === event.tool ? { ...row, ...change } : row));
+}
+
+/** Whether every tool has finished, ready or failed. */
+export function setupSettled(rows: SetupRow[]): boolean {
+  return rows.every((row) => row.status === "ready" || row.status === "failed");
+}
+
 /** Sets up each tool in turn. A tool that fails is reported and the next
  * one still runs. */
 export async function installTools(
   tools: string[],
   install: (tool: string) => Promise<InstallStep[]>,
-  report: (event: OnboardingEvent) => void,
+  report: (event: InstallEvent) => void,
 ): Promise<void> {
   for (const tool of tools) {
     report({ type: "installing", tool });
@@ -164,15 +203,10 @@ export async function finishOnboarding(
   return { name: kept, role, folder: seeded ? DEMO_FOLDER : null, startTour: seeded };
 }
 
-function settled(state: OnboardingState): boolean {
-  return state.setup.every((row) => row.status === "ready" || row.status === "failed");
-}
-
 function forward(state: OnboardingState): OnboardingState {
   if (state.step === "agents") {
     if (state.picked.length === 0) return { ...state, step: "finish" };
-    const setup = state.picked.map<SetupRow>((tool) => ({ tool, status: "waiting", steps: [] }));
-    return { ...state, step: "setup", setup };
+    return { ...state, step: "setup", setup: waitingRows(state.picked) };
   }
   const at = ONBOARDING_STEPS.indexOf(state.step);
   return { ...state, step: ONBOARDING_STEPS[Math.min(at + 1, ONBOARDING_STEPS.length - 1)] };
@@ -189,22 +223,6 @@ function skipped(state: OnboardingState): OnboardingState {
  * set up. */
 function backward(state: OnboardingState): OnboardingState {
   if (state.step === "welcome" || state.step === "finish") return state;
-  if (state.step === "setup" && !settled(state)) return state;
+  if (state.step === "setup" && !setupSettled(state.setup)) return state;
   return { ...state, step: ONBOARDING_STEPS[ONBOARDING_STEPS.indexOf(state.step) - 1] };
-}
-
-function toggled(state: OnboardingState, id: string): OnboardingState {
-  if (!state.agents.some((agent) => agent.id === id && agent.installed)) return state;
-  const on = !state.picked.includes(id);
-  const picked = state.agents
-    .map((agent) => agent.id)
-    .filter((each) => (each === id ? on : state.picked.includes(each)));
-  return { ...state, picked };
-}
-
-function withRow(state: OnboardingState, tool: string, change: Partial<SetupRow>): OnboardingState {
-  return {
-    ...state,
-    setup: state.setup.map((row) => (row.tool === tool ? { ...row, ...change } : row)),
-  };
 }

@@ -2,12 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   canContinue,
   DEMO_FOLDER,
+  detectAgents,
   finishOnboarding,
   installTools,
   litBars,
   onboardingKey,
+  pickedByDefault,
+  setupSettled,
+  setupStep,
   startOnboarding,
   step,
+  togglePick,
+  waitingRows,
+  type InstallEvent,
   type OnboardingEvent,
   type OnboardingState,
 } from "./onboarding";
@@ -184,6 +191,50 @@ describe("installTools", () => {
       { type: "installing", tool: "codex" },
       { type: "installed", tool: "codex", steps: [{ label: "Set up codex", done: true, detail: "registered" }] },
     ]);
+  });
+});
+
+describe("agent setup outside onboarding", () => {
+  it("lists what discovery found, with only the installed tools picked", async () => {
+    const call = async () => ({
+      agents: AGENTS.map((agent) => ({ ...agent, plans: ["/plans/a.md"] })),
+      folders: [],
+    });
+
+    const agents = await detectAgents(call);
+
+    expect(agents).toEqual(AGENTS);
+    expect(pickedByDefault(agents)).toEqual(["claude-code", "codex"]);
+  });
+
+  it("toggles a card in card order, and never picks a missing tool", () => {
+    expect(togglePick(AGENTS, ["codex"], "claude-code")).toEqual(["claude-code", "codex"]);
+    expect(togglePick(AGENTS, ["claude-code", "codex"], "codex")).toEqual(["claude-code"]);
+    expect(togglePick(AGENTS, ["codex"], "cursor")).toEqual(["codex"]);
+  });
+
+  it("runs the same installs onboarding does, then a Retry on the failed row", async () => {
+    let rows = waitingRows(["claude-code", "codex"]);
+    let attempts = 0;
+    const install = async (tool: string) => {
+      if (tool === "claude-code" && attempts++ === 0) throw "Couldn't find the `claude` command.";
+      return [{ label: `Set up ${tool}`, done: true, detail: "registered" }];
+    };
+    const report = (event: InstallEvent) => {
+      rows = setupStep(rows, event);
+    };
+
+    expect(setupSettled(rows)).toBe(false);
+    await installTools(["claude-code", "codex"], install, report);
+    expect(rows.map((row) => [row.tool, row.status, row.error])).toEqual([
+      ["claude-code", "failed", "Couldn't find the `claude` command."],
+      ["codex", "ready", undefined],
+    ]);
+    expect(setupSettled(rows)).toBe(true);
+
+    await installTools(["claude-code"], install, report);
+    expect(rows[0]).toMatchObject({ status: "ready", error: undefined });
+    expect(rows[0].steps).toEqual([{ label: "Set up claude-code", done: true, detail: "registered" }]);
   });
 });
 

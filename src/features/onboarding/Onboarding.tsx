@@ -8,6 +8,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { Progress } from "@/components/ui/progress";
 import {
   canContinue,
+  detectAgents,
   finishOnboarding,
   installTools,
   litBars,
@@ -20,14 +21,11 @@ import {
   type OnboardingStep,
 } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
-import type { Sources } from "@/features/settings/importSources";
 import { AgentPicker } from "./AgentPicker";
 import { AgentSetup } from "./AgentSetup";
 import { OnboardingBackdrop } from "./OnboardingBackdrop";
 import { PanelPreview } from "./PanelPreview";
 import { RolePicker } from "./RolePicker";
-
-export { AgentMark } from "@/components/AgentIcons";
 
 /** How long a screen takes to fade out before the next one rises. */
 const LEAVE_MS = 160;
@@ -53,13 +51,8 @@ export function Onboarding({ onDone }: OnboardingProps) {
   // Detection starts on the welcome, so the cards are ready by the time
   // anyone reaches them.
   useEffect(() => {
-    void invoke<Sources>("discover_sources")
-      .then((found) =>
-        dispatch({
-          type: "detected",
-          agents: found.agents.map(({ id, name, installed }) => ({ id, name, installed })),
-        }),
-      )
+    void detectAgents(invoke)
+      .then((agents) => dispatch({ type: "detected", agents }))
       .catch(() => {})
       .finally(() => setDetected(true));
   }, []);

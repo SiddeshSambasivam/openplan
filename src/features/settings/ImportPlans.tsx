@@ -1,7 +1,7 @@
 import { Check, Folder, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { AgentMark } from "@/features/onboarding/Onboarding";
+import { AgentMark } from "@/components/AgentIcons";
 import { Badge } from "@/components/ui/badge";
 import { TooltipButton } from "@/components/TooltipButton";
 import { cn } from "@/lib/utils";
