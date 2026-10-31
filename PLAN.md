@@ -709,8 +709,10 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       `~/.codex/AGENTS.md` **(T: idempotent)**. Run live
 - [x] P2.7 `openplan install cursor` — merged into `~/.cursor/mcp.json`,
       existing servers preserved **(T)**. Run live. Rules snippet still open
-- [ ] P2.8 Bundle CLI as Tauri sidecar binary; app "Connect agent" cards run
-      installers + `doctor` verification
+- [x] P2.8 Bundle CLI as Tauri sidecar binary; app "Connect agent" cards run
+      installers + `doctor` verification. Verified live: installed app's
+      onboarding registered `/Applications/OpenPlan.app/Contents/MacOS/openplan`,
+      Claude Code connected and filed a plan through it
 - [ ] P2.9 CI: build + attach CLI binaries alongside app installers
 - [ ] **GATE 2 — Sid manual QA & approval** (file a real plan from Claude Code,
       Codex, and Cursor; live appearance in app; standards served)
