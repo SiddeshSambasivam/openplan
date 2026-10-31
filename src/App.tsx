@@ -1069,6 +1069,9 @@ export default function App() {
           title="Drag to resize, double-click to reset"
           className="group relative z-10 flex w-2.5 shrink-0 cursor-col-resize touch-none items-stretch justify-center"
         >
+          {/* The handle sits between the sidebar and the header, so the
+              header's rule would stop short of the sidebar without this. */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-12 border-b border-border" />
           <div
             className={cn(
               "w-px bg-transparent transition-colors group-hover:bg-ring",

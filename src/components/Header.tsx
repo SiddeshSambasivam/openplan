@@ -77,7 +77,8 @@ export function Header({
           data-tauri-drag-region
           className={cn(
             "h-full shrink-0 transition-[width] duration-200 ease-in-out",
-            sidebarOpen ? "w-0" : "w-14",
+            // The controls end around 72pt in; clear them before the toggle.
+            sidebarOpen ? "w-0" : "w-18",
           )}
         />
       )}
