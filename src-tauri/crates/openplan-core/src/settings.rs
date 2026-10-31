@@ -47,6 +47,10 @@ pub struct Settings {
     /// Build waits for it. Absent reads as the default, and 0 means none.
     #[serde(rename = "alignmentTarget", default, skip_serializing_if = "Option::is_none")]
     pub alignment_target: Option<u32>,
+    /// Whether the app looks for a new version at launch and on focus.
+    /// Absent reads as on.
+    #[serde(rename = "checkUpdates", default, skip_serializing_if = "Option::is_none")]
+    pub check_updates: Option<bool>,
     /// The file name of the person's picture, kept beside the settings file.
     /// Absent means the generated marble.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -112,6 +116,16 @@ pub fn alignment_target(stored: Option<u32>) -> u32 {
 /// What this machine is set to.
 pub fn current_alignment_target() -> u32 {
     alignment_target(saved().and_then(|s| s.alignment_target))
+}
+
+/// On unless someone turned it off: a fix only helps once it is installed.
+pub fn check_updates_on(stored: Option<bool>) -> bool {
+    stored.unwrap_or(true)
+}
+
+/// What this machine is set to.
+pub fn current_check_updates() -> bool {
+    check_updates_on(saved().and_then(|s| s.check_updates))
 }
 
 /// Sets the name and email the person typed. A blank field is stored as
@@ -435,6 +449,38 @@ mod tests {
     }
 
     #[test]
+    fn checking_for_updates_is_on_until_someone_turns_it_off() {
+        let dir = temp_dir("openplan-core-settings-check-updates");
+        let file = dir.join("settings.json");
+        std::fs::write(&file, "{\"basePath\":\"/somewhere\"}\n").unwrap();
+
+        let saved = read_settings(&file).unwrap().unwrap();
+
+        assert_eq!(saved.check_updates, None);
+        assert!(check_updates_on(saved.check_updates));
+        assert!(!check_updates_on(Some(false)));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn turning_update_checks_off_is_remembered_as_check_updates() {
+        let dir = temp_dir("openplan-core-settings-check-updates-name");
+        let file = dir.join("settings.json");
+        let settings = Settings {
+            base_path: PathBuf::from("/somewhere"),
+            check_updates: Some(false),
+            ..Settings::default()
+        };
+
+        write_settings(&file, &settings).unwrap();
+
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains("\"checkUpdates\": false"), "{text}");
+        assert_eq!(read_settings(&file).unwrap().unwrap().check_updates, Some(false));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn completed_plans_are_archived_after_a_week_unless_someone_chose_otherwise() {
         let dir = temp_dir("openplan-core-settings-archive-days");
         let file = dir.join("settings.json");
@@ -638,6 +684,7 @@ mod tests {
             wake: Some(false),
             archive_after_days: Some(0),
             alignment_target: Some(65),
+            check_updates: Some(false),
             avatar: Some("avatar-100.png".to_string()),
         };
 

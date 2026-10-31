@@ -3,6 +3,7 @@ mod plans;
 mod pull_requests;
 mod review;
 mod sessions;
+mod updates;
 
 use std::path::Path;
 use tauri::Manager;
@@ -172,6 +173,7 @@ pub struct Preferences {
     wake: bool,
     archive_after_days: u32,
     alignment_target: u32,
+    check_updates: bool,
 }
 
 /// The settings the interface reads once at startup and again after a change.
@@ -182,6 +184,7 @@ async fn preferences() -> Preferences {
         wake: openplan_core::settings::current_wake(),
         archive_after_days: openplan_core::settings::current_archive_after_days(),
         alignment_target: openplan_core::settings::current_alignment_target(),
+        check_updates: openplan_core::settings::current_check_updates(),
     }
 }
 
@@ -206,6 +209,11 @@ async fn set_archive_after_days(days: u32) -> Result<(), String> {
 #[tauri::command]
 async fn set_alignment_target(percent: u32) -> Result<(), String> {
     onboarding::update_settings(|s| s.alignment_target = Some(percent))
+}
+
+#[tauri::command]
+async fn set_check_updates(on: bool) -> Result<(), String> {
+    onboarding::update_settings(|s| s.check_updates = Some(on))
 }
 
 /// Archives plans completed longer ago than the setting. Called when the app
@@ -274,6 +282,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // Resolved once and handed on. Callers resolving it for
             // themselves used to commit the base each time, and collided on
@@ -334,6 +344,8 @@ pub fn run() {
             set_wake,
             set_archive_after_days,
             set_alignment_target,
+            set_check_updates,
+            updates::package_install_kind,
             archive_stale,
             read_markdown,
             write_markdown,

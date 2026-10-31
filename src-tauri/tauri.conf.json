@@ -40,6 +40,15 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://UPDATES_HOST/latest.json"],
+      "pubkey": "UPDATER_PUBLIC_KEY",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,

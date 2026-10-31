@@ -25,6 +25,10 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+# Held to the releases that work with the tauri above and its JS package.
+# Newer ones need a newer tauri.
+tauri-plugin-updater = "~2.12"
+tauri-plugin-process = "~2.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 openplan-core = { path = "crates/openplan-core" }
