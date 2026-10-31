@@ -101,7 +101,7 @@ pub struct Question {
 }
 
 /// Who on a team would ask the question.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     Product,
@@ -109,6 +109,46 @@ pub enum Role {
     Design,
     /// The person paged when it breaks.
     Oncall,
+    Research,
+    Accessibility,
+    Data,
+    Security,
+    Support,
+    /// A role from a newer build, kept as written so a rewrite does not lose
+    /// it and a synced base still opens.
+    #[serde(untagged)]
+    Other(String),
+}
+
+impl Role {
+    /// Every role this build knows, in the order the app lists them.
+    pub const KNOWN: [Role; 9] = [
+        Role::Product,
+        Role::Engineering,
+        Role::Design,
+        Role::Oncall,
+        Role::Research,
+        Role::Accessibility,
+        Role::Data,
+        Role::Security,
+        Role::Support,
+    ];
+
+    /// The id as it is stored.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Role::Product => "product",
+            Role::Engineering => "engineering",
+            Role::Design => "design",
+            Role::Oncall => "oncall",
+            Role::Research => "research",
+            Role::Accessibility => "accessibility",
+            Role::Data => "data",
+            Role::Security => "security",
+            Role::Support => "support",
+            Role::Other(id) => id,
+        }
+    }
 }
 
 /// One option offered for a question.
@@ -867,16 +907,36 @@ mod tests {
 
     #[test]
     fn a_question_says_which_role_asks_it() {
-        let roles = [Role::Product, Role::Engineering, Role::Design, Role::Oncall];
+        let written = serde_json::to_value(Role::KNOWN).unwrap();
 
-        let written = serde_json::to_value(roles).unwrap();
-
-        assert_eq!(written, serde_json::json!(["product", "engineering", "design", "oncall"]));
+        assert_eq!(
+            written,
+            serde_json::json!([
+                "product", "engineering", "design", "oncall", "research",
+                "accessibility", "data", "security", "support"
+            ])
+        );
+        for role in Role::KNOWN {
+            assert_eq!(serde_json::to_value(&role).unwrap(), role.as_str());
+            assert_eq!(serde_json::from_value::<Role>(role.as_str().into()).unwrap(), role);
+        }
         let asked = Question {
             role: Some(Role::Oncall),
             ..question("q1", None)
         };
         assert_eq!(serde_json::to_value(&asked).unwrap()["role"], "oncall");
+    }
+
+    #[test]
+    fn a_role_from_a_newer_build_reads_and_is_written_back_as_it_was() {
+        let question: Question = serde_json::from_str(
+            r#"{"id":"q1","aspect":"scope","role":"legal","question":"Who signs off?","options":[]}"#,
+        )
+        .unwrap();
+
+        assert_eq!(question.role, Some(Role::Other("legal".to_string())));
+        assert_eq!(question.role.as_ref().unwrap().as_str(), "legal");
+        assert_eq!(serde_json::to_value(&question).unwrap()["role"], "legal");
     }
 
     #[test]

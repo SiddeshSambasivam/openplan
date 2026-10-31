@@ -222,7 +222,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let asked: Vec<_> = record.alignment.as_ref().unwrap().questions.iter().map(|q| (q.id.as_str(), q.round)).collect();
     assert_eq!(asked, [("q1", Some(1)), ("q2", Some(1)), ("q3", Some(2)), ("q4", Some(3))]);
     let posted = &record.alignment.as_ref().unwrap().questions[3];
-    assert_eq!((posted.answer.as_ref(), posted.role), (None, Some(openplan_core::work::Role::Oncall)));
+    assert_eq!((posted.answer.as_ref(), posted.role.as_ref()), (None, Some(&openplan_core::work::Role::Oncall)));
     assert!(posted.illustration.as_deref().unwrap().contains("mermaid"));
     assert!(posted.options[0].illustration.is_some());
     assert_eq!(record.todos[0].detail, None, "a plain line is still a todo");

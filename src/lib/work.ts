@@ -46,7 +46,16 @@ export interface Question {
 
 /** Who on a team would ask the question. On-call is the person paged when
  * it breaks. */
-export type Role = "product" | "engineering" | "design" | "oncall";
+export type Role =
+  | "product"
+  | "engineering"
+  | "design"
+  | "oncall"
+  | "research"
+  | "accessibility"
+  | "data"
+  | "security"
+  | "support";
 
 export interface Choice {
   id: string;
@@ -278,22 +287,38 @@ export function roundTitle(round: number, latest: boolean): string {
   return latest ? `Round ${round} · after your ${ordinal(round)} review` : `Round ${round}`;
 }
 
-/** Each role as the person on the team who asks. */
-export const PERSONAS: Record<Role, { name: string; title: string }> = {
-  product: { name: "Mila", title: "Product owner" },
-  engineering: { name: "Theo", title: "Tech lead" },
-  design: { name: "Iris", title: "Designer" },
-  oncall: { name: "Kai", title: "On-call" },
+/** Each role as the person on the team who asks, and what they ask about. */
+export const PERSONAS: Record<Role, { name: string; title: string; focus: string }> = {
+  product: { name: "Mila", title: "Product owner", focus: "Who it is for and what is left out" },
+  engineering: { name: "Theo", title: "Tech lead", focus: "How it is built and tested" },
+  design: { name: "Iris", title: "Designer", focus: "What people see and do" },
+  oncall: { name: "Kai", title: "On-call", focus: "What breaks, and at what size" },
+  research: {
+    name: "Noor",
+    title: "Researcher",
+    focus: "What we know about the people using it",
+  },
+  accessibility: {
+    name: "Ada",
+    title: "Accessibility",
+    focus: "Keyboard, screen readers and contrast",
+  },
+  data: { name: "Remy", title: "Data analyst", focus: "How we will know it worked" },
+  security: { name: "Sol", title: "Security", focus: "Who can reach what" },
+  support: { name: "Juno", title: "Support lead", focus: "What customers will ask" },
 };
 
 export const ROLES = Object.keys(PERSONAS) as Role[];
 
-/** The roles no question came from. Questions from before roles name none,
- * so nothing counts as left out for them. */
-export function unusedRoles(questions: Question[]): Role[] {
+/** Who asks a person who has not picked a role. */
+export const DEFAULT_PANEL: Role[] = ["product", "engineering", "design", "oncall"];
+
+/** The panel's roles no question came from, in the panel's order. Questions
+ * from before roles name none, so nothing counts as left out for them. */
+export function unusedRoles(questions: Question[], panel: Role[] = DEFAULT_PANEL): Role[] {
   const asked = new Set(questions.map((question) => question.role).filter(Boolean));
   if (asked.size === 0) return [];
-  return ROLES.filter((role) => !asked.has(role));
+  return panel.filter((role) => !asked.has(role));
 }
 
 export function unusedRolesText(
