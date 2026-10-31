@@ -6,9 +6,10 @@ import {
   Folders,
   Inbox,
   List,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Settings,
-  SquarePen,
 } from "lucide-react";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { cn } from "../lib/utils";
@@ -16,6 +17,7 @@ import type { MainView } from "../lib/types";
 import type { FolderFilter } from "../lib/folders";
 import {
   loadCollapsedSections,
+  navbarToggleLabel,
   saveCollapsedSections,
   toggleSection,
   type SectionId,
@@ -30,14 +32,12 @@ import { TooltipButton } from "./TooltipButton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SidebarProps {
-  /** The rail shows each row as an icon with its label in a tooltip. */
-  rail: boolean;
-  /** The search button opens the command palette. */
+  /** Shows each row as an icon with its label in a tooltip. */
+  minimized: boolean;
+  /** Expands or minimizes the navbar. */
+  onToggle: () => void;
+  /** The search row opens the command palette. */
   onOpenPalette: () => void;
-  /** The person's name, or null before onboarding has asked for it. */
-  name: string | null;
-  /** The base's folder name, shown beside the person's name. */
-  baseName: string | null;
   /** How many plans the base holds, shown beside All plans. */
   planCount: number;
   /** Every folder in the base, sorted by name. */
@@ -53,19 +53,16 @@ interface SidebarProps {
   activePlanPath: string | null;
   onSelectPlan: (plan: PlanSummary) => void;
   onOpenSettings: () => void;
-  /** Reserve space for the macOS traffic lights (overlay titlebar). */
+  /** Keep the macOS traffic lights clear of the mark (overlay titlebar). */
   padTop: boolean;
 }
-
-const NEW_PLAN_HINT = "New plans come from your agents. Ask one to file a plan.";
 
 /** Memoized: the app re-renders on every keystroke of an edit, and none of
  * that concerns these rows. */
 export const Sidebar = memo(function Sidebar({
-  rail,
+  minimized,
+  onToggle,
   onOpenPalette,
-  name,
-  baseName,
   planCount,
   folders,
   folder,
@@ -91,7 +88,7 @@ export const Sidebar = memo(function Sidebar({
     count?: number,
   ) => (
     <NavRow
-      rail={rail}
+      minimized={minimized}
       icon={icon}
       label={label}
       shortcut={shortcut}
@@ -107,7 +104,7 @@ export const Sidebar = memo(function Sidebar({
     return (
       <NavRow
         key={label}
-        rail={rail}
+        minimized={minimized}
         icon={<Icon className={cn(ICON, chosen && "text-sidebar-foreground")} />}
         label={label}
         chosen={chosen}
@@ -116,75 +113,75 @@ export const Sidebar = memo(function Sidebar({
     );
   };
 
+  // One layout for both modes: every icon sits where the minimized column
+  // centres it and only the labels fade, so a mode change moves nothing.
   return (
-    <aside className="flex h-full w-full flex-col border-r border-sidebar-border bg-sidebar">
-      {padTop && <div data-tauri-drag-region className="h-8 shrink-0" />}
+    <aside className="flex h-full w-full flex-col overflow-hidden border-r border-sidebar-border bg-sidebar">
+      {padTop && <div data-tauri-drag-region className="h-9 shrink-0" />}
 
-      <div
-        data-tauri-drag-region
-        className={cn(
-          "flex shrink-0 items-center gap-2 pt-3 pb-1",
-          rail ? "flex-col px-2" : "px-3",
-        )}
-      >
-        {rail ? (
-          <Hint text={[name, baseName].filter(Boolean).join(" · ") || "OpenPlan"}>
-            <BrandMark className="size-4 text-sidebar-foreground" />
-          </Hint>
+      <div data-tauri-drag-region className="flex shrink-0 items-center gap-1 px-2 pt-3 pb-1">
+        {minimized ? (
+          <ExpandMark onExpand={onToggle} />
         ) : (
-          <>
-            <BrandMark className="pointer-events-none size-4 shrink-0 text-sidebar-foreground" />
-            <p className="pointer-events-none flex min-w-0 flex-1 items-baseline gap-1.5">
-              {name ? (
-                <span className="truncate text-sm font-medium text-sidebar-foreground">
-                  {name}
-                </span>
-              ) : (
-                <span className="font-serif text-lg tracking-[-0.01em] text-sidebar-foreground">
-                  OpenPlan
-                </span>
-              )}
-              {baseName && (
-                <span className="truncate text-xs text-muted-foreground">{baseName}</span>
-              )}
-            </p>
-          </>
+          <span className="pointer-events-none flex size-8 shrink-0 items-center justify-center text-sidebar-foreground">
+            <BrandMark className="size-4" />
+          </span>
         )}
+        <span
+          aria-hidden={minimized || undefined}
+          className={cn(
+            "pointer-events-none min-w-0 flex-1 truncate font-serif text-lg tracking-[-0.01em] text-sidebar-foreground",
+            FADE,
+            minimized && "opacity-0",
+          )}
+        >
+          OpenPlan
+        </span>
+        {/* Stays mounted while minimized, faded and out of reach, so the
+            row keeps its shape through the transition. */}
         <TooltipButton
           variant="ghost"
           size="icon-sm"
-          onClick={onOpenPalette}
-          shortcut="palette"
-          tooltip="Search plans and commands"
-          tooltipSide={rail ? "right" : "bottom"}
-          aria-label="Search plans and commands"
-          className="text-muted-foreground"
+          onClick={onToggle}
+          shortcut="navbar"
+          tooltip={navbarToggleLabel(true)}
+          aria-label={navbarToggleLabel(true)}
+          aria-hidden={minimized || undefined}
+          tabIndex={minimized ? -1 : undefined}
+          className={cn("text-muted-foreground", FADE, minimized && "pointer-events-none opacity-0")}
         >
-          <Search />
+          <PanelLeftClose />
         </TooltipButton>
-        <Hint text={NEW_PLAN_HINT} side={rail ? "right" : "bottom"}>
-          <SquarePen className={ICON} />
-        </Hint>
       </div>
 
       <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-2">
-        <Section id="views" label="Views" rail={rail} collapsed={collapsed} onToggle={toggle}>
+        <div className="pt-1">
+          <NavRow
+            minimized={minimized}
+            icon={<Search className={ICON} />}
+            label="Search"
+            shortcut="palette"
+            onClick={onOpenPalette}
+          />
+        </div>
+
+        <Section id="views" label="Views" minimized={minimized} collapsed={collapsed} onToggle={toggle}>
           {viewRow("board", "board", <Columns3 className={ICON} />, "Board")}
           {viewRow("list", "list", <List className={ICON} />, "All plans", planCount)}
           {viewRow("for-you", "forYou", <Inbox className={ICON} />, "For you", forYouCount)}
         </Section>
 
-        <Section id="folders" label="Folders" rail={rail} collapsed={collapsed} onToggle={toggle}>
+        <Section id="folders" label="Folders" minimized={minimized} collapsed={collapsed} onToggle={toggle}>
           {folderRow(null, "All plans")}
           {folders.map((name) => folderRow(name, name))}
         </Section>
 
         {recent.length > 0 && (
-          <Section id="recent" label="Recent" rail={rail} collapsed={collapsed} onToggle={toggle}>
+          <Section id="recent" label="Recent" minimized={minimized} collapsed={collapsed} onToggle={toggle}>
             {recent.map((plan) => (
               <NavRow
                 key={plan.path}
-                rail={rail}
+                minimized={minimized}
                 icon={<StatusGlyph status={plan.status} />}
                 label={plan.title}
                 active={plan.path === activePlanPath && view === "plan"}
@@ -197,9 +194,9 @@ export const Sidebar = memo(function Sidebar({
         )}
       </nav>
 
-      <div className={cn("shrink-0 border-t border-sidebar-border p-2", rail && "flex justify-center")}>
+      <div className="shrink-0 border-t border-sidebar-border p-2">
         <NavRow
-          rail={rail}
+          minimized={minimized}
           icon={<Settings className={ICON} />}
           label="Settings"
           shortcut="settings"
@@ -218,14 +215,20 @@ const ROW =
 /** The one accent: where the main area is now. */
 const ACTIVE = "bg-sidebar-accent font-medium text-sidebar-accent-foreground";
 
+/** The labels' fade between the two modes, timed with the column's width. */
+const FADE = "transition-opacity duration-180 ease-out";
+
+/** The mark and the control it turns into, crossfading under the pointer. */
+const MORPH = "transition-[opacity,transform] duration-120 ease-out";
+
 /**
- * One navbar row. The rail keeps the icon and moves the label into a
- * tooltip, which also carries the row's key. In the open navbar only a row
- * with a key has a tooltip. `chosen` marks a filter in force without
- * competing with the accent on the view it filters.
+ * One navbar row. Minimized, the label fades out and moves into a tooltip,
+ * which also carries the row's key. Expanded, only a row with a key has a
+ * tooltip. `chosen` marks a filter in force without competing with the
+ * accent on the view it filters.
  */
 function NavRow({
-  rail,
+  minimized,
   icon,
   label,
   shortcut,
@@ -235,7 +238,7 @@ function NavRow({
   onClick,
   children,
 }: {
-  rail: boolean;
+  minimized: boolean;
   icon: ReactNode;
   label: string;
   shortcut?: ActionId;
@@ -243,34 +246,36 @@ function NavRow({
   active?: boolean;
   chosen?: boolean;
   onClick: () => void;
-  /** Stands in for the plain label in the open navbar. */
+  /** Stands in for the plain label. */
   children?: ReactNode;
 }) {
   const row = (
     <button
       onClick={onClick}
       aria-current={active || undefined}
-      aria-label={rail ? label : undefined}
+      aria-label={minimized ? label : undefined}
       className={cn(
         ROW,
-        rail ? "size-8 justify-center" : "w-full px-2 py-1 text-left",
+        "w-full overflow-hidden px-2 py-1 text-left",
         chosen && "font-medium text-sidebar-foreground",
         active && ACTIVE,
       )}
     >
       {icon}
-      {!rail && (children ?? <span className="flex-1 truncate">{label}</span>)}
-      {!rail && count != null && count > 0 && (
-        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{count}</span>
-      )}
+      <span className={cn("flex min-w-0 flex-1 items-center gap-2", FADE, minimized && "opacity-0")}>
+        {children ?? <span className="flex-1 truncate">{label}</span>}
+        {count != null && count > 0 && (
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{count}</span>
+        )}
+      </span>
     </button>
   );
-  // The tooltip stays mounted in both modes so switching to the rail only
+  // The tooltip stays mounted in both modes so a mode change only
   // re-renders the rows rather than mounting a tooltip for each one.
   return (
     <Tooltip>
       <TooltipTrigger asChild>{row}</TooltipTrigger>
-      {(rail || shortcut) && (
+      {(minimized || shortcut) && (
         <TooltipContent side="right" sideOffset={6}>
           <ShortcutLabel label={label} keys={shortcut && registryEntry(shortcut).keys} />
         </TooltipContent>
@@ -279,83 +284,88 @@ function NavRow({
   );
 }
 
-/** A labelled group of rows. The label folds it away. In the rail the label
- * becomes a thin divider and every row stays in reach. */
+/** The OpenPlan mark of the minimized navbar, which has no room for a second
+ * control. Under the pointer or keyboard focus it turns into the expand
+ * control. */
+function ExpandMark({ onExpand }: { onExpand: () => void }) {
+  const label = navbarToggleLabel(false);
+  return (
+    <TooltipButton
+      variant="ghost"
+      size="icon-sm"
+      onClick={onExpand}
+      shortcut="navbar"
+      tooltip={label}
+      tooltipSide="right"
+      aria-label={label}
+      aria-expanded={false}
+      className="group/mark relative text-sidebar-foreground"
+    >
+      <BrandMark
+        className={cn(
+          "size-4 group-hover/mark:scale-90 group-hover/mark:opacity-0 group-focus-visible/mark:scale-90 group-focus-visible/mark:opacity-0",
+          MORPH,
+        )}
+      />
+      <PanelLeftOpen
+        className={cn(
+          "absolute size-4 scale-90 opacity-0 group-hover/mark:scale-100 group-hover/mark:opacity-100 group-focus-visible/mark:scale-100 group-focus-visible/mark:opacity-100",
+          MORPH,
+        )}
+      />
+    </TooltipButton>
+  );
+}
+
+/** A labelled group of rows. The label folds it away. Minimized, the label
+ * fades into a thin divider and every row stays in reach. */
 function Section({
   id,
   label,
-  rail,
+  minimized,
   collapsed,
   onToggle,
   children,
 }: {
   id: SectionId;
   label: string;
-  rail: boolean;
+  minimized: boolean;
   collapsed: SectionId[];
   onToggle: (id: SectionId) => void;
   children: ReactNode;
 }) {
-  // One tree for both modes, so the rows survive a switch to the rail.
-  const open = rail || !collapsed.includes(id);
+  // One tree for both modes, so the rows survive a mode change.
+  const open = minimized || !collapsed.includes(id);
   return (
-    <div
-      className={cn(
-        rail
-          ? "mt-2 border-t border-sidebar-border pt-2 first:mt-1 first:border-t-0 first:pt-0"
-          : "pt-4 first:pt-2",
-      )}
-    >
-      {!rail && (
+    <div className="pt-4">
+      <div className="relative">
         <button
           onClick={() => onToggle(id)}
           aria-expanded={open}
-          className="flex cursor-default items-center gap-1 rounded-md px-2 pb-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          aria-hidden={minimized || undefined}
+          tabIndex={minimized ? -1 : undefined}
+          className={cn(
+            "flex cursor-default items-center gap-1 rounded-md px-2 pb-1 text-xs font-medium whitespace-nowrap text-muted-foreground transition-[color,opacity] duration-180 ease-out hover:text-foreground",
+            minimized && "pointer-events-none opacity-0",
+          )}
         >
           {label}
           <ChevronDown
             className={cn("size-3 transition-transform duration-150", !open && "-rotate-90")}
           />
         </button>
-      )}
-      {open && (
         <div
+          aria-hidden
           className={cn(
-            "flex flex-col gap-px animate-in fade-in-0 duration-150",
-            rail && "items-center",
+            "pointer-events-none absolute inset-x-2 top-1/2 h-px bg-sidebar-border opacity-0",
+            FADE,
+            minimized && "opacity-100",
           )}
-        >
-          {children}
-        </div>
+        />
+      </div>
+      {open && (
+        <div className="flex flex-col gap-px animate-in fade-in-0 duration-150">{children}</div>
       )}
     </div>
-  );
-}
-
-/** An icon that explains itself on hover. It does nothing when clicked. */
-function Hint({
-  text,
-  side = "right",
-  children,
-}: {
-  text: string;
-  side?: "right" | "bottom";
-  children: ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          tabIndex={0}
-          aria-label={text}
-          className="flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        >
-          {children}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side={side} sideOffset={6} className="max-w-56">
-        {text}
-      </TooltipContent>
-    </Tooltip>
   );
 }

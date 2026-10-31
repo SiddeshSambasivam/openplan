@@ -3,18 +3,11 @@ import type { PlanSummary } from "./planBase";
 import { RECENT_LIMIT } from "./recent";
 import { STORAGE_PREFIX } from "./storage";
 
-/** Open shows icons and labels, rail shows icons only, hidden gives the
- * main area the whole window. */
-export type NavbarMode = "open" | "rail" | "hidden";
+/** Expanded shows icons and labels, minimized shows icons only. */
+export type NavbarMode = "expanded" | "minimized";
 
-/** `toggle` is cmd+b, `rail` is cmd+shift+b. */
-export type NavbarKey = "toggle" | "rail";
-
-/** The pointer came to rest on the window's left edge, or left the navbar. */
-export type NavbarPointer = "edge" | "leave";
-
-/** `revealed` is the navbar floating over the main area while it has no
- * column of its own. */
+/** `revealed` is the expanded navbar floating over the main area of a
+ * window too narrow to give it a column. */
 export interface NavbarState {
   mode: NavbarMode;
   revealed: boolean;
@@ -22,47 +15,57 @@ export interface NavbarState {
 
 export type SectionId = "views" | "folders" | "recent";
 
-/** Below this window width an open navbar would squeeze the main area, so it
- * floats over it instead. */
+/** Below this window width an expanded navbar would squeeze the main area,
+ * so it floats over it instead. */
 export const NAVBAR_OVERLAY_BREAKPOINT = 900;
+
+/** The minimized navbar's width: one icon button and its padding. */
+export const RAIL_WIDTH = 48;
+
+/** The top bar's own left padding. */
+export const TOP_BAR_PADDING = 16;
+
+/** Where the macOS window controls end, with a gap after them. */
+const WINDOW_CONTROLS_END = 84;
 
 const MODE_KEY = `${STORAGE_PREFIX}sidebar`;
 const COLLAPSED_KEY = `${STORAGE_PREFIX}nav-collapsed`;
 
-/** How the navbar sits beside the main area at this window width. */
+/** The column the navbar takes beside the main area at this window width. */
 export function navbarLayout(mode: NavbarMode, narrow: boolean): NavbarMode {
-  return mode === "open" && narrow ? "hidden" : mode;
+  return narrow ? "minimized" : mode;
 }
 
 /**
- * A narrow window keeps the stored mode and shows or hides the floating
- * navbar instead, so a preference set on a wide screen survives a small one.
+ * cmd+b. A narrow window keeps the stored mode and shows or hides the
+ * floating navbar instead, so a preference set on a wide screen survives a
+ * small one.
  */
-export function pressNavbarKey(
-  state: NavbarState,
-  key: NavbarKey,
-  narrow: boolean,
-): NavbarState {
-  if (key === "toggle" && narrow && state.mode === "open") {
-    return { mode: "open", revealed: !state.revealed };
-  }
-  const mode = nextMode(state.mode, key);
-  return { mode, revealed: narrow && mode === "open" };
+export function pressNavbarKey(state: NavbarState, narrow: boolean): NavbarState {
+  if (narrow) return { ...state, revealed: !state.revealed };
+  return { mode: state.mode === "expanded" ? "minimized" : "expanded", revealed: false };
 }
 
-export function movePointer(
-  state: NavbarState,
-  pointer: NavbarPointer,
-  narrow: boolean,
-): NavbarState {
-  if (pointer === "leave") return { ...state, revealed: false };
-  return { ...state, revealed: navbarLayout(state.mode, narrow) === "hidden" };
+export function navbarToggleLabel(expanded: boolean): string {
+  return expanded ? "Collapse navbar" : "Expand navbar";
 }
 
-/** Reads the stored mode. The flag it replaced stored "closed" for hidden. */
+/**
+ * The space the top bar keeps before its content. `windowControls` is the
+ * macOS traffic lights drawn over the page. The minimized navbar is too
+ * narrow to clear them, the expanded one is not.
+ */
+export function topBarGap(mode: NavbarMode, windowControls: boolean): number {
+  if (!windowControls || mode === "expanded") return 0;
+  return WINDOW_CONTROLS_END - RAIL_WIDTH - TOP_BAR_PADDING;
+}
+
+/** Reads the stored mode. Older builds stored open, rail, hidden and, before
+ * those, closed. */
 export function parseNavbarMode(stored: string | null): NavbarMode {
-  if (stored === "rail" || stored === "hidden") return stored;
-  return stored === "closed" ? "hidden" : "open";
+  return stored != null && ["minimized", "rail", "hidden", "closed"].includes(stored)
+    ? "minimized"
+    : "expanded";
 }
 
 export function navbarSections(
@@ -89,7 +92,7 @@ export function loadNavbarMode(): NavbarMode {
   try {
     return parseNavbarMode(localStorage.getItem(MODE_KEY));
   } catch {
-    return "open";
+    return "expanded";
   }
 }
 
@@ -119,9 +122,4 @@ export function saveCollapsedSections(collapsed: SectionId[]): void {
   } catch {
     // best-effort
   }
-}
-
-function nextMode(mode: NavbarMode, key: NavbarKey): NavbarMode {
-  if (key === "rail") return mode === "rail" ? "open" : "rail";
-  return mode === "hidden" ? "open" : "hidden";
 }

@@ -3,7 +3,6 @@ import {
   Eye,
   MessageSquareText,
   Moon,
-  PanelLeft,
   Search,
   Send,
   SquarePen,
@@ -15,7 +14,6 @@ import type { DocFile, MainView, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
 import type { Crumb } from "../lib/board";
 import type { FolderFilter } from "../lib/folders";
-import type { NavbarMode } from "../lib/navbar";
 import type { PlanSummary, Status } from "../lib/planBase";
 import { cn } from "../lib/utils";
 import { TooltipButton } from "./TooltipButton";
@@ -69,9 +67,6 @@ interface HeaderProps {
   onToggleView: () => void;
   dark: boolean;
   onToggleTheme: () => void;
-  /** How the navbar sits beside the header at this window width. */
-  navbar: NavbarMode;
-  onToggleSidebar: () => void;
   contentWidth: ContentWidth;
   onContentWidthChange: (width: ContentWidth) => void;
   fontSize: FontSize;
@@ -91,8 +86,9 @@ interface HeaderProps {
    * whoever set it. */
   sendNotice: string | null;
   onOpenFind: () => void;
-  /** Keep clear of the macOS traffic lights where the navbar does not. */
-  trafficLightGap: boolean;
+  /** Space before the content, in pixels, that keeps it clear of the macOS
+   * traffic lights where the navbar does not. */
+  leadingGap: number;
 }
 
 export function Header({
@@ -115,8 +111,6 @@ export function Header({
   onToggleView,
   dark,
   onToggleTheme,
-  navbar,
-  onToggleSidebar,
   contentWidth,
   onContentWidthChange,
   fontSize,
@@ -131,10 +125,8 @@ export function Header({
   onSendReview,
   sendNotice,
   onOpenFind,
-  trafficLightGap,
+  leadingGap,
 }: HeaderProps) {
-  const navbarShown = navbar !== "hidden";
-  const toggleSidebarLabel = `${navbarShown ? "Hide" : "Show"} sidebar`;
   const toggleViewLabel = view === "preview" ? "Edit" : "Preview";
   const toggleThemeLabel = dark ? "Switch to light theme" : "Switch to dark theme";
   const inPreview = view === "preview";
@@ -145,28 +137,14 @@ export function Header({
       data-tauri-drag-region
       className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-4"
     >
-      {trafficLightGap && (
-        <div
-          data-tauri-drag-region
-          className={cn(
-            "h-full shrink-0 transition-[width] duration-200 ease-in-out",
-            // The controls end around 72pt in; clear them before the toggle.
-            navbar === "open" ? "w-0" : navbar === "rail" ? "w-6" : "w-18",
-          )}
-        />
-      )}
-      <TooltipButton
-        variant="ghost"
-        size="icon-sm"
-        onClick={onToggleSidebar}
-        shortcut="navbar"
-        tooltip={toggleSidebarLabel}
-        tooltipSide="bottom" tooltipAlign="start"
-        aria-label={toggleSidebarLabel}
-        aria-expanded={navbarShown}
-      >
-        <PanelLeft className="size-4" />
-      </TooltipButton>
+      {/* Moves with the navbar column, so it shares its transition. The
+          negative margin takes back the row's gap, so a zero width adds
+          nothing. */}
+      <div
+        data-tauri-drag-region
+        className="navbar-width -mr-1.5 h-full shrink-0"
+        style={{ width: leadingGap }}
+      />
 
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         {onPlan && crumb ? (

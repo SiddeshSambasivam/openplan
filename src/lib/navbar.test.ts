@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { PlanSummary } from "./planBase";
 import {
-  movePointer,
   navbarLayout,
   navbarSections,
+  navbarToggleLabel,
   parseNavbarMode,
   pressNavbarKey,
+  RAIL_WIDTH,
   recentPlans,
   toggleSection,
-  type NavbarMode,
+  TOP_BAR_PADDING,
+  topBarGap,
 } from "./navbar";
 
 function plan(id: string, folders: string[] = []): PlanSummary {
@@ -32,84 +34,79 @@ function plan(id: string, folders: string[] = []): PlanSummary {
 const wide = false;
 const narrow = true;
 
-function press(mode: NavbarMode, key: "toggle" | "rail") {
-  return pressNavbarKey({ mode, revealed: false }, key, wide).mode;
-}
-
 describe("pressNavbarKey", () => {
-  it("toggles open and hidden on cmd+b", () => {
-    expect(press("open", "toggle")).toBe("hidden");
-    expect(press("hidden", "toggle")).toBe("open");
+  it("toggles expanded and minimized on cmd+b", () => {
+    expect(pressNavbarKey({ mode: "expanded", revealed: false }, wide)).toEqual({
+      mode: "minimized",
+      revealed: false,
+    });
+    expect(pressNavbarKey({ mode: "minimized", revealed: false }, wide)).toEqual({
+      mode: "expanded",
+      revealed: false,
+    });
   });
 
-  it("hides the rail on cmd+b", () => {
-    expect(press("rail", "toggle")).toBe("hidden");
-  });
-
-  it("toggles the rail and open on cmd+shift+b", () => {
-    expect(press("open", "rail")).toBe("rail");
-    expect(press("rail", "rail")).toBe("open");
-  });
-
-  it("shows the rail from hidden on cmd+shift+b", () => {
-    expect(press("hidden", "rail")).toBe("rail");
-  });
-
-  it("puts away an edge reveal when the mode changes", () => {
-    const next = pressNavbarKey({ mode: "hidden", revealed: true }, "toggle", wide);
-    expect(next).toEqual({ mode: "open", revealed: false });
-  });
-
-  it("floats the open navbar in a narrow window and cmd+b shows or hides it", () => {
-    const shown = pressNavbarKey({ mode: "hidden", revealed: false }, "toggle", narrow);
-    expect(shown).toEqual({ mode: "open", revealed: true });
-    expect(pressNavbarKey(shown, "toggle", narrow)).toEqual({ mode: "open", revealed: false });
+  it("floats the expanded navbar in a narrow window and keeps the stored mode", () => {
+    for (const mode of ["expanded", "minimized"] as const) {
+      const shown = pressNavbarKey({ mode, revealed: false }, narrow);
+      expect(shown).toEqual({ mode, revealed: true });
+      expect(pressNavbarKey(shown, narrow)).toEqual({ mode, revealed: false });
+    }
   });
 });
 
 describe("navbarLayout", () => {
-  it("keeps the stored mode in a wide window", () => {
-    expect(navbarLayout("open", wide)).toBe("open");
-    expect(navbarLayout("rail", wide)).toBe("rail");
-    expect(navbarLayout("hidden", wide)).toBe("hidden");
+  it("gives the navbar the stored mode's column in a wide window", () => {
+    expect(navbarLayout("expanded", wide)).toBe("expanded");
+    expect(navbarLayout("minimized", wide)).toBe("minimized");
   });
 
-  it("gives a narrow window's main area the whole width unless the rail is on", () => {
-    expect(navbarLayout("open", narrow)).toBe("hidden");
-    expect(navbarLayout("rail", narrow)).toBe("rail");
+  it("keeps a narrow window's column to the icons", () => {
+    expect(navbarLayout("expanded", narrow)).toBe("minimized");
+    expect(navbarLayout("minimized", narrow)).toBe("minimized");
   });
 });
 
-describe("movePointer", () => {
-  it("shows the navbar when the pointer rests on the left edge in hidden mode", () => {
-    expect(movePointer({ mode: "hidden", revealed: false }, "edge", wide).revealed).toBe(true);
+describe("navbarToggleLabel", () => {
+  it("names what a click does", () => {
+    expect(navbarToggleLabel(true)).toBe("Collapse navbar");
+    expect(navbarToggleLabel(false)).toBe("Expand navbar");
+  });
+});
+
+describe("topBarGap", () => {
+  it("starts the top bar's content clear of the macOS window controls when minimized", () => {
+    const start = RAIL_WIDTH + TOP_BAR_PADDING + topBarGap("minimized", true);
+    expect(start).toBeGreaterThanOrEqual(84);
+    expect(start).toBeLessThan(96);
   });
 
-  it("hides it again when the pointer leaves", () => {
-    expect(movePointer({ mode: "hidden", revealed: true }, "leave", wide).revealed).toBe(false);
+  it("adds nothing when expanded, where the navbar already clears them", () => {
+    expect(topBarGap("expanded", true)).toBe(0);
   });
 
-  it("ignores the edge while the navbar has a column of its own", () => {
-    expect(movePointer({ mode: "open", revealed: false }, "edge", wide).revealed).toBe(false);
-    expect(movePointer({ mode: "rail", revealed: false }, "edge", wide).revealed).toBe(false);
-  });
-
-  it("reveals the floating navbar of a narrow window from the edge", () => {
-    expect(movePointer({ mode: "open", revealed: false }, "edge", narrow).revealed).toBe(true);
+  it("adds nothing without window controls over the page", () => {
+    expect(topBarGap("minimized", false)).toBe(0);
+    expect(topBarGap("expanded", false)).toBe(0);
   });
 });
 
 describe("parseNavbarMode", () => {
-  it("reads the three modes", () => {
-    expect(parseNavbarMode("open")).toBe("open");
-    expect(parseNavbarMode("rail")).toBe("rail");
-    expect(parseNavbarMode("hidden")).toBe("hidden");
+  it("reads the two modes", () => {
+    expect(parseNavbarMode("expanded")).toBe("expanded");
+    expect(parseNavbarMode("minimized")).toBe("minimized");
   });
 
-  it("reads the old closed flag as hidden and anything else as open", () => {
-    expect(parseNavbarMode("closed")).toBe("hidden");
-    expect(parseNavbarMode(null)).toBe("open");
-    expect(parseNavbarMode("wide")).toBe("open");
+  it("reads the older open as expanded, and rail, hidden and closed as minimized", () => {
+    expect(parseNavbarMode("open")).toBe("expanded");
+    expect(parseNavbarMode("rail")).toBe("minimized");
+    expect(parseNavbarMode("hidden")).toBe("minimized");
+    expect(parseNavbarMode("closed")).toBe("minimized");
+  });
+
+  it("reads nothing or anything else as expanded", () => {
+    expect(parseNavbarMode(null)).toBe("expanded");
+    expect(parseNavbarMode("wide")).toBe("expanded");
   });
 });
 
