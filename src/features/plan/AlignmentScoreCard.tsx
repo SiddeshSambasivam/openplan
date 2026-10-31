@@ -75,7 +75,7 @@ export function ScoreDetails({ score }: { score: AlignmentScore }) {
           <AreaChip key={area.name} area={area} />
         ))}
         {score.notAsked.map((name) => (
-          <Chip key={name} tip="Ask the agent in a review comment if this plan needs it." className="border-dashed">
+          <Chip key={name} tip="Every plan needs an answer here. It holds the score down until the agent asks and you answer." className="border-dashed">
             Not asked yet: {name}
           </Chip>
         ))}

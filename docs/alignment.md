@@ -120,8 +120,8 @@ covers most of them and keeps the tool opinionated.
 
 ### Alignment score
 
-To make it a bit fun, each plan gets an alignment score. Build waits until the score
-reaches a target. OpenPlan suggests at least 80, and the target is a setting.
+To make it a bit fun, each plan gets an alignment score. I can start building once
+the score reaches my target. OpenPlan suggests at least 80, and the target is a setting.
 
 ## Why an app and not just a skill
 
