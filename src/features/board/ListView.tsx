@@ -7,12 +7,15 @@ import type { ReviewSummary } from "@/lib/board";
 import type { PlanSummary } from "@/lib/planBase";
 import type { FileLibraryItem, LibraryItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import type { TodoCount } from "@/lib/work";
 
 interface ListViewProps {
   plans: PlanSummary[];
   summaries: ReviewSummary[];
   /** Live agent sessions by plan id. */
   sessions: Map<string, number>;
+  /** Todo progress by plan path, for the plans with a work record. */
+  progress: Map<string, TodoCount>;
   activePlanPath: string | null;
   onSelectPlan: (plan: PlanSummary) => void;
   onSelectDocument: (plan: PlanSummary, document: string) => void;
@@ -73,6 +76,7 @@ export function ListView({
   plans,
   summaries,
   sessions,
+  progress,
   activePlanPath,
   onSelectPlan,
   onSelectDocument,
@@ -103,6 +107,7 @@ export function ListView({
         activePath={activePlanPath}
         openThreads={openThreads}
         sessions={sessions}
+        progress={progress}
         onSelect={onSelectPlan}
         onSelectDocument={onSelectDocument}
         onRename={onRenamePlan}

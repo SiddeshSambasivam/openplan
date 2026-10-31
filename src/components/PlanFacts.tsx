@@ -1,9 +1,11 @@
 import { Bot, Folder, MessageSquareText, User } from "lucide-react";
 import { ClaudeCodeIcon, CodexIcon, CursorIcon } from "./AgentIcons";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { shortDate } from "@/lib/board";
 import { SOURCE_LABELS, type PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
+import { progressText, type TodoCount } from "@/lib/work";
 
 /** The folders a plan is in, as small badges. Past `max`, the rest are
  * counted rather than shown, so a row keeps its height. */
@@ -74,10 +76,12 @@ export function PlanRowFacts({
   plan,
   open,
   sessions,
+  progress,
 }: {
   plan: PlanSummary;
   open: number;
   sessions: number;
+  progress?: TodoCount;
 }) {
   return (
     <>
@@ -89,6 +93,7 @@ export function PlanRowFacts({
       <LiveMark sessions={sessions} />
       <HandledBy source={plan.source} className="hidden md:grid" />
       <ThreadCount open={open} />
+      <TodoProgress progress={progress} />
       <span className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
         {shortDate(plan.updated ?? plan.created)}
       </span>
@@ -117,6 +122,25 @@ export function LiveMark({
     >
       <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-current" />
       <span className="tabular-nums">{said}</span>
+    </span>
+  );
+}
+
+/** How far the plan's todos are, as `4/9` with a bar. Nothing is shown for a
+ * plan without todos. */
+export function TodoProgress({ progress }: { progress?: TodoCount }) {
+  if (!progress || progress.total <= 0) return null;
+  return (
+    <span
+      title={progressText(progress)}
+      className="flex shrink-0 items-center gap-1.5 tabular-nums"
+    >
+      <Progress
+        value={(progress.done / progress.total) * 100}
+        aria-label={progressText(progress)}
+        className="h-1 w-8"
+      />
+      {progress.done}/{progress.total}
     </span>
   );
 }

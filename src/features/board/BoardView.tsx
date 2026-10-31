@@ -2,7 +2,13 @@ import { ChevronLeft, Folder } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { FolderPicker } from "@/components/FolderPicker";
 import { StatusGlyph } from "@/components/StatusGlyph";
-import { FolderBadges, HandledBy, LiveMark, ThreadCount } from "@/components/PlanFacts";
+import {
+  FolderBadges,
+  HandledBy,
+  LiveMark,
+  ThreadCount,
+  TodoProgress,
+} from "@/components/PlanFacts";
 import { TooltipButton } from "@/components/TooltipButton";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,12 +21,15 @@ import {
 import { entrance, useMountedKeys } from "@/lib/motion";
 import { STATUS_HINTS, STATUS_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
+import type { TodoCount } from "@/lib/work";
 
 interface BoardViewProps {
   plans: PlanSummary[];
   summaries: ReviewSummary[];
   /** Live agent sessions by plan id. */
   sessions: Map<string, number>;
+  /** Todo progress by plan path, for the plans with a work record. */
+  progress: Map<string, TodoCount>;
   /** Every folder in the base, for the card menu. */
   folders: string[];
   onFoldersChange: (plan: PlanSummary, folders: string[]) => void;
@@ -37,6 +46,7 @@ function Card({
   plan,
   open,
   sessions,
+  count,
   index,
   mountedWith,
   actions,
@@ -44,6 +54,7 @@ function Card({
   plan: PlanSummary;
   open: number;
   sessions: number;
+  count?: TodoCount;
   /** Where the card sits in its column, which sets its entrance delay. */
   index: number;
   /** False for a card filed after the column was drawn: it fades in place. */
@@ -67,6 +78,7 @@ function Card({
           <LiveMark sessions={sessions} />
           <HandledBy source={plan.source} />
           <ThreadCount open={open} />
+          <TodoProgress progress={count} />
           <span className="ml-auto shrink-0 tabular-nums">
             {shortDate(plan.updated ?? plan.created)}
           </span>
@@ -96,12 +108,14 @@ function Column({
   group,
   summaries,
   sessions,
+  progress,
   actions,
   onFold,
 }: {
   group: StatusGroup;
   summaries: Map<string, ReviewSummary>;
   sessions: Map<string, number>;
+  progress: Map<string, TodoCount>;
   actions: CardActions;
   /** Set for a column that folds away. */
   onFold?: () => void;
@@ -140,6 +154,7 @@ function Column({
             plan={plan}
             open={summaries.get(plan.path)?.open ?? 0}
             sessions={sessions.get(plan.id) ?? 0}
+            count={progress.get(plan.path)}
             index={index}
             mountedWith={mounted.has(plan.path)}
             actions={actions}
@@ -174,6 +189,7 @@ export function BoardView({
   plans,
   summaries,
   sessions,
+  progress,
   folders,
   onFoldersChange,
   onOpen,
@@ -229,6 +245,7 @@ export function BoardView({
         group={group}
         summaries={byPath}
         sessions={sessions}
+        progress={progress}
         actions={actions}
         onFold={
           foldable

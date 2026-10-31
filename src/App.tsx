@@ -76,6 +76,7 @@ import {
   type PlanSummary,
 } from "./lib/planBase";
 import { forYou, planCrumb, type ReviewSummary } from "./lib/board";
+import { listWorkProgress, type TodoCount } from "./lib/work";
 import { allFolders, filterByFolder, type FolderFilter } from "./lib/folders";
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
 import { BoardView } from "./features/board/BoardView";
@@ -285,6 +286,13 @@ export default function App() {
     void reviewSummaries()
       .then(setSummaries)
       .catch(() => setSummaries([]));
+  }, [plans]);
+  // Todo progress for every card, read the same way: one call per change.
+  const [workProgress, setWorkProgress] = useState<Map<string, TodoCount>>(new Map());
+  useEffect(() => {
+    void listWorkProgress(plans.map((plan) => plan.path))
+      .then((found) => setWorkProgress(new Map(found.map((p) => [p.path, p]))))
+      .catch(() => setWorkProgress(new Map()));
   }, [plans]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -1511,6 +1519,7 @@ export default function App() {
               plans={shownPlans}
               summaries={summaries}
               sessions={sessions}
+              progress={workProgress}
               folders={knownFolders}
               onFoldersChange={changeFolders}
               onOpen={selectPlan}
@@ -1524,6 +1533,7 @@ export default function App() {
               plans={shownPlans}
               summaries={summaries}
               sessions={sessions}
+              progress={workProgress}
               activePlanPath={activePlanPath}
               onSelectPlan={selectPlan}
               onSelectDocument={selectDocument}

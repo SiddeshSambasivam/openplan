@@ -5,6 +5,7 @@ import { entrance, useMountedKeys } from "@/lib/motion";
 import { STATUS_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
+import type { TodoCount } from "@/lib/work";
 import { PlanRowFacts } from "./PlanFacts";
 import { StatusGlyph } from "./StatusGlyph";
 
@@ -15,6 +16,8 @@ interface PlanListProps {
   openThreads: Map<string, number>;
   /** Live agent sessions by plan id, for the plans anyone is working on. */
   sessions: Map<string, number>;
+  /** Todo progress by plan path, for the plans with a work record. */
+  progress: Map<string, TodoCount>;
   onSelect: (plan: PlanSummary) => void;
   /** Opens one document of a set, given its path inside the set's folder. */
   onSelectDocument: (plan: PlanSummary, document: string) => void;
@@ -217,6 +220,7 @@ const PlanRow = memo(function PlanRow({
   activePath,
   openThreads,
   sessions,
+  progress,
   expanded,
   renaming,
   index,
@@ -233,6 +237,7 @@ const PlanRow = memo(function PlanRow({
   activePath: string | null;
   openThreads: number;
   sessions: number;
+  progress?: TodoCount;
   expanded: boolean;
   /** Null unless this row is the one being renamed. */
   renaming: Renaming | null;
@@ -315,6 +320,7 @@ const PlanRow = memo(function PlanRow({
             plan={plan}
             open={openThreads}
             sessions={sessions}
+            progress={progress}
           />
         </span>
       </button>
@@ -357,6 +363,7 @@ export function PlanList({
   activePath,
   openThreads,
   sessions,
+  progress,
   onSelect,
   onSelectDocument,
   onRename,
@@ -418,6 +425,7 @@ export function PlanList({
         activePath={holdsActive ? activePath : null}
         openThreads={openThreads.get(plan.path) ?? 0}
         sessions={sessions.get(plan.id) ?? 0}
+        progress={progress.get(plan.path)}
         expanded={expanded}
         renaming={rowRenaming}
         index={index}
