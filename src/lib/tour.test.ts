@@ -84,6 +84,12 @@ describe("TOUR_STEPS", () => {
     );
   });
 
+  it("asks for a review that reads right with or without a comment left", () => {
+    expect(TOUR_STEPS[indexOf("review")].body).toBe(
+      "Send review sends your comments to the agent, and the plan moves to Alignment. Leave a comment first if you skipped the last step.",
+    );
+  });
+
   it("uses no em dashes in its copy", () => {
     for (const step of TOUR_STEPS) {
       expect(`${step.title} ${step.body} ${step.tryIt?.label ?? ""}`).not.toContain("—");

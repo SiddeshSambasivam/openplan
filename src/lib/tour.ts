@@ -107,7 +107,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     plan: DRAFT,
     side: "bottom",
     title: "Send your review",
-    body: "Send your comments to the agent. The plan moves to Alignment.",
+    body: "Send review sends your comments to the agent, and the plan moves to Alignment. Leave a comment first if you skipped the last step.",
     tryIt: { event: "review-sent", label: "Send it." },
   },
   {
