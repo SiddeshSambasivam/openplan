@@ -1,5 +1,27 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @plugin "@tailwindcss/typography";
+
+/* The wordmark, matching the marketing site. */
+@font-face {
+  font-family: "EB Garamond";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url(/fonts/ebgaramond-var-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "EB Garamond";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url(/fonts/ebgaramond-var-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+1E00-1E9F, U+2020, U+20A0-20AB, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -23,6 +45,7 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  color-scheme: light;
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -50,6 +73,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -116,6 +140,7 @@
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
+  --font-serif: "EB Garamond", ui-serif, Georgia, serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -178,49 +203,6 @@
   left: 0;
   opacity: 0;
   pointer-events: none;
-}
-
-/* ---------------------------------- */
-/* Motion                             */
-/* ---------------------------------- */
-/* Entrances animate transform and opacity only, so they stay off the layout
-   path and hold 60fps. Durations are short enough to feel immediate. */
-@keyframes op-fade-in {
-  from {
-    opacity: 0;
-  }
-}
-@keyframes op-pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-}
-@keyframes op-slide-in-right {
-  from {
-    opacity: 0;
-    transform: translateX(12px);
-  }
-}
-@keyframes op-rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-
-.animate-fade-in {
-  animation: op-fade-in 150ms ease-out;
-}
-.animate-pop-in {
-  animation: op-pop-in 140ms ease-out;
-  transform-origin: top;
-}
-.animate-slide-in-right {
-  animation: op-slide-in-right 180ms ease-out;
-}
-.animate-rise-in {
-  animation: op-rise-in 180ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

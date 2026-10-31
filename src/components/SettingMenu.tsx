@@ -45,7 +45,13 @@ export function SettingMenu<T extends string>({
           onValueChange={(next) => onChange(next as T)}
         >
           {options.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
+            <DropdownMenuRadioItem
+              key={option.value}
+              value={option.value}
+              // The choice is shown by highlighting the row, so the dot the
+              // radio item would otherwise reserve space for is dropped.
+              className="pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
+            >
               {option.label}
             </DropdownMenuRadioItem>
           ))}

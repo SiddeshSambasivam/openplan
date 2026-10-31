@@ -710,6 +710,10 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Default reading settings: small font, compact width | Sid's preference |
 | 2026-08-15 | Shared motion utilities in `index.css` (transform/opacity entrances, `prefers-reduced-motion` guard) | Sid: interactions felt too sudden; keeps motion consistent instead of per-component ad hoc |
 | 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
+| 2026-08-15 | Motion comes from `tw-animate-css`, not hand-written keyframes | shadcn's generated components already reference its classes (`animate-in`, `fade-in-0`, `zoom-in-95`); without it they were dead classes and menus/tooltips did not animate |
+| 2026-08-15 | The wordmark uses EB Garamond from the marketing site, with no icon | Sid: match the marketing material; fonts vendored into `public/fonts` |
+| 2026-08-15 | `color-scheme` is declared per theme | Without it the browser keeps painting native surfaces in the old palette, which is the artifact left behind when toggling |
+| 2026-08-15 | Shortcuts require exactly the platform modifier | `⌃⌘F` was matching the find shortcut and swallowing macOS full-screen |
 | 2026-08-15 | Tooltips are now Radix (shadcn) rather than CSS hover labels, and menus are `dropdown-menu` | Real focus/keyboard/portal behaviour, and it retires three hand-rolled primitives |
 | 2026-08-15 | `TooltipButton` and `SettingMenu` are app-level compositions of shadcn primitives, not new primitives | shadcn ships no tooltip-button or preference-menu; composing beats repeating the pairing at ~15 call sites |
 | 2026-08-15 | The comments UI was deleted in P0.6 rather than merely disabled (P4.1 pulled forward) | Keeping ~1400 lines of unreachable code through three phases fights "less code", and it would have had to be migrated to shadcn for no reason |

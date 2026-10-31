@@ -107,17 +107,14 @@ export function Sidebar({
 
       <div
         data-tauri-drag-region
-        className="flex shrink-0 items-center gap-2 px-4 pt-3.5 pb-2"
+        className="flex shrink-0 items-center px-4 pt-4 pb-4"
       >
-        <div className="pointer-events-none flex size-6 items-center justify-center rounded-md bg-foreground">
-          <FileText className="size-3.5 text-background" strokeWidth={2.25} />
-        </div>
-        <span className="pointer-events-none text-sm font-semibold tracking-tight text-sidebar-foreground">
+        <span className="pointer-events-none font-serif text-xl tracking-[-0.01em] text-sidebar-foreground">
           OpenPlan
         </span>
       </div>
 
-      <div className="shrink-0 px-3 pb-2">
+      <div className="shrink-0 px-3 pb-4">
         <div className="relative flex items-center">
           <Search className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground" />
           <Input
@@ -152,7 +149,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <p className="shrink-0 px-4 pb-1.5 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+      <p className="shrink-0 px-4 pb-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
         Library
       </p>
 

@@ -6,6 +6,9 @@ import {
 } from "../lib/outline";
 import { cn } from "../lib/utils";
 
+/** Matches the panel's own `w-56`, so the column reveals it exactly. */
+const WIDTH_PX = 224;
+
 interface OutlineProps {
   items: OutlineItem[];
   activeId: string | null;
@@ -35,7 +38,7 @@ export function Outline({
     return () => window.removeEventListener("keydown", onKey);
   }, [overlay, open, onClose]);
 
-  if (!open || items.length < MIN_OUTLINE_ITEMS) return null;
+  if (items.length < MIN_OUTLINE_ITEMS) return null;
 
   const goTo = (id: string) => {
     document
@@ -45,17 +48,8 @@ export function Outline({
     if (overlay) onClose();
   };
 
-  const aside = (
-    <aside
-      className={cn(
-        "flex w-56 flex-col border-l border-border bg-background",
-        // Kept out of the flow only when there is no room for a column;
-        // never parked off-screen, which would let the layout scroll sideways.
-        overlay
-          ? "animate-slide-in-right absolute inset-y-0 right-0 z-30 shadow-lg"
-          : "animate-fade-in shrink-0",
-      )}
-    >
+  const panel = (
+    <div className="flex h-full w-56 flex-col border-l border-border bg-background">
       <p className="shrink-0 px-4 pt-3.5 pb-1.5 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
         On this page
       </p>
@@ -76,21 +70,43 @@ export function Outline({
           </button>
         ))}
       </nav>
-    </aside>
+    </div>
   );
-
-  if (!overlay) return aside;
 
   // Floating over the text is a compromise the narrow layout forces, so say
   // so: the page dims behind it and a click anywhere outside puts it away.
+  if (overlay) {
+    return (
+      <>
+        {open && (
+          <div
+            onClick={onClose}
+            aria-hidden
+            className="absolute inset-0 z-20 animate-in bg-background/70 fade-in duration-200"
+          />
+        )}
+        <aside
+          aria-hidden={!open}
+          className={cn(
+            "absolute inset-y-0 right-0 z-30 shadow-lg transition-transform duration-200 ease-in-out",
+            open ? "translate-x-0" : "pointer-events-none translate-x-full",
+          )}
+        >
+          {panel}
+        </aside>
+      </>
+    );
+  }
+
+  // Sharing the sidebar's shape: the column widens the layout aside rather
+  // than covering it, and stays mounted so the width has something to animate.
   return (
-    <>
-      <div
-        onClick={onClose}
-        aria-hidden
-        className="animate-fade-in absolute inset-0 z-20 bg-background/70"
-      />
-      {aside}
-    </>
+    <aside
+      aria-hidden={!open}
+      className="shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out"
+      style={{ width: open ? WIDTH_PX : 0 }}
+    >
+      {panel}
+    </aside>
   );
 }

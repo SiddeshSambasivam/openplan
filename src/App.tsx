@@ -976,7 +976,10 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      // Exactly the platform's own modifier: holding the other one too means
+      // the chord belongs to the system (⌃⌘F full-screens on macOS), not here.
+      const ours = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+      if (!ours || e.altKey) return;
       const key = e.key.toLowerCase();
       if (key === "o") {
         e.preventDefault();
@@ -1163,7 +1166,7 @@ export default function App() {
       {dragging && <DropOverlay />}
 
       {notice && (
-        <div className="animate-rise-in pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-border bg-popover px-4 py-2 text-sm text-popover-foreground shadow-md">
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-border bg-popover px-4 py-2 text-sm text-popover-foreground shadow-md">
           {notice}
         </div>
       )}

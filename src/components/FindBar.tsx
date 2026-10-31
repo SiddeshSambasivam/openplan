@@ -41,11 +41,18 @@ export function FindBar({ articleRef, open, focusSeq, onClose }: FindBarProps) {
       inputRef.current?.focus();
       inputRef.current?.select();
     } else {
-      clearHighlights();
       matchesRef.current = [];
       setQuery("");
     }
   }, [open, focusSeq]);
+
+  // Painted highlights outlive the bar unless something takes them down, and
+  // they are invisible to React. Tying them to a cleanup covers every way the
+  // search can end — closed, document switched, editor opened, unmounted.
+  useEffect(() => {
+    if (!open) return;
+    return clearHighlights;
+  }, [open]);
 
   // Re-scan whenever the query or case-sensitivity changes, while open.
   useEffect(() => {

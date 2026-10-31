@@ -172,8 +172,12 @@ export function Header({
         tooltip={toggleThemeLabel}
         tooltipSide="bottom" tooltipAlign="end"
         aria-label="Toggle theme"
+        className="relative"
       >
-        {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+        {/* Both suns and moons are always mounted so the swap can be a turn
+            rather than a cut; only transforms and opacity move. */}
+        <Sun className="rotate-0 scale-100 opacity-100 transition-[transform,opacity] duration-300 ease-in-out dark:-rotate-90 dark:scale-0 dark:opacity-0" />
+        <Moon className="absolute rotate-90 scale-0 opacity-0 transition-[transform,opacity] duration-300 ease-in-out dark:rotate-0 dark:scale-100 dark:opacity-100" />
       </TooltipButton>
     </header>
   );
