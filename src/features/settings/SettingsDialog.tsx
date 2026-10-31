@@ -1,4 +1,4 @@
-import { FileText, Folder, SlidersHorizontal } from "lucide-react";
+import { FileText, Folder, Info, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { FONT_SIZE_LABELS, FONT_SIZE_ORDER, type FontSize } from "@/lib/fontSize";
 import { WIDTH_LABELS, WIDTH_ORDER, type ContentWidth } from "@/lib/width";
@@ -14,12 +14,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/BrandMark";
+import { isTauri } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
   { id: "general", label: "General", icon: SlidersHorizontal },
   { id: "standards", label: "Standards", icon: FileText },
   { id: "base", label: "Plan base", icon: Folder },
+  { id: "about", label: "About", icon: Info },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
@@ -98,9 +101,22 @@ export function SettingsDialog({
   base,
 }: SettingsDialogProps) {
   const [section, setSection] = useState<SectionId>("general");
+  const [version, setVersion] = useState<string | null>(null);
   const [standards, setStandards] = useState<Standards | null>(null);
   const [draft, setDraft] = useState("");
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!open || version != null) return;
+    if (!isTauri) {
+      setVersion("dev");
+      return;
+    }
+    void import("@tauri-apps/api/app")
+      .then(({ getVersion }) => getVersion())
+      .then(setVersion)
+      .catch(() => {});
+  }, [open, version]);
 
   useEffect(() => {
     if (!open) return;
@@ -231,6 +247,27 @@ export function SettingsDialog({
                     {standards?.builtIn ?? "Loading…"}
                   </pre>
                 </details>
+              </>
+            )}
+
+            {section === "about" && (
+              <>
+                <div className="flex items-center gap-2.5 pt-1">
+                  <BrandMark className="size-5 text-foreground" />
+                  <span className="font-serif text-2xl tracking-[-0.01em] text-foreground">
+                    OpenPlan
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  One place for the plans you and your agents work on.
+                </p>
+                <div className="mt-4 divide-y divide-border border-t border-border">
+                  <Row label="Version">
+                    <span className="text-sm text-muted-foreground tabular-nums">
+                      {version ?? "…"}
+                    </span>
+                  </Row>
+                </div>
               </>
             )}
 
