@@ -61,24 +61,33 @@ pub fn conventions() -> String {
 Plans are managed by the `{}` MCP server, not by loose files.
 
 - Before writing a plan, call `get_standards` and follow it.
-- When a plan is agreed, file it with `create_plan`: the title, and the full
-  body in the format `get_standards` names. Do not leave it only in the
-  conversation.
+- File a plan with `create_plan`: the title, and the full body in the format
+  `get_standards` names. Revise it with `update_plan`. Never file a second
+  copy, and never leave a plan only in the conversation.
 - To see or reread existing plans, use `list_plans` and `read_plan` rather
   than searching the filesystem for them.
-- A plan is draft, in-progress, in-review, or completed. Call `set_status`
-  with in-progress when you start implementing, and with in-review plus the
-  PR link when you open the pull request. Only the person marks it
-  completed. Never change a status to file a plan away.
+- A plan moves through draft, alignment, in-progress, in-review, completed and
+  archived. The person sets alignment, completed and archived. You set
+  in-progress once alignment is recorded and a todo exists, and in-review once
+  no todo is open.
+- At alignment, ask in the harness with its question tool (AskUserQuestion in
+  Claude Code), never in a comment. Ask at most 12 questions. The first is always
+  \"Accept all N recommendations, or go one by one?\". Then call `record_alignment`,
+  `add_decisions`, `add_todos`, and `set_status` with in-progress.
+- Add todos with `add_todos` and move each one with `update_todo` as you work.
+  Never replace the list. A comment that asks for new work becomes a todo.
+- Before opening a PR, call `pr_body` and paste its text into the description.
+  After opening it, call `record_pr`, and again whenever its state changes.
+- When every PR is merged, ask the person in the harness to confirm the plan
+  is complete. Only the person marks it completed.
 - Comments are how people review plans. Call `get_comments` whenever you
   work on one, and answer every open thread with `reply_comment`. Always
   reply in the thread, not only in chat.
 - Keep each reply to one or two lines: what you changed, or what you
   decided. Call `resolve_comment` once you have acted on it.
-- Write plans and replies plainly. No em dashes. None of: additionally,
-  crucial, delve, leverage, robust, seamless, not just X but Y, groups of
-  three for their own sake, I hope this helps. Say what the thing does, not
-  how it feels. Active voice. One idea per sentence.",
+- Write plans, replies, questions, todos, decisions and PR bodies to the
+  Writing rules in `get_standards`. No em dashes. Say what the thing does,
+  not how it feels. Active voice. One idea per sentence.",
         crate::profile::name()
     )
 }
@@ -289,6 +298,29 @@ mod tests {
         assert!(updated.contains(installed), "installed block survives");
         assert!(updated.contains("the dev rules"));
         assert!(updated.contains(&block_begin()));
+    }
+
+    #[test]
+    fn the_block_names_the_lifecycle_tools_and_follows_the_writing_rules() {
+        let block = conventions();
+
+        assert!(block.lines().count() < 40, "the block is {} lines", block.lines().count());
+        assert_eq!(crate::standards::writing_faults(&block), Vec::<String>::new());
+        for tool in [
+            "update_plan",
+            "record_alignment",
+            "add_decisions",
+            "add_todos",
+            "update_todo",
+            "pr_body",
+            "record_pr",
+        ] {
+            assert!(block.contains(&format!("`{tool}`")), "the block never names {tool}");
+        }
+        let flat = block.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(flat.contains("AskUserQuestion"));
+        assert!(flat.contains("Accept all N recommendations, or go one by one?"));
+        assert!(flat.contains("When every PR is merged, ask the person in the harness to confirm"));
     }
 
     #[test]
