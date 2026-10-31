@@ -293,10 +293,21 @@ export default function App() {
     }
   }, []);
 
-  const activePlan = useMemo(
-    () => plans.find((plan) => plan.path === activeDoc?.path) ?? null,
-    [plans, activeDoc?.path],
-  );
+  // Reading one document of a set is still reading that plan, so its status
+  // and history stay in reach rather than vanishing on the way in.
+  const activePlan = useMemo(() => {
+    const path = activeDoc?.path;
+    if (!path) return null;
+    return (
+      plans.find((plan) => plan.path === path) ??
+      plans.find(
+        (plan) =>
+          plan.documents.length > 0 &&
+          path.startsWith(plan.path.slice(0, plan.path.lastIndexOf("/") + 1)),
+      ) ??
+      null
+    );
+  }, [plans, activeDoc?.path]);
 
   const activeDocId = activeDoc?.id ?? null;
   useEffect(() => {
@@ -1128,7 +1139,7 @@ export default function App() {
               : items
           }
           plans={plans}
-          activePlanPath={activePlan?.path ?? null}
+          activePlanPath={activeDoc?.path ?? null}
           onSelectPlan={selectPlan}
           onSelectDocument={selectDocument}
           onOpenSettings={() => setSettingsOpen(true)}

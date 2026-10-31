@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { buildSetTree, type SetNode } from "@/lib/planTree";
+import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
 import { MarqueeText } from "./MarqueeText";
 import { StatusBadge } from "./StatusBadge";
 
@@ -57,12 +57,13 @@ interface PlanListProps {
 function SetBranch({
   nodes,
   depth,
-  activePath,
+  activeDocument,
   onOpen,
 }: {
   nodes: SetNode[];
   depth: number;
-  activePath: string | null;
+  /** Which document of this set is open, relative to the set's folder. */
+  activeDocument: string | null;
   onOpen: (document: string) => void;
 }) {
   return (
@@ -75,7 +76,7 @@ function SetBranch({
               style={{ paddingLeft: 22 + depth * 12 }}
               className={cn(
                 "flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-                activePath?.endsWith("/" + node.path)
+                node.path === activeDocument
                   ? "bg-sidebar-accent/70 text-sidebar-foreground"
                   : "text-muted-foreground",
               )}
@@ -89,7 +90,7 @@ function SetBranch({
             key={node.name}
             node={node}
             depth={depth}
-            activePath={activePath}
+            activeDocument={activeDocument}
             onOpen={onOpen}
           />
         ),
@@ -101,15 +102,17 @@ function SetBranch({
 function SetFolder({
   node,
   depth,
-  activePath,
+  activeDocument,
   onOpen,
 }: {
   node: Extract<SetNode, { kind: "folder" }>;
   depth: number;
-  activePath: string | null;
+  activeDocument: string | null;
   onOpen: (document: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // Opens itself when what is being read is inside it, so nothing is hidden
+  // behind a closed folder.
+  const [open, setOpen] = useState(() => branchHolds(node, activeDocument));
   const Icon = open ? FolderOpen : Folder;
   return (
     <li>
@@ -135,7 +138,7 @@ function SetFolder({
         <SetBranch
           nodes={node.children}
           depth={depth + 1}
-          activePath={activePath}
+          activeDocument={activeDocument}
           onOpen={onOpen}
         />
       )}
@@ -210,7 +213,11 @@ export function PlanList({
                     <SetBranch
                       nodes={buildSetTree(plan.documents)}
                       depth={0}
-                      activePath={activePath}
+                      activeDocument={
+                        activePath?.startsWith(folder)
+                          ? activePath.slice(folder.length)
+                          : null
+                      }
                       onOpen={(document) => onSelectDocument(plan, document)}
                     />
                   </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSetTree, documentLabel } from "./planTree";
+import { branchHolds, buildSetTree, documentLabel } from "./planTree";
 
 describe("documentLabel", () => {
   it("reads a numbered document as what it is about", () => {
@@ -50,5 +50,21 @@ describe("buildSetTree", () => {
 
   it("has nothing to show for a plan that is one file", () => {
     expect(buildSetTree([])).toEqual([]);
+  });
+});
+
+describe("branchHolds", () => {
+  it("knows when a folder holds the document being read", () => {
+    const [, archive] = buildSetTree(["01-a.md", "archive/old.md"]);
+
+    expect(branchHolds(archive, "archive/old.md")).toBe(true);
+    expect(branchHolds(archive, "01-a.md")).toBe(false);
+    expect(branchHolds(archive, null)).toBe(false);
+  });
+
+  it("looks all the way down, not just one level", () => {
+    const [archive] = buildSetTree(["archive/2025/old.md"]);
+
+    expect(branchHolds(archive, "archive/2025/old.md")).toBe(true);
   });
 });

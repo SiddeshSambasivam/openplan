@@ -10,6 +10,14 @@ export function documentLabel(name: string): string {
   return withoutNumber.replace(/[-_]/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
+/** Whether this branch holds the document being read, so it opens to show it. */
+export function branchHolds(node: SetNode, documentPath: string | null): boolean {
+  if (!documentPath) return false;
+  return node.kind === "document"
+    ? node.path === documentPath
+    : node.children.some((child) => branchHolds(child, documentPath));
+}
+
 /**
  * Turns a set's document paths into the shape they have on disk. Plan sets
  * number their documents and keep superseded ones in `archive/`, so the
