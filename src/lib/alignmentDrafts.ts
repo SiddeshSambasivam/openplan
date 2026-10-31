@@ -47,6 +47,17 @@ export function draftedAnswers(questions: Question[], drafts: ReplyDrafts): Reco
   return answers;
 }
 
+/** The choice that stands for the person's own words among a question's
+ * options. */
+export const WRITE_OWN = "write-my-own";
+
+/** The choice a question's options show as picked: the drafted option, or
+ * writing one's own once a draft has no pick. Empty means none yet. */
+export function pickedChoice(draft: ReplyDraft | undefined): string {
+  if (!draft) return "";
+  return draft.option ?? WRITE_OWN;
+}
+
 /** The question to reply to after `current`: the next one waiting below it
  * in the thread, else the first one waiting above. With no `current`, the
  * first one waiting. */

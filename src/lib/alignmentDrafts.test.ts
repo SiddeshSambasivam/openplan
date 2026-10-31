@@ -6,8 +6,10 @@ import {
   loadReplyDrafts,
   newestWaiting,
   nextWaiting,
+  pickedChoice,
   saveRailShown,
   saveReplyDrafts,
+  WRITE_OWN,
 } from "./alignmentDrafts";
 import type { Question } from "./work";
 
@@ -156,6 +158,15 @@ describe("newestWaiting", () => {
     expect(newestWaiting(thread, {})?.id).toBe("q1");
     expect(newestWaiting(thread, { q1: { option: "a", text: "" } })?.id).toBe("q3");
     expect(newestWaiting([], {})).toBeUndefined();
+  });
+});
+
+describe("pickedChoice", () => {
+  it("marks the drafted pick, or writing one's own once a draft has no pick", () => {
+    expect(pickedChoice(undefined)).toBe("");
+    expect(pickedChoice({ option: "a", text: "Because" })).toBe("a");
+    expect(pickedChoice({ text: "My own words" })).toBe(WRITE_OWN);
+    expect(pickedChoice({ text: "" })).toBe(WRITE_OWN);
   });
 });
 

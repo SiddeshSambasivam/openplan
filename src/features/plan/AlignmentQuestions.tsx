@@ -177,6 +177,13 @@ export function AlignmentQuestions({
     else requestAnimationFrame(() => sendRef.current?.focus());
   };
 
+  /** Drops the pick, so the words typed next are the answer itself. */
+  const writeOwn = (question: Question) => {
+    edit(question.id, { option: undefined });
+    choose(question.id);
+    requestAnimationFrame(() => fieldRef.current?.focus());
+  };
+
   const change = (question: Question) => {
     setChosen(question.id);
     revealQuestion(question.id);
@@ -237,6 +244,7 @@ export function AlignmentQuestions({
                     sent={sent?.ids.includes(question.id) ?? false}
                     onActivate={() => choose(question.id)}
                     onPick={(option) => pick(question, option)}
+                    onWriteOwn={() => writeOwn(question)}
                     onChange={() => change(question)}
                     view={plan}
                   />

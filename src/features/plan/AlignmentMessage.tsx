@@ -1,6 +1,6 @@
 import { Markdown } from "@/components/Markdown";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import type { ReplyDraft } from "@/lib/alignmentDrafts";
+import { pickedChoice, WRITE_OWN, type ReplyDraft } from "@/lib/alignmentDrafts";
 import { cn } from "@/lib/utils";
 import { answerOf, PERSONAS, type Answer, type Choice, type Question } from "@/lib/work";
 import { PersonaAvatar } from "./PersonaAvatar";
@@ -14,7 +14,8 @@ export interface MediaContext {
 /**
  * One question as a message from the persona who asks it. Until its answer
  * is sent the message holds the options, with the pick marked, and
- * clicking it makes it the one the composer replies to. Words written for
+ * clicking it makes it the one the composer replies to. The last choice
+ * takes the person's own words from the composer instead. Words written for
  * it sit under it as the person's draft. Once sent, it shrinks to the
  * question and the person's reply sits under it.
  */
@@ -26,6 +27,7 @@ export function AlignmentMessage({
   sent,
   onActivate,
   onPick,
+  onWriteOwn,
   onChange,
   view,
 }: {
@@ -39,6 +41,8 @@ export function AlignmentMessage({
   sent: boolean;
   onActivate: () => void;
   onPick: (option: string) => void;
+  /** The person chose to reply in their own words. */
+  onWriteOwn: () => void;
   onChange: () => void;
   view: MediaContext;
 }) {
@@ -77,7 +81,9 @@ export function AlignmentMessage({
             <p className="text-sm leading-normal font-medium text-pretty text-foreground">
               {question.question}
             </p>
-            {!recorded && <Details question={question} draft={draft} onPick={onPick} view={view} />}
+            {!recorded && (
+              <Details question={question} draft={draft} onPick={onPick} onWriteOwn={onWriteOwn} view={view} />
+            )}
           </div>
         </div>
       </div>
@@ -94,16 +100,19 @@ export function AlignmentMessage({
   );
 }
 
-/** Why it was asked, what it looks like, and the options. */
+/** Why it was asked, what it looks like, and the options, with writing
+ * one's own last. */
 function Details({
   question,
   draft,
   onPick,
+  onWriteOwn,
   view,
 }: {
   question: Question;
   draft: ReplyDraft | undefined;
   onPick: (option: string) => void;
+  onWriteOwn: () => void;
   view: MediaContext;
 }) {
   return (
@@ -121,8 +130,8 @@ function Details({
       )}
       {question.options.length > 0 && (
         <RadioGroup
-          value={draft?.option ?? ""}
-          onValueChange={onPick}
+          value={pickedChoice(draft)}
+          onValueChange={(value) => (value === WRITE_OWN ? onWriteOwn() : onPick(value))}
           aria-label={question.question}
           className="mt-2.5 gap-1.5"
         >
@@ -135,6 +144,12 @@ function Details({
               view={view}
             />
           ))}
+          <OptionChoice
+            questionId={question.id}
+            option={{ id: WRITE_OWN, label: "Write my own" }}
+            recommended={false}
+            view={view}
+          />
         </RadioGroup>
       )}
     </>

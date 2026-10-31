@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Decision, Question, Todo, TodoState, WorkRecord } from "@/lib/work";
 import { alignmentScore } from "@/lib/alignmentScore";
+import { AlignmentMessage } from "./AlignmentMessage";
 import { ScoreDetails } from "./AlignmentScoreCard";
 import { AlignmentTab, WorkPanel } from "./PlanWork";
 
@@ -223,7 +224,7 @@ describe("AlignmentTab", () => {
     expect(html).toContain("Trade-off: A second copy that can go stale.");
     expect(html).toContain("Recommended");
     expect(html).not.toContain("Replying to");
-    expect(html).toContain('placeholder="Reply to Theo"');
+    expect(html).toContain('placeholder="Reply to Theo, or say why"');
     expect(html).toContain("Answered 0/1");
     expect(html).not.toContain(">Reply</button>");
   });
@@ -337,6 +338,74 @@ describe("AlignmentTab", () => {
     expect(html).toContain("Old plans too, they are few.");
     expect(html.indexOf("Every plan")).toBeLessThan(html.indexOf("Old plans too"));
     expect(html).not.toContain("New plans");
+  });
+
+  it("offers Write my own after the options of a waiting question, and not without options", () => {
+    const html = alignmentTab(
+      record({
+        alignment: {
+          askedAt: "2026-10-28T09:00:00Z",
+          questions: [
+            {
+              id: "q1",
+              aspect: "scope",
+              question: "Which plans get it?",
+              options: [
+                { id: "a", label: "Every plan" },
+                { id: "b", label: "New plans" },
+              ],
+              mustAnswer: false,
+            },
+            { id: "q2", aspect: "scale", question: "How big?", options: [], mustAnswer: false },
+            {
+              id: "q3",
+              aspect: "tests",
+              question: "Which tests?",
+              options: [{ id: "a", label: "Unit tests" }],
+              mustAnswer: false,
+              answer: { kind: "option", options: ["a"] },
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(html.match(/Write my own/g)).toHaveLength(1);
+    expect(html).toContain('id="option-q1-write-my-own"');
+    expect(html.indexOf("New plans")).toBeLessThan(html.indexOf("Write my own"));
+    expect(html.indexOf("Write my own")).toBeLessThan(html.indexOf("How big?"));
+  });
+
+  it("marks Write my own as picked while the draft is the person's own words", () => {
+    const question: Question = {
+      id: "q1",
+      aspect: "scope",
+      question: "Which plans get it?",
+      options: [{ id: "a", label: "Every plan" }],
+      mustAnswer: false,
+    };
+    const message = (draft: { option?: string; text: string }) =>
+      renderToStaticMarkup(
+        <AlignmentMessage
+          question={question}
+          draft={draft}
+          answer={undefined}
+          active
+          sent={false}
+          onActivate={() => {}}
+          onPick={() => {}}
+          onWriteOwn={() => {}}
+          onChange={() => {}}
+          view={{ dark: false, media: false }}
+        />,
+      );
+    const checked = (html: string, id: string) =>
+      new RegExp(`aria-checked="true"[^>]*id="${id}"|id="${id}"[^>]*aria-checked="true"`).test(html);
+
+    expect(checked(message({ text: "Only the old ones." }), "option-q1-write-my-own")).toBe(true);
+    expect(checked(message({ text: "Only the old ones." }), "option-q1-a")).toBe(false);
+    expect(checked(message({ option: "a", text: "" }), "option-q1-write-my-own")).toBe(false);
+    expect(checked(message({ option: "a", text: "" }), "option-q1-a")).toBe(true);
   });
 
   it("says alignment has not been recorded when the record has none", () => {

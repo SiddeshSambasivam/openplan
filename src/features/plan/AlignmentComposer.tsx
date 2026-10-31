@@ -67,7 +67,7 @@ export function AlignmentComposer({
             onKeyDown={onKeyDown}
             aria-label={`Reply to ${name}`}
             aria-invalid={missing || undefined}
-            placeholder={`Reply to ${name}`}
+            placeholder={`Reply to ${name}, or say why`}
             className="max-h-28 min-h-8 resize-none border-0 bg-transparent px-1.5 py-1.5 shadow-none focus-visible:ring-0 text-sm dark:bg-transparent"
           />
         ) : (
