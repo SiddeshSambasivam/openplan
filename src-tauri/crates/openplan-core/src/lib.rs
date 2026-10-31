@@ -3,5 +3,7 @@
 
 pub mod base;
 pub mod fs;
+pub mod plan;
+pub mod repo;
 pub mod settings;
 pub mod sidecar;

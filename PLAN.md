@@ -583,9 +583,9 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 ### Phase 1 — Plan base & plans as first-class
 - [x] P1.1 `openplan-core::base` — config discovery, auto-creation of hidden
       `~/.openplan` (0700), `openplan.json`, default `STANDARDS.md` **(T)**
-- [ ] P1.2 `openplan-core::plan` — frontmatter parse/serialize, meta derivation
+- [x] P1.2 `openplan-core::plan` — frontmatter parse/serialize, meta derivation
       **(T: round-trip byte-identical body)**
-- [ ] P1.3 `openplan-core::repo` — git2 init/commit/log/diff **(T: temp repos)**
+- [x] P1.3 `openplan-core::repo` — git2 init/commit/log/diff **(T: temp repos)**
 - [ ] P1.4 Tauri commands: `get_base`, `create_base`, `scan_base` (meta included),
       `set_plan_status` **(T)**
 - [ ] P1.5 First-run silent base creation wired into app startup (no UI — §4.1

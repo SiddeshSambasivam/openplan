@@ -136,8 +136,11 @@ mod tests {
 
         let standards = std::fs::read_to_string(base.standards_path()).unwrap();
 
-        for heading in ["Context", "Approach", "Steps", "Risks"] {
-            assert!(standards.contains(heading), "missing {heading}");
+        for topic in [
+            "Summary", "Current state", "Approach", "Steps", "Alternatives",
+            "Risks", "Decisions", "Evidence", "Reproduction",
+        ] {
+            assert!(standards.contains(topic), "standards say nothing about {topic}");
         }
         let _ = std::fs::remove_dir_all(&home);
     }
