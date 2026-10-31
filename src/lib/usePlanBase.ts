@@ -17,8 +17,22 @@ export function usePlanBase(): {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [arrivals, setArrivals] = useState<PlanSummary[]>([]);
   const known = useRef<Set<string> | null>(null);
+  const baseKnown = useRef(false);
 
   const refresh = useCallback(() => {
+    // Keep asking for the base until an answer sticks. The one-shot fetch
+    // could lose a startup race and leave the base unknown all session,
+    // which showed base documents as loose duplicate rows in the sidebar.
+    if (!baseKnown.current) {
+      void getBase()
+        .then((found) => {
+          if (found) {
+            baseKnown.current = true;
+            setBase(found);
+          }
+        })
+        .catch(() => {});
+    }
     void scanPlans().then((next) => {
       setPlans(next);
       const paths = new Set(next.map((p) => p.path));
@@ -33,7 +47,6 @@ export function usePlanBase(): {
 
   useEffect(() => {
     if (!isTauri) return;
-    void getBase().then(setBase);
     refresh();
   }, [refresh]);
 
