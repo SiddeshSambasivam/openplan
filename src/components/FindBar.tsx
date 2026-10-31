@@ -1,44 +1,16 @@
 import { CaseSensitive, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { HAS_HIGHLIGHT_API, findTextRanges } from "../lib/domRange";
+import { createPortal } from "react-dom";
+import { findTextRanges } from "../lib/domRange";
+import { FindHighlights } from "./FindHighlights";
 import { cn } from "../lib/utils";
 import { TooltipButton } from "./TooltipButton";
 
-/** Turns the highlight colours on or off; see the note in index.css. */
-function setHighlightPaint(on: boolean) {
-  const style = document.documentElement.style;
-  if (on) {
-    style.setProperty("--find-match-paint", "var(--find-match)");
-    style.setProperty("--find-current-paint", "var(--find-current)");
-  } else {
-    style.removeProperty("--find-match-paint");
-    style.removeProperty("--find-current-paint");
-  }
-}
-
-function paintHighlights(matches: Range[], currentIndex: number) {
-  if (!HAS_HIGHLIGHT_API) return;
-  if (matches.length === 0) {
-    clearHighlights();
-    return;
-  }
-  CSS.highlights.set("app-find-match", new Highlight(...matches));
-  const current = matches[currentIndex];
-  if (current) CSS.highlights.set("app-find-current", new Highlight(current));
-  else CSS.highlights.delete("app-find-current");
-  setHighlightPaint(true);
-}
-
-function clearHighlights() {
-  setHighlightPaint(false);
-  if (!HAS_HIGHLIGHT_API) return;
-  CSS.highlights.delete("app-find-match");
-  CSS.highlights.delete("app-find-current");
-}
-
 interface FindBarProps {
-  /** The rendered preview's root — searched and scrolled within. */
+  /** The rendered preview's root — the text that gets searched. */
   articleRef: RefObject<HTMLElement | null>;
+  /** The scrolling pane the matches are drawn inside. */
+  scrollRef: RefObject<HTMLElement | null>;
   open: boolean;
   /** Bumped on every ⌘F press, even while already open, so pressing it
    * again re-focuses and re-selects instead of being a no-op. */
@@ -46,7 +18,13 @@ interface FindBarProps {
   onClose: () => void;
 }
 
-export function FindBar({ articleRef, open, focusSeq, onClose }: FindBarProps) {
+export function FindBar({
+  articleRef,
+  scrollRef,
+  open,
+  focusSeq,
+  onClose,
+}: FindBarProps) {
   const [query, setQuery] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -69,17 +47,12 @@ export function FindBar({ articleRef, open, focusSeq, onClose }: FindBarProps) {
 
   useEffect(() => setCurrentIndex(0), [matches]);
 
-  // Highlights are painted outside React and are invisible to it, so they are
-  // derived from state in one place and torn down by the same effect. Nothing
-  // that changes what should be lit can leave the previous paint behind.
   useEffect(() => {
     if (!open) return;
-    paintHighlights(matches, currentIndex);
     matches[currentIndex]?.startContainer.parentElement?.scrollIntoView({
       behavior: "smooth",
       block: "center",
     });
-    return clearHighlights;
   }, [open, matches, currentIndex]);
 
   const matchCount = matches.length;
@@ -96,7 +69,18 @@ export function FindBar({ articleRef, open, focusSeq, onClose }: FindBarProps) {
   };
 
   return (
-    <div className="fixed top-16 right-4 z-50 flex items-center gap-1 rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+    <>
+      {scrollRef.current &&
+        createPortal(
+          <FindHighlights
+            matches={matches}
+            currentIndex={currentIndex}
+            containerRef={scrollRef}
+            articleRef={articleRef}
+          />,
+          scrollRef.current,
+        )}
+      <div className="fixed top-16 right-4 z-50 flex items-center gap-1 rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
       <input
         ref={inputRef}
         type="text"
@@ -160,5 +144,6 @@ export function FindBar({ articleRef, open, focusSeq, onClose }: FindBarProps) {
         <X className="size-4" />
       </TooltipButton>
     </div>
+    </>
   );
 }

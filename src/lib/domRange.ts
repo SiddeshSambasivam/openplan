@@ -2,14 +2,6 @@
 // Comments (line-anchored quotes) — searching rendered markdown for plain
 // text and resolving Ranges from it.
 
-// Wide but not universal yet (notably lagging in some WebKitGTK builds, which
-// matters since Tauri on Linux uses it) — callers should degrade gracefully
-// (count/scroll without the visual highlight) rather than break entirely.
-export const HAS_HIGHLIGHT_API =
-  typeof CSS !== "undefined" &&
-  "highlights" in CSS &&
-  typeof Highlight !== "undefined";
-
 export function collectTextNodes(root: HTMLElement): Text[] {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {

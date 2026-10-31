@@ -1158,6 +1158,7 @@ export default function App() {
 
       <FindBar
         articleRef={articleRef}
+        scrollRef={scrollRef}
         open={findOpen}
         focusSeq={findFocusSeq}
         onClose={() => setFindOpen(false)}
