@@ -929,10 +929,13 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       on after the app had launched); standards ask for Remotion explainers in a
       clean, minimal, Apple-like style with smooth motion
 - [x] R1.8 Cards: a Display option clamps the title to two lines
-- [x] R1.9 Cards: a plan filed in the last few minutes carries a "New" tag- [x] R1.10 Navbar: the macOS traffic lights no longer overlap the minimized rail or
-      the top bar's first control- [x] R1.11 Folders: a "+" on the navbar's Folders section creates one; empty folders
+- [x] R1.9 Cards: a plan filed in the last few minutes carries a "New" tag
+- [x] R1.10 Navbar: the macOS traffic lights no longer overlap the minimized rail or
+      the top bar's first control
+- [x] R1.11 Folders: a "+" on the navbar's Folders section creates one; empty folders
       live in the base's `openplan.json` and the navbar lists the union with frontmatter
 - [x] R1.12 Navbar: `cmd+shift+[` and `cmd+shift+]` step through the navbar rows
+
 #### GATE 7 findings, round 2 (Sid, 2026-10-29)
 - [x] R2.1 Plans can be selected by dragging a box over them, and archived in bulk
 - [x] R2.2 The webview's own context menu (with Reload) never shows; plans get an
@@ -944,10 +947,15 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
 - [x] R2.6 Pull request state has its own icon: open, draft, merged, closed, and none
 - [x] R2.7 Alignment questions carry more detail: why the question matters, what the
       agent found, and each option's trade-off
-
 - [x] R2.8 Profile: one profile, the app's existing identity, shown as a generated
       avatar at the bottom of the navbar; its menu holds Settings, the theme switch
       and the shortcut list; the theme toggle leaves the top bar
+
+#### GATE 7 findings, round 3 (Sid, 2026-10-29)
+- [ ] R3.1 Minimized navbar: the gaps around the section dividers are too large
+- [ ] R3.2 A board with no plans in its open columns shows the animated empty state
+- [ ] R3.3 Profile: the person sets a picture, a display name and an email
+
 #### GATE 7 QA script
 
 Run a release build of 0.3.0 against the real base, with Claude Code connected
