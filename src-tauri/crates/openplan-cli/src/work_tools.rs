@@ -16,51 +16,20 @@ pub fn tools() -> Vec<Value> {
     let id = json!({ "type": "string", "description": "The plan's id" });
     vec![
         json!({
-            "name": "record_alignment",
-            "description": "Record alignment questions with the person's answers. Record each round's questions as they are answered. Earlier rounds stay recorded, so there is no need to resend them. A question sent again under its id replaces the recorded one. Every question you send needs an answer. Fill each question's context and each option's consequence and tradeoff, so the plan page shows why it was asked and what each choice costs. A draft moves to alignment.",
+            "name": "ask_questions",
+            "description": "Post alignment questions for the person, with no answers yet. The person answers on the plan's Alignment tab, or in the session. After posting, end your turn with one line that points the person to the questions. Record answers given in the session with record_alignment. Questions posted together are one round, and earlier rounds stay. Works while the plan is a draft, in alignment or in progress, and never changes its status. Add an illustration wherever a question is easier to see than to read.",
             "inputSchema": {
                 "type": "object",
-                "properties": {
-                    "id": id,
-                    "questions": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": { "type": "string", "description": "q1, q2, and on" },
-                                "aspect": { "type": "string", "description": "The question bank aspect, such as tests or edge cases" },
-                                "role": {
-                                    "type": "string",
-                                    "enum": ["product", "engineering", "design", "oncall"],
-                                    "description": "Who asks it: product is the product owner, engineering the tech lead, design the designer, and oncall the on-call engineer, the person paged when it breaks"
-                                },
-                                "question": { "type": "string" },
-                                "context": { "type": "string", "description": "Two to four sentences on why this question matters for this plan and what you found in the code or the plan that raised it. Name the files where they apply." },
-                                "options": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "id": { "type": "string" },
-                                            "label": { "type": "string" },
-                                            "consequence": { "type": "string", "description": "What happens if the person picks it, in one sentence" },
-                                            "tradeoff": { "type": "string", "description": "What it costs or gives up, and when it is the right pick, in one sentence" }
-                                        },
-                                        "required": ["id", "label"]
-                                    }
-                                },
-                                "recommended": { "type": "string", "description": "The id of the option you recommended" },
-                                "mustAnswer": { "type": "boolean" },
-                                "answer": {
-                                    "type": "object",
-                                    "description": "{\"kind\":\"option\",\"options\":[ids]}, {\"kind\":\"text\",\"text\":\"...\"}, or {\"kind\":\"agent\"} when the person let you decide"
-                                },
-                                "answeredBy": { "type": "string", "description": "Who answered. Defaults to user." }
-                            },
-                            "required": ["id", "aspect", "question", "options", "answer"]
-                        }
-                    }
-                },
+                "properties": { "id": id, "questions": questions_schema(false) },
+                "required": ["id", "questions"]
+            }
+        }),
+        json!({
+            "name": "record_alignment",
+            "description": "Record alignment questions with the person's answers. Record each round's questions as they are answered. Earlier rounds stay recorded, so there is no need to resend them. A question sent again under its id replaces the recorded one, which is how an answer given in the session to a question posted with ask_questions is recorded. Every question you send needs an answer. Fill each question's context and each option's consequence and tradeoff, so the plan page shows why it was asked and what each choice costs. A draft moves to alignment.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "id": id, "questions": questions_schema(true) },
                 "required": ["id", "questions"]
             }
         }),
@@ -174,6 +143,51 @@ pub fn tools() -> Vec<Value> {
     ]
 }
 
+/// The `questions` argument. Posted questions carry no answer yet.
+fn questions_schema(answered: bool) -> Value {
+    let mut question = json!({
+        "type": "object",
+        "properties": {
+            "id": { "type": "string", "description": "q1, q2, and on" },
+            "aspect": { "type": "string", "description": "The question bank aspect, such as tests or edge cases" },
+            "role": {
+                "type": "string",
+                "enum": ["product", "engineering", "design", "oncall"],
+                "description": "Who asks it: product is the product owner, engineering the tech lead, design the designer, and oncall the on-call engineer, the person paged when it breaks"
+            },
+            "question": { "type": "string" },
+            "context": { "type": "string", "description": "Two to four sentences on why this question matters for this plan and what you found in the code or the plan that raised it. Name the files where they apply." },
+            "illustration": { "type": "string", "description": "Markdown shown with the question: a mermaid diagram, a worked example, or a before and after" },
+            "options": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string" },
+                        "label": { "type": "string" },
+                        "consequence": { "type": "string", "description": "What happens if the person picks it, in one sentence" },
+                        "tradeoff": { "type": "string", "description": "What it costs or gives up, and when it is the right pick, in one sentence" },
+                        "illustration": { "type": "string", "description": "Markdown that shows what the option looks like or does" }
+                    },
+                    "required": ["id", "label"]
+                }
+            },
+            "recommended": { "type": "string", "description": "The id of the option you recommend" },
+            "mustAnswer": { "type": "boolean" }
+        },
+        "required": ["id", "aspect", "question", "options"]
+    });
+    if answered {
+        question["properties"]["answer"] = json!({
+            "type": "object",
+            "description": "{\"kind\":\"option\",\"options\":[ids]}, {\"kind\":\"text\",\"text\":\"...\"}, or {\"kind\":\"agent\"} when the person let you decide"
+        });
+        question["properties"]["answeredBy"] = json!({ "type": "string", "description": "Who answered. Defaults to user." });
+        question["required"] = json!(["id", "aspect", "question", "options", "answer"]);
+    }
+    json!({ "type": "array", "items": question })
+}
+
 /// The `repos` argument, shared with `create_plan`.
 pub fn repos_schema() -> Value {
     json!({
@@ -228,6 +242,37 @@ pub fn record_alignment(base: &Base, author: &str, args: &Value) -> Value {
         reply.push_str(" It is now in alignment.");
     }
     finish(base, author, "align", &entry, reply)
+}
+
+pub fn ask_questions(base: &Base, author: &str, args: &Value) -> Value {
+    let entry = match find_entry(base, args) {
+        Ok(entry) => entry,
+        Err(reply) => return reply,
+    };
+    let id = &entry.meta.id;
+    if !matches!(entry.meta.status, Status::Draft | Status::Alignment | Status::InProgress) {
+        return text_result(
+            format!(
+                "{id} is {}, so it takes no new questions. Questions go on a plan that is a draft, in alignment or in progress.",
+                entry.meta.status.as_str()
+            ),
+            true,
+        );
+    }
+    let questions: Vec<Question> = match parse_list(args, "questions", &[]) {
+        Ok(questions) if !questions.is_empty() => questions,
+        Ok(_) => return text_result("ask_questions needs the questions to post.", true),
+        Err(e) => return text_result(e, true),
+    };
+    let ids: Vec<String> = questions.iter().map(|q| q.id.clone()).collect();
+    if let Err(e) = change_record(&entry, |record| work::ask_questions(record, questions)) {
+        return text_result(e, true);
+    }
+    let reply = format!(
+        "Posted {} on {id}. End your turn with one line that points the person to them.",
+        listed(&ids)
+    );
+    finish(base, author, "ask", &entry, reply)
 }
 
 pub fn add_decisions(base: &Base, author: &str, args: &Value) -> Value {
@@ -565,6 +610,7 @@ mod tests {
             label: label.to_string(),
             consequence: None,
             tradeoff: None,
+            illustration: None,
         }
     }
 
@@ -575,6 +621,7 @@ mod tests {
             role: None,
             question: text.to_string(),
             context: Some(format!("Why {id} came up.")),
+            illustration: None,
             options: vec![choice("a", "Unit tests"), choice("b", "Unit and end-to-end tests")],
             recommended: Some("a".to_string()),
             must_answer: false,
@@ -720,6 +767,21 @@ mod tests {
         for who in ["product owner", "tech lead", "designer", "the person paged when it breaks"] {
             assert!(description.contains(who), "{description}");
         }
+    }
+
+    #[test]
+    fn ask_questions_says_where_the_person_answers_and_takes_no_answers() {
+        let tool = tools().into_iter().find(|t| t["name"] == "ask_questions").unwrap();
+        let question = &schema_of("ask_questions")["properties"]["questions"]["items"];
+
+        let description = tool["description"].as_str().unwrap();
+        for said in ["end your turn", "Alignment tab", "record_alignment", "in progress"] {
+            assert!(description.contains(said), "{said}: {description}");
+        }
+        assert!(question["properties"].get("answer").is_none());
+        assert!(question["properties"]["illustration"]["description"].is_string());
+        assert!(question["properties"]["options"]["items"]["properties"]["illustration"]["description"].is_string());
+        assert_eq!(question["properties"]["role"], schema_of("record_alignment")["properties"]["questions"]["items"]["properties"]["role"]);
     }
 
     #[test]

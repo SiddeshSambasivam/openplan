@@ -303,6 +303,7 @@ pub fn run() {
             plans::clear_avatar,
             plans::comment_threads,
             plans::save_comment_threads,
+            plans::answer_questions,
             plans::plan_at_revision,
             plans::restore_plan_revision,
             review::review_summaries,

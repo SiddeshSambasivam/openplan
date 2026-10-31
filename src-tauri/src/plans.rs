@@ -4,7 +4,7 @@
 
 use openplan_core::base::Base;
 use openplan_core::plan::folder_list;
-use openplan_core::{bulk, comments, library, plan, repo, settings, standards};
+use openplan_core::{bulk, comments, library, plan, repo, settings, standards, work};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -401,6 +401,21 @@ pub async fn save_comment_threads(
     Ok(())
 }
 
+/// The person answers questions an agent posted, from the plan page, and
+/// gets the record back as written.
+#[tauri::command]
+pub async fn answer_questions(
+    path: String,
+    answers: Vec<work::GivenAnswer>,
+    state: tauri::State<'_, BaseState>,
+) -> Result<work::WorkRecord, String> {
+    let path = Path::new(&path);
+    let record = record_answers(path, answers, &settings::current_identity().name)?;
+    let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("plan");
+    let _ = repo::commit_all(&state.get()?.root, &settings::me(), &format!("answer: {name}"));
+    Ok(record)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Revision {
@@ -558,6 +573,10 @@ fn align_draft(base: &Base, document: &Path) -> Result<(), String> {
     rewrite_meta(&entry.path, |meta| meta.set_status(plan::Status::Alignment, &now)).map(|_| ())
 }
 
+fn record_answers(path: &Path, answers: Vec<work::GivenAnswer>, by: &str) -> Result<work::WorkRecord, String> {
+    work::modify(path, |record| work::answer_questions(record, answers, by))
+}
+
 /// Changes a plan's header and writes it back, returning the plan's id.
 fn rewrite_meta(path: &Path, change: impl FnOnce(&mut plan::PlanMeta)) -> Result<String, String> {
     let text = openplan_core::fs::read_to_string(path)?;
@@ -687,6 +706,26 @@ mod tests {
         assert_eq!(status(&draft), plan::Status::Alignment);
         assert_eq!(status(&started), plan::Status::InProgress);
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_persons_answers_land_in_the_work_record_under_their_name() {
+        let path = a_plan_file("answers", "---\ntitle: Auth refactor\nstatus: alignment\n---\n# Body\n");
+        let posted: work::Question = serde_json::from_value(serde_json::json!({
+            "id": "q1", "aspect": "scope", "question": "Which?", "options": [{ "id": "a", "label": "A" }]
+        }))
+        .unwrap();
+        work::modify(&path, |r| work::ask_questions(r, vec![posted])).unwrap();
+        let answers: Vec<work::GivenAnswer> =
+            serde_json::from_value(serde_json::json!([{ "id": "q1", "answer": { "kind": "option", "options": ["a"] } }]))
+                .unwrap();
+
+        let record = record_answers(&path, answers, "Sid").unwrap();
+
+        assert_eq!(work::read(&path).unwrap().unwrap(), record);
+        let alignment = record.alignment.unwrap();
+        assert_eq!(alignment.questions[0].answered_by.as_deref(), Some("Sid"));
+        assert!(alignment.recorded_at.is_some());
     }
 
     #[test]

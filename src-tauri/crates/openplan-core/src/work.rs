@@ -82,6 +82,9 @@ pub struct Question {
     /// plan raised it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<String>,
+    /// Markdown shown with the question, for what is easier to see than read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub illustration: Option<String>,
     pub options: Vec<Choice>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recommended: Option<String>,
@@ -119,6 +122,9 @@ pub struct Choice {
     /// What the option costs or gives up.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tradeoff: Option<String>,
+    /// Markdown that shows what the option looks like or does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub illustration: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -134,6 +140,13 @@ pub enum Answer {
     },
     /// The person let the agent decide.
     Agent {},
+}
+
+/// The person's answer to one posted question, given in the app.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct GivenAnswer {
+    pub id: String,
+    pub answer: Answer,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -345,6 +358,63 @@ pub fn record_alignment(
     Ok(())
 }
 
+/// Posts questions for the person to answer, as one round. A question that
+/// carries an answer, or reuses the id of one already answered, is refused.
+pub fn ask_questions(record: &mut WorkRecord, questions: Vec<Question>) -> Result<(), String> {
+    if let Some(answered) = questions.iter().find(|q| q.answer.is_some()) {
+        return Err(format!(
+            "{} already has an answer. Record answered questions with record_alignment.",
+            answered.id
+        ));
+    }
+    let recorded = record.alignment.as_ref().map_or(&[][..], |a| &a.questions);
+    if let Some(taken) = questions
+        .iter()
+        .find(|q| recorded.iter().any(|r| r.id == q.id && r.answer.is_some()))
+    {
+        return Err(format!(
+            "{} is already answered. Post a new question under a new id.",
+            taken.id
+        ));
+    }
+    merge_round(record, questions);
+    Ok(())
+}
+
+/// Writes the person's answers to posted questions. Refused, with nothing
+/// written, when an id names no question on the plan.
+pub fn answer_questions(
+    record: &mut WorkRecord,
+    answers: Vec<GivenAnswer>,
+    by: &str,
+) -> Result<(), String> {
+    let Some(alignment) = record.alignment.as_mut() else {
+        return Err("This plan has no questions to answer.".to_string());
+    };
+    if let Some(unknown) = answers
+        .iter()
+        .find(|a| !alignment.questions.iter().any(|q| q.id == a.id))
+    {
+        return Err(format!("This plan has no question {}.", unknown.id));
+    }
+    for given in answers {
+        if let Some(question) = alignment.questions.iter_mut().find(|q| q.id == given.id) {
+            question.answer = Some(given.answer);
+            question.answered_by = Some(by.to_string());
+        }
+    }
+    stamp_recorded(alignment);
+    Ok(())
+}
+
+/// Questions posted and still waiting for the person.
+pub fn pending_questions(record: &WorkRecord) -> usize {
+    record
+        .alignment
+        .as_ref()
+        .map_or(0, |a| a.questions.iter().filter(|q| q.answer.is_none()).count())
+}
+
 /// An alignment with no questions was never really asked.
 pub fn is_aligned(record: &WorkRecord) -> bool {
     record.alignment.as_ref().is_some_and(|a| {
@@ -421,6 +491,8 @@ pub struct PlanProgress {
     pub path: PathBuf,
     pub done: usize,
     pub total: usize,
+    #[serde(rename = "pendingQuestions")]
+    pub pending_questions: usize,
     pub repos: Vec<Repo>,
     pub prs: PrSummary,
 }
@@ -460,6 +532,7 @@ pub fn progress_of(doc_paths: &[PathBuf]) -> Vec<PlanProgress> {
                 path: path.clone(),
                 done,
                 total,
+                pending_questions: pending_questions(&record),
                 prs: PrSummary {
                     reported,
                     expected: record.repos.iter().any(|repo| repo.remote.is_some()),
@@ -515,6 +588,10 @@ fn merge_round(record: &mut WorkRecord, questions: Vec<Question>) {
             }),
         }
     }
+    stamp_recorded(alignment);
+}
+
+fn stamp_recorded(alignment: &mut Alignment) {
     let answered = alignment.questions.iter().all(|q| q.answer.is_some());
     alignment.recorded_at = answered.then(now_iso);
 }
@@ -600,11 +677,13 @@ mod tests {
             role: None,
             question: "Which tests?".to_string(),
             context: None,
+            illustration: None,
             options: vec![Choice {
                 id: "a".to_string(),
                 label: "Unit tests".to_string(),
                 consequence: None,
                 tradeoff: None,
+                illustration: None,
             }],
             recommended: Some("a".to_string()),
             must_answer: false,
@@ -718,11 +797,13 @@ mod tests {
         let doc = dir.join("plan.md");
         let detailed = Question {
             context: Some("`load` in `library.rs` reads every plan on each board open.".to_string()),
+            illustration: Some("```mermaid\nflowchart LR\n  open --> cache\n```".to_string()),
             options: vec![Choice {
                 id: "a".to_string(),
                 label: "Cache in memory".to_string(),
                 consequence: Some("The board opens at once after the first time.".to_string()),
                 tradeoff: Some("Costs a full read on every launch.".to_string()),
+                illustration: Some("Before: 2 s. After: 50 ms.".to_string()),
             }],
             ..question("q1", Some(Answer::Agent {}))
         };
@@ -734,6 +815,8 @@ mod tests {
         let question = &json["alignment"]["questions"][0];
         assert!(question["context"].as_str().unwrap().contains("library.rs"));
         assert_eq!(question["options"][0]["tradeoff"], "Costs a full read on every launch.");
+        assert!(question["illustration"].as_str().unwrap().starts_with("```mermaid"));
+        assert_eq!(question["options"][0]["illustration"], "Before: 2 s. After: 50 ms.");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -746,6 +829,7 @@ mod tests {
 
         assert_eq!(question.context, None);
         assert_eq!(question.role, None);
+        assert_eq!(question.illustration, None);
         assert_eq!(question.options[0].tradeoff, None);
         let json = serde_json::to_value(&question).unwrap();
         assert!(json.get("context").is_none() && json["options"][0].get("tradeoff").is_none());
@@ -932,6 +1016,78 @@ mod tests {
         record_alignment(&mut record, vec![question("q2", Some(Answer::Agent {}))]).unwrap();
 
         assert_eq!(rounds(&record), [("q1".to_string(), None), ("q2".to_string(), Some(2))]);
+    }
+
+    fn chosen(id: &str) -> Answer {
+        Answer::Chosen {
+            options: vec![id.to_string()],
+        }
+    }
+
+    fn given(id: &str, answer: Answer) -> GivenAnswer {
+        GivenAnswer {
+            id: id.to_string(),
+            answer,
+        }
+    }
+
+    #[test]
+    fn posted_questions_wait_for_answers_in_their_own_round() {
+        let mut record = WorkRecord::default();
+        record_alignment(&mut record, vec![question("q1", Some(chosen("a")))]).unwrap();
+
+        ask_questions(&mut record, vec![question("q2", None), question("q3", None)]).unwrap();
+
+        let expected = [("q1", 1), ("q2", 2), ("q3", 2)].map(|(id, round)| (id.to_string(), Some(round)));
+        assert_eq!(rounds(&record), expected);
+        assert_eq!(pending_questions(&record), 2);
+        assert_eq!(record.alignment.as_ref().unwrap().recorded_at, None);
+        assert!(!is_aligned(&record));
+    }
+
+    #[test]
+    fn posting_refuses_an_answer_and_a_question_already_answered() {
+        let mut record = WorkRecord::default();
+        record_alignment(&mut record, vec![question("q1", Some(chosen("a")))]).unwrap();
+        let before = record.clone();
+
+        let answered = ask_questions(&mut record, vec![question("q2", Some(chosen("a")))]).unwrap_err();
+        let again = ask_questions(&mut record, vec![question("q1", None)]).unwrap_err();
+
+        assert!(answered.contains("q2") && answered.contains("record_alignment"), "{answered}");
+        assert!(again.contains("q1") && again.contains("new id"), "{again}");
+        assert_eq!(record, before);
+    }
+
+    #[test]
+    fn the_person_answers_posted_questions_and_the_last_answer_records_the_alignment() {
+        let mut record = WorkRecord::default();
+        ask_questions(&mut record, vec![question("q1", None), question("q2", None)]).unwrap();
+
+        answer_questions(&mut record, vec![given("q1", chosen("a"))], "Sid").unwrap();
+        assert_eq!(pending_questions(&record), 1);
+        assert_eq!(record.alignment.as_ref().unwrap().recorded_at, None);
+
+        answer_questions(&mut record, vec![given("q2", Answer::Text { text: "Both".into() })], "Sid").unwrap();
+        let alignment = record.alignment.as_ref().unwrap();
+        assert_eq!(alignment.questions[0].answer, Some(chosen("a")));
+        assert_eq!(alignment.questions[1].answered_by.as_deref(), Some("Sid"));
+        assert!(alignment.recorded_at.is_some());
+        assert!(is_aligned(&record));
+    }
+
+    #[test]
+    fn answering_a_question_the_plan_does_not_have_changes_nothing() {
+        let mut record = WorkRecord::default();
+        assert!(answer_questions(&mut record, vec![given("q1", chosen("a"))], "Sid").is_err());
+        ask_questions(&mut record, vec![question("q1", None)]).unwrap();
+        let before = record.clone();
+
+        let err = answer_questions(&mut record, vec![given("q1", chosen("a")), given("q9", chosen("a"))], "Sid")
+            .unwrap_err();
+
+        assert!(err.contains("q9"), "{err}");
+        assert_eq!(record, before);
     }
 
     #[test]
@@ -1164,6 +1320,7 @@ mod tests {
             branch: Some("feat/cards".to_string()),
         };
         modify(&worked, |r| {
+            ask_questions(r, vec![question("q1", None)])?;
             add_todos(r, &lines(&["a", "b"]), "claude-code", None);
             set_repos(r, vec![repo.clone()]);
             record_pr(r, pr("https://github.com/owner/openplan/pull/1", PrState::Merged));
@@ -1181,6 +1338,7 @@ mod tests {
                 path: worked,
                 done: 1,
                 total: 2,
+                pending_questions: 1,
                 repos: vec![repo],
                 prs: PrSummary {
                     reported: vec![

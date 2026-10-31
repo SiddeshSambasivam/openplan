@@ -50,7 +50,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         vec![
             "create_plan", "update_plan", "list_plans", "set_status", "read_plan",
             "get_comments", "reply_comment", "resolve_comment", "get_standards",
-            "record_alignment", "add_decisions", "add_todos", "update_todo",
+            "ask_questions", "record_alignment", "add_decisions", "add_todos", "update_todo",
             "set_repos", "pr_body", "record_pr"
         ]
     );
@@ -136,6 +136,17 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let back = ask(r##"{"jsonrpc":"2.0","id":18,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"alignment"}}}"##);
     assert_eq!(back["result"]["isError"], true, "{back}");
 
+    // A question after the work starts is posted for the person, and the plan stays in progress.
+    let posted = ask(&r##"{"jsonrpc":"2.0","id":46,"method":"tools/call","params":{"name":"ask_questions","arguments":{"id":"auth-refactor","questions":[
+        {"id":"q4","aspect":"edge cases","role":"oncall","question":"Who is told when refresh keeps failing?","illustration":"```mermaid\nflowchart LR\n  fail --> alert\n```","options":[{"id":"a","label":"Page on-call","illustration":"An alert after 5 failures in a minute."}],"recommended":"a"}
+    ]}}}"##.replace('\n', ""));
+    assert_eq!(posted["result"]["isError"], false, "{posted}");
+    assert!(posted["result"]["content"][0]["text"].as_str().unwrap().contains("q4"), "{posted}");
+    let answered_again = ask(&r##"{"jsonrpc":"2.0","id":47,"method":"tools/call","params":{"name":"ask_questions","arguments":{"id":"auth-refactor","questions":[
+        {"id":"q1","aspect":"tests","question":"What has to be tested?","options":[{"id":"a","label":"Unit tests"}]}
+    ]}}}"##.replace('\n', ""));
+    assert_eq!(answered_again["result"]["isError"], true, "{answered_again}");
+
     // The agent cannot finish or put away a plan on the person's behalf.
     for status in ["completed", "archived"] {
         let refused = ask(&format!(
@@ -155,6 +166,8 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     }
     let moved = ask(r##"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"auth-refactor","status":"in-review"}}}"##);
     assert_eq!(moved["result"]["isError"], false, "{moved}");
+    let late = ask(r##"{"jsonrpc":"2.0","id":48,"method":"tools/call","params":{"name":"ask_questions","arguments":{"id":"auth-refactor","questions":[{"id":"q5","aspect":"scope","question":"More?","options":[{"id":"a","label":"No"}]}]}}}"##);
+    assert_eq!(late["result"]["isError"], true, "a plan in review takes no new questions: {late}");
 
     // New work in review sends the plan back to in progress, and says so.
     let more = ask(r##"{"jsonrpc":"2.0","id":38,"method":"tools/call","params":{"name":"add_todos","arguments":{"id":"auth-refactor","todos":["Log refresh failures"]}}}"##);
@@ -201,7 +214,11 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let plan_path = base_root.join("plans/auth-refactor.md");
     let record = openplan_core::work::read(&plan_path).unwrap().unwrap();
     let asked: Vec<_> = record.alignment.as_ref().unwrap().questions.iter().map(|q| (q.id.as_str(), q.round)).collect();
-    assert_eq!(asked, [("q1", Some(1)), ("q2", Some(1)), ("q3", Some(2))]);
+    assert_eq!(asked, [("q1", Some(1)), ("q2", Some(1)), ("q3", Some(2)), ("q4", Some(3))]);
+    let posted = &record.alignment.as_ref().unwrap().questions[3];
+    assert_eq!((posted.answer.as_ref(), posted.role), (None, Some(openplan_core::work::Role::Oncall)));
+    assert!(posted.illustration.as_deref().unwrap().contains("mermaid"));
+    assert!(posted.options[0].illustration.is_some());
     assert_eq!(record.todos[0].detail, None, "a plain line is still a todo");
     assert_eq!(record.todos[1].text, "Test the refresh path");
     assert_eq!(record.todos[1].detail.as_deref(), Some("Cover an expired token and a revoked one."));
