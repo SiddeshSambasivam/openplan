@@ -160,7 +160,7 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 | ID | Requirement |
 |---|---|
 | FR-1 | **Plan base**: single directory at **`~/.openplan`** (hidden; created automatically with `0700` permissions and `git init` on first launch — no picker, no questions). All markdown under it is a plan. Relocatable later from settings (settings rewrites the stored path; files moved by the user, app re-points). |
-| FR-2 | **Plan contract**: plans are markdown with optional YAML frontmatter (`id, title, status, source, project, created, updated` — §6.1). Missing frontmatter degrades gracefully (derived title, `status: draft`). |
+| FR-2 | **Plan contract**: plans are markdown or HTML (§6.1) with optional flat frontmatter (`id, title, status, type, source, project, pr, created, updated`). Missing frontmatter degrades gracefully (derived title, `status: draft`). `status` is stored and is the one field anyone sets; the derived lifecycle and free tags are gone (0.2.0). |
 | FR-3 | **Library UI**: sidebar lists the base tree plus any extra files/folders the user added (drag-drop and pickers — already built). Plans show a status badge; group/sort by status, project, or updated; existing name-filter search extends to status/project. |
 | FR-4 | **View/edit**: GFM preview with Mermaid, TOC, find (built). Frontmatter never renders as body text — it renders as a metadata header (status chip, source, dates). `⌘E` editing with autosave (built). Status editable from the header, writes frontmatter. |
 | FR-5 | **Comments (v2 — rebuilt)**: threads anchored to plan text with reply/edit/delete/resolve and `author` per comment (`user` or agent name), rendered distinctly. ⚠️ The existing comments/highlight implementation is **buggy and will NOT be reused** — the interactive layer (selection → anchor → highlight → popovers) is rebuilt test-first on a sturdier anchoring model (§6.2b). The sidecar **data format** (§6.2) and the agent-export **output format** survive as specs. "Copy for AI" export re-implemented against them. |
@@ -173,6 +173,10 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 | FR-12 | **Sync & remotes**: connect the base to a GitHub/GitLab remote from settings (URL + push/pull; git2 already bundled) — this is the primary "save to my existing workflow" path. Drive/iCloud users can instead relocate the base into a synced folder (FR-1 relocation). No cloud-provider APIs. |
 | FR-13 | **Agent curation**: agents keep the base tidy so it stays easy for the human to review and follow — consistent naming per STANDARDS, stale `done` plans archived, near-duplicates flagged/merged. Driven by the integration skill + explicit MCP tools (`archive_plan`, `rename_plan`); never a background process (NFR-8). Every curation action is a normal attributed commit (FR-6), so the human can always see and roll back what the janitor did. |
 | FR-14 | **Settings page**: a single settings surface (Claude Code-style) for user preferences — light/dark theme, font type + font size, layout/width (compact/spaced/full) — plus the power-user items already assigned there (base location/relocation, remotes, re-run discovery). Header keeps only quick toggles; settings is canonical. Preferences persist across launches. |
+| FR-16 | **Status board** (0.2.0): plans move through Draft, In progress, In review, Completed. A board view groups by status; a list view groups or sorts by status, project, or updated; "For you" lists what waits on the person (In review, or an agent's reply is the last message in an open thread they started). Completed folds away. |
+| FR-17 | **Loopback server** (0.2.0): while the app is open it listens on 127.0.0.1 only. The stdio MCP server connects when it is up: it registers the session and the plan it works on (that is what "2 sessions" means and what moves a plan to In progress), and receives comments as they are sent. With the app closed everything still works against files. Not a daemon: it lives and dies with the window. |
+| FR-18 | **Projects** (0.2.0): a project is the git remote (owner/repo) of the directory an agent filed or updated the plan from, recorded by the agent. Nothing to set up. The app groups by it, filters the board and list to it, shows the owner's GitHub avatar (fetched once, cached on disk), and a one-line description the first agent that files into it writes. |
+| FR-19 | **Authoring modes** (0.2.0): a setting, markdown or HTML, that `get_standards` and the `create_plan` description follow automatically. Markdown is token-efficient; HTML gives rich, reviewable pages. Both are plans under the same contract, comments included. |
 | FR-15 | **Search, global and local**: local find-in-document (exists — keep) plus **global search across all plans in the base** (title + content, results grouped by plan, jump-to-match). On-demand scan in Rust when invoked — **no persistent index, no background indexing** (NFR-8); the base is small enough that a cold scan is instant. |
 
 ### Non-functional
@@ -374,9 +378,11 @@ lands, not refactored). Vendored shadcn primitives replace `Button.tsx`,
 ---
 id: 2026-08-15-auth-refactor      # stable slug; filename = <id>.md for created plans
 title: Auth refactor
-status: draft                     # draft | in-review | approved | in-progress | done | archived
-source: claude-code               # claude-code | codex | manual | import
-project: ~/work/api-server        # optional; repo/context the plan belongs to
+status: draft                     # draft | in-progress | in-review | completed (0.2.0)
+type: feature                     # feature | bug | migration | research | audit; drives the page layout
+source: claude-code               # claude-code | codex | cursor | manual | import
+project: github.com/owner/repo    # the git remote of where the agent worked; folder name without one
+pr: https://github.com/owner/repo/pull/12   # set with in-review
 created: 2026-08-15T10:00:00Z
 updated: 2026-08-15T12:30:00Z     # bumped by whoever writes
 ---
@@ -387,6 +393,18 @@ updated: 2026-08-15T12:30:00Z     # bumped by whoever writes
 Rules: unknown frontmatter keys are preserved verbatim; a file with no frontmatter is
 still a plan (`title` from first H1 or filename, `status: draft`, `source: manual`);
 tools may add frontmatter only when the user/agent edits the plan (no mass rewrites).
+
+**Status (0.2.0).** Stored, never derived. Draft when filed. In progress once a
+session registers work on it through the loopback server (FR-17) or an agent calls
+`set_status`. In review when the agent opens a PR, passed as `pr`. Completed is set by
+the person; `set_status` refuses it. Reading a pre-0.2.0 file: `tags: archived` reads
+as completed, the old `status:` vocabulary maps (`done`/`archived` to completed,
+`approved` to in-review), and the `tags:` line is kept as an uninterpreted key.
+
+**HTML plans (FR-19).** `<id>.html` is a plan exactly as `<id>.md` is: the same
+frontmatter in an HTML comment at the top of the file, the same sidecar, the same
+history. The app renders it in a sandboxed frame (no scripts, no network). A plan set
+may mix both, so a markdown plan can carry an HTML illustration.
 
 ### 6.2 Comments sidecar v2
 
@@ -776,6 +794,36 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 - [ ] **GATE 5 — Sid manual QA & approval** (push base to a real GitHub repo, pull
       from second machine/clone; relocation into a synced folder works)
 
+### Phase 6 — 0.2.0: status, board, rendered plans, loopback server
+Started 2026-09-22 ahead of Phase 5 and without gates 1 to 4, on Sid's recorded
+waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the base.
+- [ ] P6.1 Contract: stored `status`, `type`, `pr`; tags removed from the contract,
+      the UI, the CLI and the MCP (`tag_plan` becomes `set_status`); legacy reads
+      map (§6.1); `lifecycle.rs` deleted **(T)**
+- [ ] P6.2 Projects as git remotes: `project` normalised to `owner/repo`, project
+      descriptions in `<base>/projects.json` via `describe_project`, owner avatar
+      fetched once and cached **(T)**
+- [ ] P6.3 Standards: unslop writing rules built in and in the installers' managed
+      block; plan types with required sections, warned on by `create_plan`;
+      authoring mode setting served by `get_standards` and the tool description **(T)**
+- [ ] P6.4 Loopback server in the app; MCP server registers sessions and plans,
+      receives comments; session presence drives In progress and the live count
+      **(T: server and client against a local port)**
+- [ ] P6.5 Shell: nav (Board, All plans, For you, Projects, Recent), top bar with
+      the plan title and a status picker, spaced width 60rem
+- [ ] P6.6 Board, list and For you views; project filter; repo marks
+- [ ] P6.7 Rendered plan page: section-aware layout by type for markdown; HTML plans
+      and HTML documents in a set rendered in a sandbox **(T: section parsing)**
+- [ ] P6.8 Comments as a review: threads accumulate as pending, one Send delivers
+      them to the session; thread states open, answered, resolved; who resolved
+      and when in the sidecar **(T)**
+- [ ] P6.9 Motion pass: transform and opacity only, reduced-motion guard, 60fps on
+      a 2MB plan
+- [ ] P6.10 Version 0.2.0 across `package.json`, Cargo, `tauri.conf.json`; release
+- [ ] **GATE 6 — Sid manual QA & approval** (board and status flow end to end with
+      a live session; comments reach the session without copy and paste; HTML and
+      markdown plans; idle CPU ~0% with the loopback server up)
+
 ---
 
 ## 9. Decision log
@@ -836,6 +884,15 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-17 (later, supersedes the row below) | Lifecycle reinstated as draft / active / archived, **derived** rather than stored, sitting alongside free tags | Sid's call. The north star and the marketing page already promised "living work artifacts with a lifecycle (draft → done)", so the copy was ahead of the data model. Deriving it answers the staleness objection that killed the old status field, and counting a plan's `source` as agent work (not just commit authors) fixes the import false-negative. Free tags stay for subject matter; `archived` remains the one declared state |
 | 2026-08-17 | ~~No Draft/Active lifecycle; derive last-mover, recency, and open-comment count instead~~ (superseded above) | The proposed rule is one-way, so everything ends up Active and stops sorting; it also measures provenance not liveness (a dead agent-written plan reads Active, a plan being hand-drafted today reads Draft). Derived-from-git state also merges without conflict for teams, and needs no agent prompt surface to keep accurate |
 | 2026-08-17 | Sidebar scales by memoization + lazy mounting (memoized plan rows, set trees not built/mounted until first expand, memoized Sidebar), NOT list virtualization | Keeps DOM at O(plans + expanded docs) with zero new dependencies (rule 5); virtualization only becomes worth its complexity if flat plan count itself reaches thousands |
+| 2026-09-22 | **Gates 1 to 4 waived and Phase 6 (0.2.0) starts ahead of Phase 5** | Sid, 2026-09-22: "No QA. Get started." Recorded per §2 Process. GATE 6 remains |
+| 2026-09-22 | Status is a stored field with four values (draft, in-progress, in-review, completed); the derived lifecycle and free tags are removed (supersedes 2026-08-16 and 2026-08-17 rows) | Plans were landing in Archived because agents called `tag_plan` with "archived" when filing a new revision, which the tool allowed. Four explicit states match how Sid tracks work; Completed is reserved for the person |
+| 2026-09-22 | In progress comes from session presence (loopback server) or `set_status`; In review is set when the agent opens a PR and carries the PR link | Sid: "In review, when it's PR-ed". Presence is real, not a field someone forgets to update |
+| 2026-09-22 | The app runs a loopback-only server while open; the stdio MCP server connects to it when present and falls back to files when not | Sid: comments must reach the session without copy and paste. Not a daemon under NFR-8: it lives and dies with the window and does no work idle. Filing a plan never depends on the app |
+| 2026-09-22 | Plans can be authored in markdown or HTML; the mode is a setting the MCP follows through `get_standards` and the `create_plan` description | Sid: HTML is richer and easier to review, markdown is token-efficient. Both stay under one contract so history, comments and the sidecar work the same |
+| 2026-09-22 | A project is the git remote of the directory the agent worked in, recorded by the agent; descriptions written by the first agent that files into it | Nothing for the person to organise (north star); a repo is what a plan is really about |
+| 2026-09-22 | Comments are sent as a review: pending threads go to the session in one Send; replies inside a thread go at once; resolution records who and when | Sid asked how submission and resolution work. A reviewer writes several comments and wants the agent to take them together |
+| 2026-09-22 | No accounts, no hosted sharing in 0.2.0; the Google-auth share page from the first prototype is dropped | Sid: local-first, no accounts for now. Sharing stays with the Phase 5 git remote |
+| 2026-09-22 | Unslop writing rules ship in the built-in standards and in the installers' managed block, covering plan bodies and agent comment replies | Sid: the default writing style, set up as part of installing the MCP, not a skill each machine may lack |
 
 ---
 
