@@ -912,6 +912,23 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       and archive; video and LaTeX; every action by shortcut with the key in its
       tooltip; idle CPU ~0%)
 
+#### GATE 7 findings, round 1 (Sid, 2026-10-29)
+- [ ] R1.1 Plan page: Alignment gets its own tab; todos move to a panel beside the
+      content; a back button returns to where the plan was opened from
+- [ ] R1.2 Standards: no "Status, Owner, Repo" header line in the body; the
+      frontmatter and the work record carry it
+- [ ] R1.3 Navbar: two modes only, expanded and minimized, with a smooth transition;
+      the toggle morphs over the OpenPlan mark on hover; no new-plan button; the
+      wordmark in EB Garamond, no name or base line
+- [ ] R1.4 Cards show repos; a Display menu on the board picks which attributes a
+      card shows, persisted
+- [ ] R1.5 Settings: an app font size separate from the plan text size; the default
+      app text one step smaller
+- [ ] R1.6 Segmented tabs: the selected item keeps its background on hover in dark mode
+- [ ] R1.7 Video: confirm playback in the desktop app (the media setting was turned
+      on after the app had launched); standards ask for Remotion explainers in a
+      clean, minimal, Apple-like style with smooth motion
+
 #### GATE 7 QA script
 
 Run a release build of 0.3.0 against the real base, with Claude Code connected
