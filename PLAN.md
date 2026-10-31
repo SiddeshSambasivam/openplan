@@ -800,10 +800,10 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 - [x] P6.1 Contract: stored `status`, `type`, `pr`; tags removed from the contract,
       the UI, the CLI and the MCP (`tag_plan` becomes `set_status`); legacy reads
       map (§6.1); `lifecycle.rs` deleted **(T)**
-- [ ] P6.2 Projects as git remotes: `project` normalised to `owner/repo`, project
+- [x] P6.2 Projects as git remotes: `project` normalised to `owner/repo`, project
       descriptions in `<base>/projects.json` via `describe_project`, owner avatar
       fetched once and cached **(T)**
-- [ ] P6.3 Standards: unslop writing rules built in and in the installers' managed
+- [x] P6.3 Standards: unslop writing rules built in and in the installers' managed
       block; plan types with required sections, warned on by `create_plan`;
       authoring mode setting served by `get_standards` and the tool description **(T)**
 - [ ] P6.4 Loopback server in the app; MCP server registers sessions and plans,
@@ -893,6 +893,11 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 | 2026-09-22 | Comments are sent as a review: pending threads go to the session in one Send; replies inside a thread go at once; resolution records who and when | Sid asked how submission and resolution work. A reviewer writes several comments and wants the agent to take them together |
 | 2026-09-22 | No accounts, no hosted sharing in 0.2.0; the Google-auth share page from the first prototype is dropped | Sid: local-first, no accounts for now. Sharing stays with the Phase 5 git remote |
 | 2026-09-22 | Unslop writing rules ship in the built-in standards and in the installers' managed block, covering plan bodies and agent comment replies | Sid: the default writing style, set up as part of installing the MCP, not a skill each machine may lack |
+| 2026-09-22 | `project` is normalised on write to `host/owner/repo`; text that is not a remote (a folder name, a path) is stored exactly as the agent sent it | One repo is one project however the agent read its remote. Keeping non-remote text untouched means a plan filed outside a repo still groups under something a person recognises |
+| 2026-09-22 | The owner avatar is one `<img>` the webview loads and caches, not a fetch in Rust; only `github.com` remotes get one | No HTTP dependency, no cache to keep current, one request per owner. The app sets no CSP today, so nothing blocks the image; if one is ever added it has to allow `img-src` from `https://github.com` and `https://avatars.githubusercontent.com`. Other hosts serve no equivalent per-owner image |
+| 2026-09-22 | Project descriptions live in `<base>/projects.json`, written by `describe_project` as an attributed commit; `create_plan` asks for one when the project has none | The description travels with the plans it describes and has its own history. Asking in the reply is the only prompt an agent needs, so nothing new has to be remembered |
+| 2026-09-22 | A plan type's missing sections are a warning on the `create_plan` reply, never a refusal | A plan short of a section is still worth having on disk, and the agent can add it in the next revision. Refusing would lose the body |
+| 2026-09-22 | An HTML plan carries the same frontmatter inside an HTML comment, and the file extension is the only signal | The file still opens as a page in any browser, and one parser reads both kinds. Nothing else in the contract changes, so sets, sidecars, search and history work the same |
 
 ---
 
