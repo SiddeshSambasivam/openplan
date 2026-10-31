@@ -764,10 +764,11 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       the existing role token), so a shared thread shows who said what
       instead of "You" for everyone **(T: golden format stays in step on both
       sides)**
-- [ ] P5.0c Derived activity on plan rows: last mover, when, open comment
-      count, from one revwalk per base-changed event. Replaces the proposed
-      Draft/Active lifecycle, which saturates and measures provenance rather
-      than liveness **(T)**
+- [x] P5.0c Lifecycle (draft / active / archived), derived from agent
+      activity plus the archived tag, in the sidebar groups, the meta bar,
+      `list_plans`, and `openplan list` **(T)**
+- [ ] P5.0d Remaining derived signals on plan rows: last mover, when, and
+      open comment count, from the same history walk the lifecycle uses **(T)**
 - [ ] P5.1 Base relocation setting (for Drive/iCloud users who want a visible synced
       folder) **(T: relocation logic)**
 - [ ] P5.2 Connect GitHub/GitLab remote from settings: set URL, push/pull via git2,
@@ -832,7 +833,8 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-17 | Comments carry `authorName` (the person who typed it, unset for agents) and `authorEmail` (whose base it was written against) beside the existing role token | The token drives the icon and the MCP contract, so it stays; identity is added rather than substituted. Agents keep their tool name because that is who wrote the words, while the email says whose machine it ran on |
 | 2026-08-17 | Author identity resolves settings → git config → anonymous fallback; agents keep their tool name and carry the person's email | Multi-teammate is near-term and restore never rewrites history, so every commit written as the literal `user` would stay ambiguous forever. Email tells people apart, name says which actor moved it |
 | 2026-08-17 | Agents must answer every open comment thread with `reply_comment`, in the thread, in one or two lines | A review answered only in chat leaves teammates no record; long replies bury the decision. Enforced in the managed CLAUDE.md/AGENTS.md block and the MCP tool descriptions |
-| 2026-08-17 | No Draft/Active lifecycle; derive last-mover, recency, and open-comment count instead | The proposed rule is one-way, so everything ends up Active and stops sorting; it also measures provenance not liveness (a dead agent-written plan reads Active, a plan being hand-drafted today reads Draft). Derived-from-git state also merges without conflict for teams, and needs no agent prompt surface to keep accurate |
+| 2026-08-17 (later, supersedes the row below) | Lifecycle reinstated as draft / active / archived, **derived** rather than stored, sitting alongside free tags | Sid's call. The north star and the marketing page already promised "living work artifacts with a lifecycle (draft → done)", so the copy was ahead of the data model. Deriving it answers the staleness objection that killed the old status field, and counting a plan's `source` as agent work (not just commit authors) fixes the import false-negative. Free tags stay for subject matter; `archived` remains the one declared state |
+| 2026-08-17 | ~~No Draft/Active lifecycle; derive last-mover, recency, and open-comment count instead~~ (superseded above) | The proposed rule is one-way, so everything ends up Active and stops sorting; it also measures provenance not liveness (a dead agent-written plan reads Active, a plan being hand-drafted today reads Draft). Derived-from-git state also merges without conflict for teams, and needs no agent prompt surface to keep accurate |
 | 2026-08-17 | Sidebar scales by memoization + lazy mounting (memoized plan rows, set trees not built/mounted until first expand, memoized Sidebar), NOT list virtualization | Keeps DOM at O(plans + expanded docs) with zero new dependencies (rule 5); virtualization only becomes worth its complexity if flat plan count itself reaches thousands |
 
 ---
