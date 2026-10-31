@@ -173,7 +173,7 @@ fn create_plan(base: &Base, author: &str, authoring: &str, args: &Value) -> Valu
     };
     let Some(body) = args.get("body").and_then(Value::as_str).filter(|b| !b.trim().is_empty())
     else {
-        return text_result("create_plan needs the plan's markdown body.", true);
+        return text_result("create_plan needs the plan's body.", true);
     };
     let project = args
         .get("project")
@@ -184,7 +184,9 @@ fn create_plan(base: &Base, author: &str, authoring: &str, args: &Value) -> Valu
     let html = authoring == "html";
     let extension = if html { "html" } else { "md" };
     let destination = base.plans_dir().join(format!("{id}.{extension}"));
-    if destination.exists() {
+    // A plan keeps its id whichever format it was written in, so a title is
+    // taken even when the mode has changed since it was filed.
+    if ["md", "html"].iter().any(|e| base.plans_dir().join(format!("{id}.{e}")).exists()) {
         return text_result(
             format!("A plan called {id} already exists. Read it with read_plan first."),
             true,

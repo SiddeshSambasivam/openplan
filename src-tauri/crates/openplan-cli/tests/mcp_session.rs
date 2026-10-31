@@ -209,6 +209,9 @@ fn in_html_mode_the_plan_on_disk_is_an_html_document() {
     let settings = config_dir(&home).join(openplan_core::profile::name());
     std::fs::create_dir_all(&settings).unwrap();
     let base_path = home.join(openplan_core::profile::base_dir_name());
+    // Filed before the mode changed, and still the plan that owns that id.
+    std::fs::create_dir_all(base_path.join("plans")).unwrap();
+    std::fs::write(base_path.join("plans/older-plan.md"), "# Older plan\n").unwrap();
     std::fs::write(
         settings.join("settings.json"),
         format!(
@@ -250,6 +253,12 @@ fn in_html_mode_the_plan_on_disk_is_an_html_document() {
     );
     assert_eq!(created["result"]["isError"], false, "{created}");
 
+    // The markdown plan already on disk still owns its id.
+    let clash = ask(
+        r##"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Older plan","body":"<h1>Older plan</h1>"}}}"##,
+    );
+    assert_eq!(clash["result"]["isError"], true, "{clash}");
+
     let read = ask(r##"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_plan","arguments":{"id":"rendered-plan"}}}"##);
     let text = read["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.starts_with("<!--\n---\n"), "{text}");
@@ -260,9 +269,10 @@ fn in_html_mode_the_plan_on_disk_is_an_html_document() {
 
     let base = openplan_core::base::Base { root: base_path };
     let entries = openplan_core::library::scan(&base);
-    assert_eq!(entries.len(), 1, "{entries:?}");
-    assert_eq!(entries[0].meta.title, "Rendered plan");
-    assert_eq!(entries[0].path.extension().unwrap(), "html");
+    assert_eq!(entries.len(), 2, "{entries:?}");
+    let rendered = entries.iter().find(|e| e.meta.id == "rendered-plan").unwrap();
+    assert_eq!(rendered.meta.title, "Rendered plan");
+    assert_eq!(rendered.path.extension().unwrap(), "html");
 
     let _ = std::fs::remove_dir_all(&home);
 }
