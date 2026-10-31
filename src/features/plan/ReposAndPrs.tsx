@@ -1,5 +1,5 @@
-import { Folder, FolderGit2, GitBranch } from "lucide-react";
-import { PrGlyph } from "@/components/PlanFacts";
+import { GitBranch } from "lucide-react";
+import { PrGlyph, RepoMark } from "@/components/PlanFacts";
 import { Badge } from "@/components/ui/badge";
 import { openExternal } from "@/lib/platform";
 import { prBadges, prLabel, type Pr, type Repo } from "@/lib/work";
@@ -14,11 +14,7 @@ export function ReposAndPrs({ repos, prs }: { repos: Repo[]; prs: Pr[] }) {
       <ul className="space-y-1.5">
         {repos.map((repo) => (
           <li key={repo.path} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-            {repo.remote ? (
-              <FolderGit2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-            ) : (
-              <Folder aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-            )}
+            <RepoMark repo={repo} className="size-3.5" />
             <code title={repo.remote} className="font-mono text-xs break-all">
               {repo.path}
             </code>

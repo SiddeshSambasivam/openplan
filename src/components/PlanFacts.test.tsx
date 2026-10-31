@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { PrSummary } from "@/lib/work";
-import { PrCount, PrGlyph } from "./PlanFacts";
+import { PrCount, PrGlyph, RepoMark } from "./PlanFacts";
 
 const summary = (states: PrSummary["reported"][number]["state"][], expected = true) => ({
   reported: states.map((state, index) => ({
@@ -55,5 +55,21 @@ describe("PrCount", () => {
   it("shows nothing for a plan that has no repo and no PR", () => {
     expect(renderToStaticMarkup(<PrCount prs={summary([], false)} />)).toBe("");
     expect(renderToStaticMarkup(<PrCount />)).toBe("");
+  });
+});
+
+describe("RepoMark", () => {
+  const drawn = (remote?: string) =>
+    renderToStaticMarkup(<RepoMark repo={{ path: "~/code/x", remote }} />);
+
+  it("shows the owner's avatar for a github.com repo", () => {
+    expect(drawn("git@github.com:owner/repo.git")).toContain(
+      'src="https://github.com/owner.png?size=32"',
+    );
+  });
+
+  it("keeps the repo icon for other hosts and the folder icon for plain folders", () => {
+    expect(drawn("gitlab.com/owner/repo")).toContain("lucide-folder-git2");
+    expect(drawn(undefined)).toContain("lucide-folder ");
   });
 });

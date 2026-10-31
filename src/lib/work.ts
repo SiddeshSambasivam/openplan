@@ -174,6 +174,16 @@ export function repoLabel(repo: Repo): string {
   return parts.slice(repo.remote ? -2 : -1).join("/");
 }
 
+/** The owner's avatar for a repo on github.com, which the webview loads and
+ * caches. Other hosts serve no per-owner image, so they get none. `size` is
+ * in pixels. */
+export function ownerAvatarUrl(repo: Repo, size: number): string | null {
+  const owner = repo.remote?.match(
+    /^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?github\.com[:/]([A-Za-z0-9-]+)\/[^/]+/i,
+  )?.[1];
+  return owner ? `https://github.com/${owner}.png?size=${size}` : null;
+}
+
 /** How each todo state reads. The tones match the status glyphs: doing is
  * the colour of work in progress, done the colour of completed work. */
 export const TODO_MARKS: Record<TodoState, { label: string; tone: string }> = {

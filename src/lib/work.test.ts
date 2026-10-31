@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   offersCompletion,
+  ownerAvatarUrl,
   answerOf,
   chosenOptions,
   mostAdvancedPr,
@@ -367,5 +368,27 @@ describe("chosenOptions", () => {
   it("is none for a typed answer or no answer", () => {
     expect(chosenOptions({ ...asked, answer: { kind: "text", text: "Neither" } })).toEqual([]);
     expect(chosenOptions(asked)).toEqual([]);
+  });
+});
+
+describe("ownerAvatarUrl", () => {
+  const avatar = (remote?: string) => ownerAvatarUrl({ path: "~/code/x", remote }, 40);
+
+  it("points a github.com remote at its owner's avatar, whatever the URL shape", () => {
+    const url = "https://github.com/acme-co.png?size=40";
+
+    expect(avatar("github.com/acme-co/repo")).toBe(url);
+    expect(avatar("https://github.com/acme-co/repo")).toBe(url);
+    expect(avatar("https://github.com/acme-co/repo.git")).toBe(url);
+    expect(avatar("git@github.com:acme-co/repo.git")).toBe(url);
+    expect(avatar("ssh://git@github.com/acme-co/repo")).toBe(url);
+  });
+
+  it("gives none for other hosts, look-alike hosts and plain folders", () => {
+    expect(avatar("gitlab.com/acme/repo")).toBeNull();
+    expect(avatar("https://notgithub.com/acme/repo")).toBeNull();
+    expect(avatar("https://github.com.example.com/acme/repo")).toBeNull();
+    expect(avatar("github.com/acme")).toBeNull();
+    expect(avatar(undefined)).toBeNull();
   });
 });

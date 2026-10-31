@@ -11,7 +11,7 @@ import {
   User,
   type LucideIcon,
 } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { ClaudeCodeIcon, CodexIcon, CursorIcon } from "./AgentIcons";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -21,6 +21,7 @@ import { SOURCE_LABELS, type PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import {
   mostAdvancedPr,
+  ownerAvatarUrl,
   PR_MARKS,
   progressText,
   prSummaryText,
@@ -155,7 +156,7 @@ export function RepoLine({
       title={said}
       className={cn("flex min-w-0 items-center gap-1.5 text-muted-foreground", className)}
     >
-      <FolderGit2 className="size-3 shrink-0" />
+      <RepoMark repo={repos[0]} className="size-3" />
       <span className="truncate">
         {repos.map((repo, index) => (
           <Fragment key={repo.path}>
@@ -168,6 +169,29 @@ export function RepoLine({
     </span>
   );
 }
+
+/** A repo's owner avatar where its host has one, and the repo or folder icon
+ * otherwise, or when the avatar fails to load. */
+export function RepoMark({ repo, className }: { repo: Repo; className?: string }) {
+  const avatar = ownerAvatarUrl(repo, AVATAR_PX);
+  const [failed, setFailed] = useState<string | null>(null);
+  if (avatar && failed !== avatar) {
+    return (
+      <img
+        src={avatar}
+        alt=""
+        onError={() => setFailed(avatar)}
+        className={cn("shrink-0 rounded-sm object-cover", className)}
+      />
+    );
+  }
+  const Icon = repo.remote ? FolderGit2 : Folder;
+  return <Icon aria-hidden className={cn("shrink-0 text-muted-foreground", className)} />;
+}
+
+/** One size for every mark, so the webview fetches and caches each owner
+ * once. Twice the largest mark, for sharp edges on high-density screens. */
+const AVATAR_PX = 32;
 
 /** The plan's PRs as the icon of the most advanced one, counted past one.
  * A plan in a repo with no PR yet shows a muted icon, and a plan with no
