@@ -319,6 +319,27 @@ mod tests {
     }
 
     #[test]
+    fn the_media_section_is_a_remotion_recipe_short_enough_to_follow() {
+        let media = section("## Media");
+        let text = media.join("\n");
+
+        assert!(media.len() < 45, "the Media section is {} lines", media.len());
+        for step in [
+            "npx create-video@latest --blank",
+            "npx remotion render",
+            "--codec h264 --crf 23",
+            "1920x1080",
+            "30 fps",
+            "300 ms",
+            "media/clip.mp4",
+            "With \"Media: off\", add neither.",
+        ] {
+            assert!(text.contains(step), "the Media section is missing {step}");
+        }
+        assert_eq!(writing_faults(&text), Vec::<String>::new());
+    }
+
+    #[test]
     fn the_built_in_standards_follow_their_own_writing_rules() {
         assert_eq!(writing_faults(BUILT_IN), Vec::<String>::new());
     }

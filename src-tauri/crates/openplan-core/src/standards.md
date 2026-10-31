@@ -247,15 +247,39 @@ starting point, not a menu to copy.
 The second line of what `get_standards` serves says whether media is on for this
 person.
 
-- With "Media: on", a short video is welcome where it shows how something works.
-  Render it with Remotion in your own workspace as an mp4 under 5 MB. Save it in
-  the plan set's `media/` folder and reference it with a relative path, as in
-  `<video src="media/sync-flow.mp4" controls></video>`. A single-file plan that
-  gains media becomes a plan set.
+- With "Media: on", an explainer video is welcome where motion shows what words
+  cannot: a flow, a before and after, or a sequence of states. Never add one for
+  decoration. Make it with Remotion, as below.
 - With "Media: on", an `html` fence may carry a small interactive piece. It runs
   in a sandbox with no network.
 - With "Media: off", add neither.
 - Never link media from the network.
+
+### Explainer videos
+
+The look is clean and minimal, in the style of Apple's product videos.
+
+- One idea per scene, at most five scenes, under ten seconds in total.
+- A near-white background, or near-black if the reader likely works in a dark
+  theme. One accent colour. The system sans font, Inter or SF. Large type and
+  wide margins. No stock footage and no music.
+- Every move eases out, with `spring` at low bounce or `interpolate` with an
+  easing curve. Elements enter by fading in and rising a few pixels. Nothing
+  bounces and nothing spins. Scenes change with a 300 ms crossfade.
+- Render 1920x1080 at 30 fps as an h264 mp4 at CRF 23, under 5 MB. If the file
+  is larger, drop to 1280x720 before you raise the CRF.
+
+Make it in this order:
+
+1. Run `npx create-video@latest --blank <name>` in a scratch folder outside the
+   plan base.
+2. Write one composition per scene and a root composition that sequences them.
+3. Preview with `npx remotion studio` only if a person will watch the preview.
+4. Render with `npx remotion render <RootComposition> out/clip.mp4 --codec h264 --crf 23`.
+5. Copy `out/clip.mp4` into the plan set's `media/` folder. A single-file plan
+   that gains media becomes a plan set.
+6. Reference it in the plan as `<video src="media/clip.mp4" controls></video>`.
+7. Commit the mp4 with the plan. Do not commit the scratch folder.
 
 ## Writing
 
