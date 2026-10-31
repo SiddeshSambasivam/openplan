@@ -2409,7 +2409,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "openplan"
+name = "openplan-app"
 version = "0.1.0"
 dependencies = [
  "dirs",

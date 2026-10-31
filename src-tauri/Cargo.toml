@@ -2,7 +2,7 @@
 members = ["crates/*"]
 
 [package]
-name = "openplan"
+name = "openplan-app"
 version = "0.1.0"
 description = "One place to manage the plans you and your coding agents collaborate on"
 authors = ["Siddesh Sambasivam"]
@@ -12,9 +12,8 @@ edition = "2021"
 name = "openplan_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Distinct from the CLI's binary, which is also called openplan and shares
-# this workspace's target directory — same name, one file, whichever built
-# last. Running the app instead of the CLI looks exactly like a hang.
+# The package, binary, and bundle are all openplan-app; plain `openplan`
+# is the CLI's name, in the workspace target directory and as the sidecar.
 [[bin]]
 name = "openplan-app"
 path = "src/main.rs"
