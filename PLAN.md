@@ -576,11 +576,12 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
       defaults changed to small font + compact width **(T: `outline.ts`)**
 - [x] P0.8 Motion layer (`animate-*` utilities + reduced-motion guard) and
       animated reading-width changes; app shell no longer scrolls vertically
-- [ ] **GATE 0 — Sid manual QA & approval** (rename correct on all 3 OS targets,
-      no regressions in viewing/editing, comments unreachable)
+- [x] **GATE 0 — Sid manual QA & approval** — approved 2026-08-15 on macOS.
+      Windows and Linux were not exercised; the rename is config-level, so CI
+      on the first `v*` tag is the real check for those
 
 ### Phase 1 — Plan base & plans as first-class
-- [ ] P1.1 `openplan-core::base` — config discovery, auto-creation of hidden
+- [x] P1.1 `openplan-core::base` — config discovery, auto-creation of hidden
       `~/.openplan` (0700), `openplan.json`, default `STANDARDS.md` **(T)**
 - [ ] P1.2 `openplan-core::plan` — frontmatter parse/serialize, meta derivation
       **(T: round-trip byte-identical body)**
@@ -710,6 +711,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | Default reading settings: small font, compact width | Sid's preference |
 | 2026-08-15 | Shared motion utilities in `index.css` (transform/opacity entrances, `prefers-reduced-motion` guard) | Sid: interactions felt too sudden; keeps motion consistent instead of per-component ad hoc |
 | 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
+| 2026-08-15 | Find (and later comment) highlights are drawn as positioned elements, not via the CSS Custom Highlight API | The desktop WebView keeps painting registered highlights after the registry is emptied and the colour removed; scrolling does not repaint them away. Verified in the app: registry `[]`, colour unset, still lit. Elements React unmounts are repainted by definition |
 | 2026-08-15 | Motion comes from `tw-animate-css`, not hand-written keyframes | shadcn's generated components already reference its classes (`animate-in`, `fade-in-0`, `zoom-in-95`); without it they were dead classes and menus/tooltips did not animate |
 | 2026-08-15 | The wordmark uses EB Garamond from the marketing site, with no icon | Sid: match the marketing material; fonts vendored into `public/fonts` |
 | 2026-08-15 | `color-scheme` is declared per theme | Without it the browser keeps painting native surfaces in the old palette, which is the artifact left behind when toggling |
