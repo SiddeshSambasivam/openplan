@@ -281,6 +281,7 @@ export function Header({
           <TooltipButton
             size="xs"
             variant="outline"
+            data-tour="mark-completed"
             onClick={() => onStatusChange("completed")}
             tooltip="Move this plan to Completed"
           >
@@ -295,6 +296,7 @@ export function Header({
           size="xs"
           variant="outline"
           onClick={onBuild}
+          data-tour="build"
           disabled={buildBlocked}
           shortcut="build"
           tooltip={buildTooltip ?? "Tell the agent to start the work, with any unsent comments"}
@@ -384,6 +386,7 @@ export function Header({
         <TooltipButton
           size="xs"
           onClick={onSendReview}
+          data-tour="review"
           // The key sends from the comments panel, where the review is in view.
           shortcut={commentsOpen ? "sendReview" : undefined}
           tooltip="Send your comments to the agent on this plan"
@@ -400,6 +403,8 @@ export function Header({
           variant="ghost"
           size="icon-sm"
           onClick={onToggleComments}
+          // Before there is a review to send, the tour lights where it is written.
+          data-tour="review"
           shortcut="comments"
           tooltipSide="bottom" tooltipAlign="end"
           aria-label="Comments"

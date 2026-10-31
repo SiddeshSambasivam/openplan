@@ -135,7 +135,11 @@ export const Sidebar = memo(function Sidebar({
     const chosen = folder === name;
     const Icon = name == null ? Folders : chosen ? FolderOpen : Folder;
     return (
-      <div key={label} className="group/folder relative">
+      <div
+        key={label}
+        data-tour={name == null ? undefined : `folder-${name}`}
+        className="group/folder relative"
+      >
         <NavRow
           minimized={minimized}
           icon={<Icon className={cn(ICON, chosen && "text-sidebar-foreground")} />}
@@ -194,6 +198,7 @@ export const Sidebar = memo(function Sidebar({
             icon={<Search className={ICON} />}
             label="Search"
             shortcut="palette"
+            tour="palette"
             onClick={onOpenPalette}
           />
         </div>
@@ -296,6 +301,7 @@ function NavRow({
   count,
   active = false,
   chosen = false,
+  tour,
   onClick,
   children,
 }: {
@@ -306,6 +312,8 @@ function NavRow({
   count?: number;
   active?: boolean;
   chosen?: boolean;
+  /** The guided tour's name for the row. */
+  tour?: string;
   onClick: () => void;
   /** Stands in for the plain label. */
   children?: ReactNode;
@@ -313,6 +321,7 @@ function NavRow({
   const row = (
     <button
       onClick={onClick}
+      data-tour={tour}
       aria-current={active || undefined}
       aria-label={minimized ? label : undefined}
       className={cn(

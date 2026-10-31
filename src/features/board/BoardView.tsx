@@ -90,7 +90,11 @@ function Card({
     // The menu sits beside the card's button rather than inside it: a
     // button cannot hold another one.
     <PlanContextMenu plan={plan}>
-      <div style={enter.style} className={cn("group relative", enter.className)}>
+      <div
+        data-tour={`card-${plan.id}`}
+        style={enter.style}
+        className={cn("group relative", enter.className)}
+      >
         <button
           onClick={() => actions.onOpen(plan)}
           title={display.clampTitle ? plan.title : undefined}
@@ -378,7 +382,9 @@ export const BoardView = memo(function BoardView({
     // Below the width the columns need, the board scrolls sideways rather
     // than squeezing the cards.
     <div className="h-full overflow-x-auto">
-      <div className="flex h-full gap-3 p-4">{pieces}</div>
+      <div data-tour="board" className="flex h-full gap-3 p-4">
+        {pieces}
+      </div>
     </div>
   );
 });

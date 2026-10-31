@@ -404,6 +404,7 @@ export function PeopleRail({
   ];
   return (
     <nav
+      data-tour="reviewers"
       inert={leaving}
       onAnimationEnd={(event) => leaving && event.target === event.currentTarget && onLeft()}
       className={cn(
