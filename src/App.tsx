@@ -1541,7 +1541,7 @@ export default function App() {
           trafficLightGap={isTauri && isMac && !fullscreen}
         />
         {mainView === "board" && (
-          <div className="min-h-0 flex-1 animate-in fade-in duration-150">
+          <div className="motion-view min-h-0 flex-1">
             <BoardView
               plans={shownPlans}
               summaries={summaries}
@@ -1554,7 +1554,7 @@ export default function App() {
         )}
 
         {mainView === "list" && (
-          <div className="min-h-0 flex-1 animate-in fade-in duration-150">
+          <div className="motion-view min-h-0 flex-1">
             <ListView
               plans={shownPlans}
               summaries={summaries}
@@ -1576,7 +1576,7 @@ export default function App() {
         )}
 
         {mainView === "for-you" && (
-          <div className="min-h-0 flex-1 animate-in fade-in duration-150">
+          <div className="motion-view min-h-0 flex-1">
             <ForYouView
               plans={shownPlans}
               summaries={summaries}
@@ -1591,7 +1591,7 @@ export default function App() {
             it enlarges the scrollable area and the browser can scroll the
             whole layout sideways to reveal it. */}
         {mainView === "plan" && (
-        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        <div className="motion-view relative flex min-h-0 flex-1 overflow-hidden">
           <div
             ref={scrollRef}
             style={

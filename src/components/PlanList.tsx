@@ -1,6 +1,7 @@
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { statusGroups } from "@/lib/board";
+import { entrance, useMountedKeys } from "@/lib/motion";
 import { STATUS_LABELS, type PlanSummary } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
@@ -221,6 +222,8 @@ const PlanRow = memo(function PlanRow({
   sessions,
   expanded,
   renaming,
+  index,
+  mountedWith,
   onToggleExpand,
   onSelect,
   onSelectDocument,
@@ -237,6 +240,10 @@ const PlanRow = memo(function PlanRow({
   expanded: boolean;
   /** Null unless this row is the one being renamed. */
   renaming: Renaming | null;
+  /** Where the row sits in its group, which sets its entrance delay. */
+  index: number;
+  /** False for a plan filed after the list was drawn: it fades in place. */
+  mountedWith: boolean;
   onToggleExpand: (plan: PlanSummary, next: boolean) => void;
   onSelect: (plan: PlanSummary) => void;
   onSelectDocument: (plan: PlanSummary, document: string) => void;
@@ -254,8 +261,9 @@ const PlanRow = memo(function PlanRow({
     () => (isSet && everExpanded ? buildSetTree(plan.documents) : null),
     [isSet, everExpanded, plan.documents],
   );
+  const enter = entrance(index, mountedWith);
   return (
-    <li>
+    <li style={enter.style} className={enter.className}>
       <button
         onDoubleClick={() => setRenaming({ path: plan.path, value: plan.title })}
         onClick={() => {
@@ -362,6 +370,7 @@ export function PlanList({
 }: PlanListProps) {
   const groups = useMemo(() => statusGroups(plans), [plans]);
   const sorted = useMemo(() => groups.flatMap((group) => group.plans), [groups]);
+  const mounted = useMountedKeys(sorted.map((plan) => plan.path));
 
   // A set follows whatever is being read until someone says otherwise, and
   // then it stays where they put it.
@@ -385,7 +394,7 @@ export function PlanList({
 
   if (plans.length === 0) {
     return (
-      <p className="p-10 text-center text-sm leading-6 text-muted-foreground">
+      <p className="animate-in fade-in-0 p-10 text-center text-sm leading-6 text-muted-foreground duration-200">
         No plans yet.
         <br />
         Your agents will file them here.
@@ -393,7 +402,7 @@ export function PlanList({
     );
   }
 
-  const renderPlan = (plan: PlanSummary) => {
+  const renderPlan = (plan: PlanSummary, index: number) => {
     const folder = plan.path.slice(0, plan.path.lastIndexOf("/") + 1);
     const isSet = plan.documents.length > 1;
     const holdsActive = plan.path === activePath || !!activePath?.startsWith(folder);
@@ -416,6 +425,8 @@ export function PlanList({
         sessions={sessions.get(plan.id) ?? 0}
         expanded={expanded}
         renaming={rowRenaming}
+        index={index}
+        mountedWith={mounted.has(plan.path)}
         onToggleExpand={toggleExpand}
         onSelect={onSelect}
         onSelectDocument={onSelectDocument}

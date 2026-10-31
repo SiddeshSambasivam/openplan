@@ -817,8 +817,8 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 - [x] P6.8 Comments as a review: threads accumulate as pending, one Send delivers
       them to the session; thread states open, answered, resolved; who resolved
       and when in the sidecar **(T)**
-- [ ] P6.9 Motion pass: transform and opacity only, reduced-motion guard, 60fps on
-      a 2MB plan
+- [x] P6.9 Motion pass: transform and opacity only, reduced-motion guard, 60fps on
+      a 2MB plan **(T: stagger cap and what a group mounted with)**
 - [ ] P6.10 Version 0.2.0 across `package.json`, Cargo, `tauri.conf.json`; release
 - [ ] **GATE 6 — Sid manual QA & approval** (board and status flow end to end with
       a live session; comments reach the session without copy and paste; HTML and
@@ -924,6 +924,11 @@ waiver (§9). Prototype and decisions: the filed plan "OpenPlan 0.2.0" in the ba
 | 2026-09-22 | Reopening clears `resolvedBy` and `resolvedAt` rather than keeping them as history | The sidecar says where a thread stands now; git says how it got there. Keeping a stale name on a reopened thread would read as though somebody closed it again |
 | 2026-09-22 | The review's commit message singularises: `review: <id> (1 thread)` | Every other message in §6.4 reads as English. A permanent log saying "1 threads" is the kind of thing nobody goes back to fix |
 | 2026-09-22 | The send result is one transient line in the top bar, not a new toast system | It is the only thing in the app that needs saying after an action. A toast library, or a hand-rolled one, would be more machinery than the one message justifies |
+| 2026-09-22 | A view's entrance rides on the element the view switch mounts, with no animation key | Mounting is already the event we want: switching views mounts a new element and replays the rise, while a write behind the view only re-renders it. A key would be a second source of truth for the same thing |
+| 2026-09-22 | A group staggers only what it mounted with; anything that arrives later fades where it stands | An agent writes whenever it likes. Re-staggering a board on every `base-changed` is the jank NFR-2 forbids, and a new card that moved its siblings would lose the reader's place |
+| 2026-09-22 | Entrances fill backwards, never forwards or both | A held final frame wins over every later declaration in the cascade, so a card with a forwards fill can never lift on hover again. Backwards covers the stagger delay and then gets out of the way |
+| 2026-09-22 | The reduced-motion guard stills delays as well as durations | A stilled animation that keeps its delay still holds the item back, invisible, for the length of the stagger. That is the wait the setting exists to remove |
+| 2026-09-22 | The status glyph beats only where it stands for the open plan, and the picker is keyed to that plan | A glyph in a list is a fact, not an event. Keying the picker to the plan keeps opening another plan from reading as a change of status |
 
 ---
 

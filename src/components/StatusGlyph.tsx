@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 
@@ -6,17 +7,31 @@ import { cn } from "@/lib/utils";
    while in review, and filled with a tick once completed. */
 export function StatusGlyph({
   status,
+  tick,
   className,
 }: {
   status: Status;
+  /** Beat once when the status changes, for the glyph that stands for the
+   * plan someone is reading. A glyph in a list stays still. */
+  tick?: boolean;
   className?: string;
 }) {
+  const [beating, setBeating] = useState(false);
+  const shown = useRef(status);
+  useEffect(() => {
+    if (shown.current === status) return;
+    shown.current = status;
+    if (tick) setBeating(true);
+  }, [status, tick]);
+
   return (
     <svg
       viewBox="0 0 14 14"
       aria-hidden
+      onAnimationEnd={() => setBeating(false)}
       className={cn(
         "size-3.5 shrink-0",
+        beating && "motion-tick",
         status === "draft" && "text-muted-foreground",
         status === "in-progress" && "text-warning",
         status === "in-review" && "text-info",
