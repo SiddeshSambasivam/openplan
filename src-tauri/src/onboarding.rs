@@ -69,6 +69,15 @@ pub async fn seed_demo(
     seed_demo_at(&settings::settings_path()?, state.get()?)
 }
 
+/// Writes back the demo plans that are missing, for a replay of the tour,
+/// even once they were seeded. Returns the plans written.
+#[tauri::command]
+pub async fn restore_demo(
+    state: tauri::State<'_, crate::plans::BaseState>,
+) -> Result<Vec<PathBuf>, String> {
+    restore_demo_at(&settings::settings_path()?, state.get()?)
+}
+
 /// Dev only in spirit: puts the walkthrough back so it can be tested again.
 #[tauri::command]
 pub async fn reset_onboarding() -> Result<(), String> {
@@ -245,6 +254,13 @@ fn seed_demo_at(file: &Path, base: &Base) -> Result<Vec<PathBuf>, String> {
     if saved.demo_seeded == Some(true) {
         return Ok(Vec::new());
     }
+    restore_demo_at(file, base)
+}
+
+/// `seed_demo` writes only the plans that are missing, so what the person
+/// changed on a demo plan stands.
+fn restore_demo_at(file: &Path, base: &Base) -> Result<Vec<PathBuf>, String> {
+    let saved = settings::read_settings(file)?.unwrap_or_default();
     let panel: Vec<&str> = match saved.role {
         Some(role) => roles::panel_of(role).panel.iter().map(|m| m.role.as_str()).collect(),
         None => demo::DEFAULT_PANEL.to_vec(),
@@ -376,6 +392,38 @@ mod tests {
 
         assert!(again.is_empty());
         assert_eq!(plan_files(&base), 0);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn restoring_the_demo_writes_back_the_deleted_plans_after_a_seed() {
+        let (dir, file) = temp_home("openplan-app-restore-deleted");
+        set_role_at(&file, Some(PersonRole::Designer)).unwrap();
+        let base = ensure_base(&dir.join("base")).unwrap();
+        for path in seed_demo_at(&file, &base).unwrap() {
+            std::fs::remove_file(path).unwrap();
+        }
+
+        let paths = restore_demo_at(&file, &base).unwrap();
+
+        assert_eq!(paths.len(), 5);
+        assert_eq!(alignment_roles(&paths), ["design", "research", "accessibility", "engineering"]);
+        assert_eq!(saved(&file).demo_seeded, Some(true));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn restoring_the_demo_leaves_the_plans_that_are_there() {
+        let (dir, file) = temp_home("openplan-app-restore-kept");
+        let base = ensure_base(&dir.join("base")).unwrap();
+        let paths = seed_demo_at(&file, &base).unwrap();
+        std::fs::write(&paths[0], "changed").unwrap();
+        std::fs::remove_file(&paths[1]).unwrap();
+
+        let restored = restore_demo_at(&file, &base).unwrap();
+
+        assert_eq!(restored, [paths[1].clone()]);
+        assert_eq!(std::fs::read_to_string(&paths[0]).unwrap(), "changed");
         let _ = std::fs::remove_dir_all(dir);
     }
 
