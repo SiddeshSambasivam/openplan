@@ -215,13 +215,18 @@
   pointer-events: none;
 }
 
+/* Delays are stilled along with durations: a staggered entrance that keeps
+   its delay still holds the item back, which is the wait the setting asks
+   to be rid of. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
   }
 }
 
