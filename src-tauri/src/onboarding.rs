@@ -29,7 +29,7 @@ fn read_settings() -> Result<Option<settings::Settings>, String> {
     settings::read_settings(&settings::settings_path()?)
 }
 
-fn update_settings(
+pub(crate) fn update_settings(
     change: impl FnOnce(&mut settings::Settings),
 ) -> Result<(), String> {
     let path = settings::settings_path()?;

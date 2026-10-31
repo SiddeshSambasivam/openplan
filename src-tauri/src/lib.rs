@@ -164,6 +164,48 @@ async fn list_work_progress(
     Ok(openplan_core::work::progress_of(&paths))
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Preferences {
+    media: bool,
+    archive_after_days: u32,
+}
+
+/// The settings the interface reads once at startup and again after a change.
+#[tauri::command]
+async fn preferences() -> Preferences {
+    Preferences {
+        media: openplan_core::settings::current_media(),
+        archive_after_days: openplan_core::settings::current_archive_after_days(),
+    }
+}
+
+/// Agents read it through `get_standards` from their next call.
+#[tauri::command]
+async fn set_media(on: bool) -> Result<(), String> {
+    onboarding::update_settings(|s| s.media = Some(on))
+}
+
+#[tauri::command]
+async fn set_archive_after_days(days: u32) -> Result<(), String> {
+    onboarding::update_settings(|s| s.archive_after_days = Some(days))
+}
+
+/// Archives plans completed longer ago than the setting. Called when the app
+/// opens and when the board is shown, so nothing wakes on a timer.
+#[tauri::command]
+async fn archive_stale(state: tauri::State<'_, plans::BaseState>) -> Result<usize, String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    openplan_core::archive::archive_stale(
+        state.get()?,
+        openplan_core::settings::current_archive_after_days(),
+        now,
+    )
+}
+
 /// Build the markdown tree of a folder for the sidebar's nested list view.
 #[tauri::command]
 async fn scan_folder(path: String) -> Result<ScanResult, String> {
@@ -259,6 +301,11 @@ pub fn run() {
             review::review_summaries,
             sessions::live_sessions,
             sessions::send_comments,
+            sessions::send_align,
+            preferences,
+            set_media,
+            set_archive_after_days,
+            archive_stale,
             read_markdown,
             write_markdown,
             scan_folder,

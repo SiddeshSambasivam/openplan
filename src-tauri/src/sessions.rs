@@ -59,6 +59,16 @@ pub async fn send_comments(
     ))
 }
 
+/// Tells every session on the plan that the person set it to alignment, and
+/// says how many heard. Zero means the hooks deliver it on the next prompt.
+#[tauri::command]
+pub async fn send_align(plan: String) -> usize {
+    SERVER
+        .get()
+        .map(|server| server.send(&plan, Event::Align { plan: plan.clone() }))
+        .unwrap_or(0)
+}
+
 /// The named threads, each as its newest comment: that is what is being sent,
 /// and earlier replies are already in the plan's sidecar. A thread still
 /// marked pending has not been sent, so naming it does not send it: the write
