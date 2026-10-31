@@ -136,7 +136,7 @@ export function HistoryPanel({
                     variant="outline"
                     size="xs"
                     onClick={() => void restore()}
-                    tooltip="Writes this text as a new revision; nothing is lost"
+                    tooltip="Brings this version back as a new change. Nothing is deleted"
                     className="mt-2 w-full gap-1.5"
                   >
                     <RotateCcw />

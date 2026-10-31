@@ -204,8 +204,8 @@ export function Onboarding({ onDone }: OnboardingProps) {
               className="animate-in text-sm leading-6 text-muted-foreground fade-in slide-in-from-bottom-2 duration-500"
               style={rise(2)}
             >
-              One place for the plans you and your coding agents work on
-              together. A couple of questions and it gets out of your way.
+              Keep every plan you and your coding agents write in one place.
+              Two quick steps and you are in.
             </p>
             <div
               className="animate-in fade-in slide-in-from-bottom-2 duration-500"
@@ -288,8 +288,8 @@ export function Onboarding({ onDone }: OnboardingProps) {
                 {name.trim() ? `Good to meet you, ${name.trim()}.` : "Bring your plans in"}
               </h2>
               <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-                These look like plans this machine already has. Importing
-                copies them — nothing is moved or changed where it lives.
+                We found plans already on this machine. Importing makes a copy.
+                Your original files stay exactly where they are.
               </p>
             </div>
 
@@ -366,8 +366,8 @@ export function Onboarding({ onDone }: OnboardingProps) {
 
               {importables.length === 0 && (
                 <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                  Nothing found to import. Your agents will file plans here
-                  from now on.
+                  No plans found to import. Once your agents are connected,
+                  new plans will show up here.
                 </p>
               )}
             </div>
@@ -410,9 +410,9 @@ export function Onboarding({ onDone }: OnboardingProps) {
                 Connect your agents
               </h2>
               <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-                Each tool gets the openplan MCP server and a note in its
-                instructions saying plans belong here. Its own files are only
-                added to, never rewritten.
+                Connected tools can file plans here and read your standards.
+                OpenPlan adds a short note to each tool's instructions and
+                changes nothing else in its files.
               </p>
             </div>
 
@@ -431,7 +431,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
                 ))}
                 {selectedTools.size === 0 && (
                   <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                    No tools selected — connect them any time from Settings.
+                    No tools selected. You can connect them any time from Settings.
                   </p>
                 )}
               </div>
@@ -456,7 +456,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
                         >
                           <Check className="mt-0.5 size-3 shrink-0" />
                           <span>
-                            {step.label} — {step.detail}
+                            {step.label}: {step.detail}
                           </span>
                         </p>
                       ))

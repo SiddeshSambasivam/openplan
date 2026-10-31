@@ -108,6 +108,10 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 - **No UI bugs; every interaction 60fps.** Animate only `transform`/`opacity`; never
   animate layout properties. No jank on multi-MB documents (the editor is already
   tuned for this — don't regress it). Debounce disk/watch events, never the pointer.
+- **Copy is plain and friendly.** No em dashes in user-facing text. Short
+  sentences, plain words, say what happens ("Importing makes a copy. Your
+  files stay where they are.") rather than describing the mechanism. Code
+  comments and plan documents are not copy; this rule is for the interface.
 - **Lightweight on the system.** A really old machine must run OpenPlan without
   issues. Concretely: ~0% CPU when idle (event-driven watching, never polling; no
   background indexing), modest memory (system webview, no bundled Chromium — keep it

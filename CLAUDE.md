@@ -26,7 +26,9 @@ and the phased todo backlog (§8) that drives all work.
    indexing; must run well on old hardware.
 8. Do NOT build on the existing comments/highlight system — it is scheduled for
    deletion and full rebuild (PLAN.md §6.2b, Phase 4).
-9. No stale-prone info in code comments/docstrings (paths, counts, URLs, feature
+9. UI copy: no em dashes, short plain sentences, user-friendly. Say what
+   happens, not how it works.
+10. No stale-prone info in code comments/docstrings (paths, counts, URLs, feature
    lists) — comments state local constraints only; durable facts live in PLAN.md.
 
 ## Commands

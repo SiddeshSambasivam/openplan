@@ -100,7 +100,7 @@ export function Viewer({
               size="sm"
               variant="ghost"
               onClick={onRemove}
-              tooltip="Take it off the sidebar — the file itself is untouched"
+              tooltip="Remove from the sidebar. The file stays on disk"
             >
               Remove from list
             </TooltipButton>
@@ -176,7 +176,7 @@ export function Viewer({
         <div className="mb-8 flex items-center gap-2.5 rounded-lg border border-border bg-muted/50 px-3.5 py-2.5 text-xs text-muted-foreground">
           <ScrollText className="size-4 shrink-0" />
           <span>
-            Large document — the preview shows the first{" "}
+            This is a large document. The preview shows the first{" "}
             {Math.round(PREVIEW_CHAR_LIMIT / 1024)} KB. Open the editor (
             {isMac ? "⌘E" : "Ctrl+E"}) for the full text.
           </span>

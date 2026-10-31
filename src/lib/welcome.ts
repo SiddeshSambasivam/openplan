@@ -2,12 +2,12 @@ export const WELCOME_DOC_ID = "__welcome__";
 
 export const WELCOME_MARKDOWN = `# Welcome to OpenPlan
 
-One place to manage the plans you and your coding agents collaborate on — instead of
-losing them across sessions, tools, and repos.
+Every plan you and your coding agents write, in one place. No more losing
+them across sessions, tools, and repos.
 
 ## Getting started
 
-- **Drag & drop** Markdown anywhere onto this window — a whole directory appears as a collapsible tree
+- **Drag & drop** Markdown anywhere onto this window. A whole directory appears as a collapsible tree
 - Or press \`⌘O\` / \`Ctrl+O\` to browse (\`⇧⌘O\` / \`Ctrl+Shift+O\` for a directory)
 - Your library sticks around between sessions
 
@@ -38,11 +38,11 @@ Code, with highlighting:
 type Plan = { title: string; status: "draft" | "approved" };
 
 function summarize(plan: Plan): string {
-  return \`\${plan.title} — \${plan.status}\`;
+  return \`\${plan.title}: \${plan.status}\`;
 }
 \`\`\`
 
-And diagrams, via \`\`\`mermaid fenced blocks — themed to match the app, in both light and dark:
+And diagrams, via \`\`\`mermaid fenced blocks, themed to match the app in both light and dark:
 
 \`\`\`mermaid
 flowchart LR
@@ -54,14 +54,14 @@ flowchart LR
 
 ## Tips
 
-1. Press \`⌘E\` / \`Ctrl+E\` (or the pencil in the header) to **edit** a document — changes save back to the file automatically, and \`⌘S\` saves on demand
-2. Press \`⌘F\` / \`Ctrl+F\` to **find** text in the document — cycle matches with the arrows or \`↵\`/\`⇧↵\`, and toggle **match case** with the "Aa" button. Works in the editor too, with full find & replace
+1. Press \`⌘E\` / \`Ctrl+E\` (or the pencil in the header) to **edit** a document. Changes save back to the file automatically, and \`⌘S\` saves on demand
+2. Press \`⌘F\` / \`Ctrl+F\` to **find** text in the document. Cycle matches with the arrows or \`↵\`/\`⇧↵\`, and toggle **match case** with the "Aa" button. Works in the editor too, with full find & replace
 3. Press \`⇧⌘L\` / \`Ctrl+Shift+L\` (or the sun/moon icon) to switch between **light and dark** themes
-4. Press \`⌘B\` / \`Ctrl+B\` to hide the sidebar for distraction-free reading — drag its right edge to **resize** it, double-click the edge to reset
-5. Type in the **Search** box at the top of the sidebar to filter your library by name — matches inside folders reveal themselves automatically
+4. Press \`⌘B\` / \`Ctrl+B\` to hide the sidebar for distraction-free reading. Drag its right edge to **resize** it, or double-click the edge to reset
+5. Type in the **Search** box at the top of the sidebar to filter your library by name. Matches inside folders reveal themselves automatically
 6. Use the **AA** icon in the header to adjust reading font size, and the width icon to pick **Compact**, **Spaced**, or **Full width** columns
-7. Long document? An **outline** sits beside the text in preview — press \`⇧⌘T\` / \`Ctrl+Shift+T\` (or the header icon) to show or hide it. On a narrow window it floats over the page instead, and closes as soon as you pick a heading
-8. Remove a file or folder from the sidebar by hovering over it — this never touches anything on disk
+7. Long document? An **outline** sits beside the text in preview. Press \`⇧⌘T\` / \`Ctrl+Shift+T\` (or the header icon) to show or hide it. On a narrow window it floats over the page instead, and closes as soon as you pick a heading
+8. Remove a file or folder from the sidebar by hovering over it. This never touches anything on disk
 9. Folders re-scan automatically when you return to the window, so new files just show up
 
 ---

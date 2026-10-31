@@ -219,7 +219,7 @@ export function FolderTree({ item, ctx, onRemove }: FolderTreeProps) {
             <>
               <TreeChildren node={item.tree} depth={1} ctx={ctx} />
               {item.truncated && (
-                <NoteRow depth={1} text="Large folder — list truncated" />
+                <NoteRow depth={1} text="Large folder. Not everything is shown" />
               )}
             </>
           ) : (

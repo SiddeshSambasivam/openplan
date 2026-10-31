@@ -133,7 +133,7 @@ fn doctor(ctx: &Context) -> String {
             if repo::has_commits(&ctx.base.root) {
                 "recording"
             } else {
-                "not started — nothing has been written yet"
+                "not started yet"
             }
         ),
         format!("plans      {}", entries.len()),

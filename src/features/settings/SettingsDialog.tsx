@@ -193,9 +193,9 @@ export function SettingsDialog({
               <>
                 <h2 className="text-sm font-semibold">Standards</h2>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  The house style your agents write plans to. OpenPlan ships
-                  with these; anything you add here is layered on top, so new
-                  versions still reach you.
+                  These rules tell your agents how to write plans. OpenPlan comes
+                  with a good set built in. Anything you write here is added on
+                  top of them.
                 </p>
 
                 <label
@@ -218,7 +218,7 @@ export function SettingsDialog({
                   </Button>
                   {saved && (
                     <span className="animate-in text-xs text-muted-foreground fade-in">
-                      Saved — agents will see this on their next plan.
+                      Saved. Agents will use this from their next plan.
                     </span>
                   )}
                 </div>
@@ -238,8 +238,8 @@ export function SettingsDialog({
               <>
                 <h2 className="text-sm font-semibold">Plan base</h2>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Every plan lives here, in plain Markdown, with its history.
-                  Nothing else is needed to read them.
+                  All your plans live in this folder, as plain Markdown files with
+                  their full history. Any tool can read them.
                 </p>
                 <code className="mt-3 block truncate rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
                   {base?.root ?? "Not available outside the desktop app"}
@@ -263,8 +263,8 @@ export function SettingsDialog({
                       Replay onboarding
                     </Button>
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      Clears the onboarded flag and reloads. Imported plans
-                      stay; re-importing skips what is already filed.
+                      Shows the welcome flow again. Your plans are not affected,
+                      and importing again skips anything already here.
                     </p>
                   </div>
                 )}

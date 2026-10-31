@@ -18,9 +18,9 @@ export function EmptyState({
         <div className="space-y-1">
           <p className="text-sm font-medium">No document open</p>
           <p className="text-xs leading-5 text-muted-foreground">
-            Drag Markdown files — or whole folders — anywhere in
+            Drag Markdown files or folders anywhere in this window,
             <br />
-            this window, or open them from your computer.
+            or open them from your computer.
           </p>
         </div>
         <div className="flex items-center gap-2.5 pt-1">

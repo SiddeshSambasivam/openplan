@@ -51,8 +51,7 @@ pub fn conventions() -> String {
 
 Plans are managed by the `openplan` MCP server, not by loose files.
 
-- Before writing a plan, call `get_standards` and follow it — structure,
-  header, evidence rules.
+- Before writing a plan, call `get_standards` and follow it.
 - When a plan is agreed, file it with `create_plan` (title + full markdown
   body). Do not leave it only in the conversation.
 - To see or reread existing plans, use `list_plans` and `read_plan` rather
