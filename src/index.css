@@ -395,7 +395,7 @@
 }
 
 /* Images, rules, misc */
-.markdown-body :where(img) {
+.markdown-body :where(img, video) {
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
   max-width: 100%;
