@@ -27,6 +27,7 @@ import { useNewPlans } from "@/lib/newPlans";
 import { STATUS_HINTS, STATUS_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import type { PlanProgress } from "@/lib/work";
+import { PlanContextMenu, SELECTED_CARD, useSelectedMark } from "./PlanActions";
 
 interface BoardViewProps {
   plans: PlanSummary[];
@@ -74,61 +75,69 @@ function Card({
   actions: CardActions;
 }) {
   const enter = entrance(index, mountedWith);
+  const selected = useSelectedMark(plan.path);
   return (
     // The menu sits beside the card's button rather than inside it: a
     // button cannot hold another one.
-    <div style={enter.style} className={cn("group relative", enter.className)}>
-      <button
-        onClick={() => actions.onOpen(plan)}
-        title={display.clampTitle ? plan.title : undefined}
-        className="motion-card flex w-full cursor-pointer flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left hover:border-ring"
-      >
-        <span
+    <PlanContextMenu plan={plan}>
+      <div style={enter.style} className={cn("group relative", enter.className)}>
+        <button
+          onClick={() => actions.onOpen(plan)}
+          title={display.clampTitle ? plan.title : undefined}
+          data-plan-path={plan.path}
+          data-selected={selected}
           className={cn(
-            "text-sm leading-snug font-medium text-balance text-foreground",
-            fresh ? "pr-11" : "pr-6",
-            display.clampTitle && "line-clamp-2",
+            "motion-card flex w-full cursor-pointer flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left hover:border-ring",
+            SELECTED_CARD,
           )}
         >
-          {plan.title}
-        </span>
-        {display.repos && <RepoLine repos={work?.repos ?? []} className="text-xs" />}
-        {display.folders && <FolderBadges folders={plan.folders} />}
-        {/* Wraps rather than clips once a narrow column runs out of room. */}
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          {display.sessions && <LiveMark sessions={sessions} />}
-          {display.source && <HandledBy source={plan.source} />}
-          <ThreadCount open={open} />
-          {display.progress && <TodoProgress progress={work} />}
-          {display.prs && <PrCount prs={work?.prs} />}
-          {display.date && (
-            <span className="ml-auto shrink-0 tabular-nums">
-              {shortDate(plan.updated ?? plan.created)}
-            </span>
-          )}
-        </span>
-      </button>
-      {/* The tag gives way to the folder menu, which opens in its place. */}
-      {fresh && (
-        <NewBadge className="pointer-events-none absolute top-2.5 right-2 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0" />
-      )}
-      <FolderPicker
-        folders={plan.folders}
-        known={actions.folders}
-        onChange={(next) => actions.onFoldersChange(plan, next)}
-        tooltip="Folders"
-        trigger={
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Folders"
-            className="absolute top-2 right-2 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+          <span
+            className={cn(
+              "text-sm leading-snug font-medium text-balance text-foreground",
+              fresh ? "pr-11" : "pr-6",
+              display.clampTitle && "line-clamp-2",
+            )}
           >
-            <Folder />
-          </Button>
-        }
-      />
-    </div>
+            {plan.title}
+          </span>
+          {display.repos && <RepoLine repos={work?.repos ?? []} className="text-xs" />}
+          {display.folders && <FolderBadges folders={plan.folders} />}
+          {/* Wraps rather than clips once a narrow column runs out of room. */}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            {display.sessions && <LiveMark sessions={sessions} />}
+            {display.source && <HandledBy source={plan.source} />}
+            <ThreadCount open={open} />
+            {display.progress && <TodoProgress progress={work} />}
+            {display.prs && <PrCount prs={work?.prs} />}
+            {display.date && (
+              <span className="ml-auto shrink-0 tabular-nums">
+                {shortDate(plan.updated ?? plan.created)}
+              </span>
+            )}
+          </span>
+        </button>
+        {/* The tag gives way to the folder menu, which opens in its place. */}
+        {fresh && (
+          <NewBadge className="pointer-events-none absolute top-2.5 right-2 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0" />
+        )}
+        <FolderPicker
+          folders={plan.folders}
+          known={actions.folders}
+          onChange={(next) => actions.onFoldersChange(plan, next)}
+          tooltip="Folders"
+          trigger={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Folders"
+              className="absolute top-2 right-2 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+            >
+              <Folder />
+            </Button>
+          }
+        />
+      </div>
+    </PlanContextMenu>
   );
 }
 
@@ -181,7 +190,10 @@ function Column({
       {/* Each column carries its own overflow, so a long one scrolls
           without taking the others with it. The padding keeps a lifted or
           focused card inside the clip. */}
-      <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pt-1 pb-2">
+      <div
+        data-scroll-clip
+        className="-mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pt-1 pb-2"
+      >
         {group.plans.map((plan, index) => (
           <Card
             key={plan.path}

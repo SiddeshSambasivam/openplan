@@ -18,7 +18,12 @@ function press(key: string, mods: Partial<KeyPress> = {}): KeyPress {
 /** The key event a person makes for a registry key string on a platform. */
 function pressFor(keys: string, platform: Platform): KeyPress {
   const { mod, shift, key } = parseKeys(keys);
-  const name = key === "enter" ? "Enter" : key === "escape" ? "Escape" : key;
+  const names: Record<string, string> = {
+    enter: "Enter",
+    escape: "Escape",
+    backspace: "Backspace",
+  };
+  const name = names[key] ?? key;
   return press(shift ? name.toUpperCase() : name, {
     metaKey: mod && platform === "mac",
     ctrlKey: mod && platform === "other",
@@ -32,6 +37,7 @@ describe("formatKeys", () => {
     expect(formatKeys("mod+shift+a", "mac")).toEqual(["⇧", "⌘", "A"]);
     expect(formatKeys("mod+enter", "mac")).toEqual(["⌘", "↩"]);
     expect(formatKeys("mod+\\", "mac")).toEqual(["⌘", "\\"]);
+    expect(formatKeys("mod+backspace", "mac")).toEqual(["⌘", "⌫"]);
     expect(keysLabel("mod+b", "mac")).toBe("⌘B");
   });
 
@@ -39,6 +45,7 @@ describe("formatKeys", () => {
     expect(formatKeys("mod+b", "other")).toEqual(["Ctrl", "B"]);
     expect(formatKeys("mod+shift+a", "other")).toEqual(["Ctrl", "Shift", "A"]);
     expect(formatKeys("mod+enter", "other")).toEqual(["Ctrl", "Enter"]);
+    expect(formatKeys("mod+backspace", "other")).toEqual(["Ctrl", "Backspace"]);
     expect(keysLabel("mod+shift+a", "other")).toBe("Ctrl+Shift+A");
   });
 
@@ -94,6 +101,14 @@ describe("shortcutFor", () => {
     expect(shortcutFor(press("Escape"), "mac", true)).toBe("escape");
     expect(shortcutFor(press("e", { metaKey: true }), "mac", true)).toBe("edit");
     expect(shortcutFor(press("s", { metaKey: true }), "mac", true)).toBe("save");
+    expect(shortcutFor(press("a", { metaKey: true }), "mac", true)).toBeNull();
+    expect(shortcutFor(press("Backspace", { metaKey: true }), "mac", true)).toBeNull();
+  });
+
+  it("selects every plan and deletes with the platform's chords", () => {
+    expect(shortcutFor(press("a", { metaKey: true }), "mac", false)).toBe("selectAll");
+    expect(shortcutFor(press("Backspace", { metaKey: true }), "mac", false)).toBe("deletePlans");
+    expect(shortcutFor(press("Backspace", { ctrlKey: true }), "other", false)).toBe("deletePlans");
   });
 });
 
