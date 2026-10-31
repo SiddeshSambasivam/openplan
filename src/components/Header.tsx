@@ -1,14 +1,13 @@
 import {
   ArrowLeft,
   ChevronDown,
+  ChevronRight,
   Eye,
   ListTodo,
   MessageSquareText,
-  Moon,
   Search,
   Send,
   SquarePen,
-  Sun,
   TableOfContents,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -19,7 +18,9 @@ import type { FolderFilter } from "../lib/folders";
 import { VIEW_LABELS, type ListView } from "../lib/origin";
 import type { PlanSummary, Status } from "../lib/planBase";
 import type { TodoCount } from "../lib/work";
+import { navbarToggleLabel } from "../lib/navbar";
 import { cn } from "../lib/utils";
+import { BrandMark } from "./BrandMark";
 import { TooltipButton } from "./TooltipButton";
 import { FontSizeMenu } from "./FontSizeMenu";
 import { MarqueeText } from "./MarqueeText";
@@ -72,8 +73,6 @@ interface HeaderProps {
   canEdit: boolean;
   dirty: boolean;
   onToggleView: () => void;
-  dark: boolean;
-  onToggleTheme: () => void;
   contentWidth: ContentWidth;
   onContentWidthChange: (width: ContentWidth) => void;
   fontSize: FontSize;
@@ -93,9 +92,12 @@ interface HeaderProps {
    * whoever set it. */
   sendNotice: string | null;
   onOpenFind: () => void;
-  /** Space before the content, in pixels, that keeps it clear of the macOS
-   * traffic lights where the navbar does not. */
-  leadingGap: number;
+  /** How far the bar reaches left over the navbar's column, and where its
+   * title starts, in pixels. */
+  layout: { pull: number; lead: number };
+  /** The navbar is minimized, so the bar carries the mark that expands it. */
+  navbarMinimized: boolean;
+  onExpandNavbar: () => void;
 }
 
 export function Header({
@@ -121,8 +123,6 @@ export function Header({
   canEdit,
   dirty,
   onToggleView,
-  dark,
-  onToggleTheme,
   contentWidth,
   onContentWidthChange,
   fontSize,
@@ -137,26 +137,32 @@ export function Header({
   onSendReview,
   sendNotice,
   onOpenFind,
-  leadingGap,
+  layout,
+  navbarMinimized,
+  onExpandNavbar,
 }: HeaderProps) {
   const toggleViewLabel = view === "preview" ? "Edit" : "Preview";
-  const toggleThemeLabel = dark ? "Switch to light theme" : "Switch to dark theme";
   const inPreview = view === "preview";
   const onPlan = mainView === "plan";
   const showDocTools = onPlan && doc != null;
   return (
+    // Minimized, the bar reaches over the rail to span the window. Its reach
+    // and its lead move with the navbar's column, on the same transition,
+    // so the title slides rather than jumps.
     <header
       data-tauri-drag-region
-      className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-4"
+      className="navbar-width relative z-30 flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-background pr-4"
+      style={{ marginLeft: -layout.pull }}
     >
-      {/* Moves with the navbar column, so it shares its transition. The
-          negative margin takes back the row's gap, so a zero width adds
-          nothing. */}
+      {/* The negative margin takes back the row's gap, so the title starts
+          at the lead exactly. */}
       <div
         data-tauri-drag-region
-        className="navbar-width -mr-1.5 h-full shrink-0"
-        style={{ width: leadingGap }}
-      />
+        className="navbar-width relative -mr-1.5 h-full shrink-0 overflow-hidden"
+        style={{ width: layout.lead }}
+      >
+        <ExpandMark shown={navbarMinimized} onExpand={onExpandNavbar} />
+      </div>
 
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         {onPlan && back && (
@@ -394,21 +400,49 @@ export function Header({
         </TooltipButton>
       )}
 
-      <TooltipButton
-        variant="ghost"
-        size="icon-sm"
-        onClick={onToggleTheme}
-        shortcut="theme"
-        tooltip={toggleThemeLabel}
-        tooltipSide="bottom" tooltipAlign="end"
-        aria-label="Toggle theme"
-        className="relative"
-      >
-        {/* Both suns and moons are always mounted so the swap can be a turn
-            rather than a cut; only transforms and opacity move. */}
-        <Sun className="rotate-0 scale-100 opacity-100 transition-[transform,opacity] duration-300 ease-in-out dark:-rotate-90 dark:scale-0 dark:opacity-0" />
-        <Moon className="absolute rotate-90 scale-0 opacity-0 transition-[transform,opacity] duration-300 ease-in-out dark:rotate-0 dark:scale-100 dark:opacity-100" />
-      </TooltipButton>
     </header>
+  );
+}
+
+/** The mark and the control it turns into, crossfading under the pointer. */
+const MORPH = "transition-[opacity,transform] duration-120 ease-out";
+
+/** The OpenPlan mark of the minimized navbar, held at the right end of the
+ * bar's lead. Under the pointer or keyboard focus it turns into the expand
+ * control. Stays mounted while the navbar is expanded, faded and out of
+ * reach, so it can fade in as the bar slides. */
+function ExpandMark({ shown, onExpand }: { shown: boolean; onExpand: () => void }) {
+  const label = navbarToggleLabel(false);
+  return (
+    <TooltipButton
+      variant="ghost"
+      size="icon-xs"
+      onClick={onExpand}
+      shortcut="navbar"
+      tooltip={label}
+      tooltipAlign="start"
+      aria-label={label}
+      aria-expanded={false}
+      aria-hidden={!shown || undefined}
+      tabIndex={shown ? undefined : -1}
+      className={cn(
+        "group/mark absolute top-1/2 right-1.5 -translate-y-1/2 text-foreground transition-opacity duration-180 ease-out",
+        !shown && "pointer-events-none opacity-0",
+      )}
+    >
+      <BrandMark
+        className={cn(
+          "size-4 group-hover/mark:scale-90 group-hover/mark:opacity-0 group-focus-visible/mark:scale-90 group-focus-visible/mark:opacity-0",
+          MORPH,
+        )}
+      />
+      <ChevronRight
+        strokeWidth={1.5}
+        className={cn(
+          "absolute size-4 scale-90 text-muted-foreground opacity-0 group-hover/mark:scale-100 group-hover/mark:text-foreground group-hover/mark:opacity-100 group-focus-visible/mark:scale-100 group-focus-visible/mark:opacity-100",
+          MORPH,
+        )}
+      />
+    </TooltipButton>
   );
 }

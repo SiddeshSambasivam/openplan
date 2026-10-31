@@ -7,12 +7,12 @@ import {
   navbarToggleLabel,
   parseNavbarMode,
   pressNavbarKey,
+  markStart,
   RAIL_WIDTH,
   recentPlans,
   stepNavbarItem,
   toggleSection,
-  TOP_BAR_PADDING,
-  topBarGap,
+  topBarLayout,
 } from "./navbar";
 
 function plan(id: string, folders: string[] = []): PlanSummary {
@@ -76,20 +76,35 @@ describe("navbarToggleLabel", () => {
   });
 });
 
-describe("topBarGap", () => {
-  it("starts the top bar's content clear of the macOS window controls when minimized", () => {
-    const start = RAIL_WIDTH + TOP_BAR_PADDING + topBarGap("minimized", true);
-    expect(start).toBeGreaterThanOrEqual(84);
-    expect(start).toBeLessThan(96);
+describe("markStart", () => {
+  it("puts the mark after the macOS window controls", () => {
+    expect(markStart(true)).toBe(84);
   });
 
-  it("adds nothing when expanded, where the navbar already clears them", () => {
-    expect(topBarGap("expanded", true)).toBe(0);
+  it("lines the mark up with the rail's icons without them", () => {
+    // A 24px control centred on the rail's icon column.
+    expect(markStart(false) + 12).toBe(RAIL_WIDTH / 2);
   });
+});
 
-  it("adds nothing without window controls over the page", () => {
-    expect(topBarGap("minimized", false)).toBe(0);
-    expect(topBarGap("expanded", false)).toBe(0);
+describe("topBarLayout", () => {
+  for (const windowControls of [true, false]) {
+    const platform = windowControls ? "with window controls" : "without them";
+
+    it(`starts the top bar after the expanded navbar, ${platform}`, () => {
+      expect(topBarLayout("expanded", windowControls)).toEqual({ pull: 0, lead: 16 });
+    });
+
+    it(`spans the minimized top bar over the rail with the mark first, ${platform}`, () => {
+      const { pull, lead } = topBarLayout("minimized", windowControls);
+      expect(pull).toBe(RAIL_WIDTH);
+      // The title follows the 24px mark and the row's gap.
+      expect(lead).toBe(markStart(windowControls) + 24 + 6);
+    });
+  }
+
+  it("keeps the title clear of the macOS window controls when minimized", () => {
+    expect(topBarLayout("minimized", true).lead).toBeGreaterThan(84 + 24);
   });
 });
 
