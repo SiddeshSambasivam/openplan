@@ -930,7 +930,9 @@ filed plan "OpenPlan 0.3.0" in the base. Started 2026-10-28 on Sid's recorded GA
       clean, minimal, Apple-like style with smooth motion
 - [ ] R1.8 Cards: a Display option clamps the title to two lines
 - [ ] R1.9 Cards: a plan filed in the last few minutes carries a "New" tag- [ ] R1.10 Navbar: the macOS traffic lights no longer overlap the minimized rail or
-      the top bar's first control
+      the top bar's first control- [ ] R1.11 Folders: a "+" on the navbar's Folders section creates one; empty folders
+      live in the base's `openplan.json` and the navbar lists the union with frontmatter
+- [ ] R1.12 Navbar: `cmd+shift+[` and `cmd+shift+]` step through the navbar rows
 #### GATE 7 QA script
 
 Run a release build of 0.3.0 against the real base, with Claude Code connected
