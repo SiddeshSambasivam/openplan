@@ -87,44 +87,53 @@ interface SettingsDialogProps {
   onMediaChange: (on: boolean) => void;
   onWakeChange: (on: boolean) => void;
   onArchiveAfterDaysChange: (days: number) => void;
+  onAlignmentTargetChange: (percent: number) => void;
 }
 
-/** A whole number of days, or null while the field holds something else. */
-function parseDays(text: string): number | null {
-  return /^\d{1,4}$/.test(text.trim()) ? Number(text.trim()) : null;
+/** A whole number up to `max`, or null while the field holds something else. */
+function parseWhole(text: string, max: number): number | null {
+  const trimmed = text.trim();
+  if (!/^\d{1,4}$/.test(trimmed)) return null;
+  const value = Number(trimmed);
+  return value <= max ? value : null;
 }
 
-function ArchiveDays({
-  days,
+function WholeNumberField({
+  value,
+  max,
+  label,
+  unit,
   onChange,
 }: {
-  days: number;
-  onChange: (days: number) => void;
+  value: number;
+  max: number;
+  label: string;
+  /** What the number means, shown after the field. */
+  unit: string;
+  onChange: (value: number) => void;
 }) {
   // The field keeps what is typed, so clearing it to type a new number does
   // not snap back. Only a whole number is saved.
-  const [text, setText] = useState(String(days));
+  const [text, setText] = useState(String(value));
   return (
     <div className="flex items-center gap-2">
       <Input
         type="number"
         inputMode="numeric"
         min={0}
-        max={9999}
+        max={max}
         value={text}
-        aria-label="Days before a completed plan is archived"
-        aria-invalid={parseDays(text) == null}
+        aria-label={label}
+        aria-invalid={parseWhole(text, max) == null}
         onChange={(e) => {
           setText(e.target.value);
-          const next = parseDays(e.target.value);
+          const next = parseWhole(e.target.value, max);
           if (next != null) onChange(next);
         }}
-        onBlur={() => setText(String(days))}
+        onBlur={() => setText(String(value))}
         className="h-7 w-16 text-right"
       />
-      <span className="w-10 text-sm text-muted-foreground">
-        {days === 0 ? "Never" : days === 1 ? "day" : "days"}
-      </span>
+      <span className="w-10 text-sm text-muted-foreground">{unit}</span>
     </div>
   );
 }
@@ -149,6 +158,7 @@ export function SettingsDialog({
   onMediaChange,
   onWakeChange,
   onArchiveAfterDaysChange,
+  onAlignmentTargetChange,
 }: SettingsDialogProps) {
   const [version, setVersion] = useState<string | null>(null);
   const [standards, setStandards] = useState<Standards | null>(null);
@@ -276,9 +286,24 @@ export function SettingsDialog({
                     label="Archive completed plans after"
                     hint="Checked when you open the app or the board. Set 0 to never archive."
                   >
-                    <ArchiveDays
-                      days={preferences.archiveAfterDays}
+                    <WholeNumberField
+                      value={preferences.archiveAfterDays}
+                      max={9999}
+                      label="Days before a completed plan is archived"
+                      unit={archiveUnit(preferences.archiveAfterDays)}
                       onChange={onArchiveAfterDaysChange}
+                    />
+                  </Row>
+                  <Row
+                    label="Alignment target"
+                    hint="Build still works below the target. The Alignment tab shows how far off you are. Set 0 for no target."
+                  >
+                    <WholeNumberField
+                      value={preferences.alignmentTarget}
+                      max={100}
+                      label="Alignment target, as a percentage"
+                      unit={preferences.alignmentTarget === 0 ? "Off" : "%"}
+                      onChange={onAlignmentTargetChange}
                     />
                   </Row>
                   <Row
@@ -442,4 +467,8 @@ export function SettingsDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function archiveUnit(days: number): string {
+  return days === 0 ? "Never" : days === 1 ? "day" : "days";
 }

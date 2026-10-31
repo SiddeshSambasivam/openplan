@@ -39,10 +39,10 @@ function panel(work: WorkRecord | null, minimized = false): string {
   );
 }
 
-function alignmentTab(work: WorkRecord | null): string {
+function alignmentTab(work: WorkRecord | null, alignmentTarget = 80): string {
   return renderToStaticMarkup(
     <TooltipProvider>
-      <AlignmentTab record={work} plan={{ path: "/base/p.md", id: "p", dark: false, media: false }} />
+      <AlignmentTab record={work} plan={{ path: "/base/p.md", id: "p", dark: false, media: false, alignmentTarget }} />
     </TooltipProvider>,
   );
 }
@@ -302,6 +302,8 @@ describe("AlignmentTab", () => {
 
     expect(html).toContain("Alignment score 60 out of 100");
     expect(html).toContain("1 of 2 areas settled");
+    expect(html).toContain("Below your 80% target");
+    expect(alignmentTab(record({ alignment: { askedAt: "2026-10-28T09:00:00Z", questions } }), 60)).not.toContain("target");
     expect(html.indexOf("Alignment score")).toBeLessThan(html.indexOf("Where does it sit?"));
     expect(details).toContain("1 of 2 areas settled · 40 of 80");
     expect(details).toContain("1 of 1 answer explains why · 20 of 20");

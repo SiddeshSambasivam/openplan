@@ -69,12 +69,29 @@ export function areaKey(aspect: string): string {
   return aspect.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-/** What the Build button says while areas are unsettled. It reads only the
- * answers the agent has: a draft reply does not travel with Build. */
-export function buildTooltip(record: WorkRecord | null): string | undefined {
-  const open = openAreas(alignmentScore(record?.alignment?.questions ?? [], {}));
-  if (open.length === 0) return undefined;
-  return `Starts the work. The agent asks about ${spokenList(open)} first.`;
+/** Whether the score falls short of the person's target. A target of 0 is
+ * no target. */
+export function belowTarget(total: number, target: number): boolean {
+  return target > 0 && total < target;
+}
+
+/** What the Build button says while areas are unsettled or the score is
+ * below the target. It reads only the answers the agent has: a draft reply
+ * does not travel with Build. */
+export function buildTooltip(record: WorkRecord | null, target: number): string | undefined {
+  const questions = record?.alignment?.questions ?? [];
+  if (questions.length === 0) return undefined;
+  const score = alignmentScore(questions, {});
+  const open = openAreas(score);
+  const short = belowTarget(score.total, target);
+  if (open.length === 0 && !short) return undefined;
+  return [
+    "Starts the work.",
+    short && `The score is ${score.total}, below your ${target}% target.`,
+    open.length > 0 && `The agent asks about ${spokenList(open)} first.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function openAreas(score: AlignmentScore): string[] {

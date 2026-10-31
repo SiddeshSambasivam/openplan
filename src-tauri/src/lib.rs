@@ -171,6 +171,7 @@ pub struct Preferences {
     media: bool,
     wake: bool,
     archive_after_days: u32,
+    alignment_target: u32,
 }
 
 /// The settings the interface reads once at startup and again after a change.
@@ -180,6 +181,7 @@ async fn preferences() -> Preferences {
         media: openplan_core::settings::current_media(),
         wake: openplan_core::settings::current_wake(),
         archive_after_days: openplan_core::settings::current_archive_after_days(),
+        alignment_target: openplan_core::settings::current_alignment_target(),
     }
 }
 
@@ -199,6 +201,11 @@ async fn set_wake(on: bool) -> Result<(), String> {
 #[tauri::command]
 async fn set_archive_after_days(days: u32) -> Result<(), String> {
     onboarding::update_settings(|s| s.archive_after_days = Some(days))
+}
+
+#[tauri::command]
+async fn set_alignment_target(percent: u32) -> Result<(), String> {
+    onboarding::update_settings(|s| s.alignment_target = Some(percent))
 }
 
 /// Archives plans completed longer ago than the setting. Called when the app
@@ -326,6 +333,7 @@ pub fn run() {
             set_media,
             set_wake,
             set_archive_after_days,
+            set_alignment_target,
             archive_stale,
             read_markdown,
             write_markdown,

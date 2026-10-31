@@ -43,6 +43,10 @@ pub struct Settings {
     /// as the default, and 0 means never.
     #[serde(rename = "archiveAfterDays", default, skip_serializing_if = "Option::is_none")]
     pub archive_after_days: Option<u32>,
+    /// The alignment score, as a percentage, the person wants before Build.
+    /// It never stops Build. Absent reads as the default, and 0 means none.
+    #[serde(rename = "alignmentTarget", default, skip_serializing_if = "Option::is_none")]
+    pub alignment_target: Option<u32>,
     /// The file name of the person's picture, kept beside the settings file.
     /// Absent means the generated marble.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -96,6 +100,18 @@ pub fn archive_after_days(stored: Option<u32>) -> u32 {
 /// What this machine is set to.
 pub fn current_archive_after_days() -> u32 {
     archive_after_days(saved().and_then(|s| s.archive_after_days))
+}
+
+pub const DEFAULT_ALIGNMENT_TARGET: u32 = 80;
+
+/// A stored value past 100 reads as 100, the most a score can reach.
+pub fn alignment_target(stored: Option<u32>) -> u32 {
+    stored.unwrap_or(DEFAULT_ALIGNMENT_TARGET).min(100)
+}
+
+/// What this machine is set to.
+pub fn current_alignment_target() -> u32 {
+    alignment_target(saved().and_then(|s| s.alignment_target))
 }
 
 /// Sets the name and email the person typed. A blank field is stored as
@@ -434,6 +450,22 @@ mod tests {
     }
 
     #[test]
+    fn the_alignment_target_is_80_until_someone_sets_one() {
+        let dir = temp_dir("openplan-core-settings-alignment-target");
+        let file = dir.join("settings.json");
+        std::fs::write(&file, "{\"basePath\":\"/somewhere\"}\n").unwrap();
+
+        let saved = read_settings(&file).unwrap().unwrap();
+
+        assert_eq!(saved.alignment_target, None);
+        assert_eq!(alignment_target(saved.alignment_target), 80);
+        assert_eq!(alignment_target(Some(60)), 60);
+        assert_eq!(alignment_target(Some(0)), 0);
+        assert_eq!(alignment_target(Some(250)), 100);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn settings_written_before_the_mode_existed_still_read() {
         let dir = temp_dir("openplan-core-settings-no-authoring");
         let file = dir.join("settings.json");
@@ -605,6 +637,7 @@ mod tests {
             media: Some(true),
             wake: Some(false),
             archive_after_days: Some(0),
+            alignment_target: Some(65),
             avatar: Some("avatar-100.png".to_string()),
         };
 

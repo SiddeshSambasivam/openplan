@@ -37,10 +37,13 @@ import { PersonaAvatar } from "./PersonaAvatar";
 import { WaitingBadge } from "./WaitingBadge";
 import { celebrate } from "./personaMotion";
 
-/** What the plan page needs to write answers and render illustrations. */
+/** What the plan page needs to write answers, render illustrations and
+ * show the score against the target. */
 export interface AlignmentContext extends MediaContext {
   path: string;
   id: string;
+  /** The alignment target from settings. 0 means none. */
+  alignmentTarget: number;
 }
 
 /** The last send: which questions went, and whether a session heard it. */
@@ -197,7 +200,10 @@ export function AlignmentQuestions({
           waiting={waiting.length}
           onToggleRail={toggleRail}
         />
-        <AlignmentScoreCard score={alignmentScore(questions, answers)} />
+        <AlignmentScoreCard
+          score={alignmentScore(questions, answers)}
+          target={plan.alignmentTarget}
+        />
       </div>
       <div className="flex min-h-0 flex-1 gap-3 @2xl:gap-5">
         {(railShown || railLeaving) && (

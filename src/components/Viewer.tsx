@@ -58,6 +58,8 @@ interface ViewerProps {
   dark: boolean;
   /** Whether videos and `html` fences play, from the media setting. */
   media: boolean;
+  /** The alignment target from settings. 0 means none. */
+  alignmentTarget: number;
   onEditorChange: () => void;
   onEnterEdit: () => void;
   onRetry: () => void;
@@ -78,6 +80,7 @@ export function Viewer({
   articleRef,
   dark,
   media,
+  alignmentTarget,
   onEditorChange,
   onEnterEdit,
   onRetry,
@@ -218,7 +221,7 @@ export function Viewer({
       {alignment ? (
         <AlignmentTab
           record={record}
-          plan={{ path: plan.path, id: plan.id, dark, media }}
+          plan={{ path: plan.path, id: plan.id, dark, media, alignmentTarget }}
         />
       ) : html ? (
         <HtmlDoc content={content} dark={dark} />

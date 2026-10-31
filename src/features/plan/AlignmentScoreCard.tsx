@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { AlignmentArea, AlignmentScore } from "@/lib/alignmentScore";
+import { belowTarget, type AlignmentArea, type AlignmentScore } from "@/lib/alignmentScore";
 import { cn } from "@/lib/utils";
 import { PERSONAS } from "@/lib/work";
 import { PersonaAvatar } from "./PersonaAvatar";
@@ -16,14 +16,15 @@ const LEFT_HALF = "M29 53 A24 24 0 0 1 29 5";
 const RIGHT_HALF = "M29 5 A24 24 0 0 1 29 53";
 
 /** The alignment score on one line: a small ring, and how many areas are
- * settled. The areas and how the score adds up open from the count. */
-export function AlignmentScoreCard({ score }: { score: AlignmentScore }) {
+ * settled. The areas and how the score adds up open from the count. A
+ * `target` of 0 is no target. */
+export function AlignmentScoreCard({ score, target }: { score: AlignmentScore; target: number }) {
   const shown = useCountUp(score.total);
   const settled = score.areas.filter((area) => area.settled).length;
   return (
     <section aria-label="Alignment score" className="flex shrink-0 items-center gap-2">
       <div role="img" aria-label={`Alignment score ${score.total} out of 100`} className="relative size-8 shrink-0">
-        <ScoreRing value={shown} />
+        <ScoreRing value={shown} target={target} />
         <span className="absolute inset-0 grid place-items-center text-xs font-semibold tabular-nums">
           {Math.round(shown)}
         </span>
@@ -40,6 +41,11 @@ export function AlignmentScoreCard({ score }: { score: AlignmentScore }) {
           <ScoreDetails score={score} />
         </PopoverContent>
       </Popover>
+      {belowTarget(score.total, target) && (
+        <Badge variant="outline" className="rounded-full px-2 font-normal text-muted-foreground">
+          {`Below your ${target}% target`}
+        </Badge>
+      )}
       {score.total === 100 && (
         <Badge className="rounded-full border-transparent bg-success/15 px-2 font-semibold text-success">
           Fully aligned
@@ -122,8 +128,9 @@ function Chip({ tip, className, children }: { tip: string; className?: string; c
 
 /** The share filled from the top, clockwise. Each half is an arc that turns
  * into its own half of the ring, so the fill moves by rotation alone. A dot
- * gives the start its round cap, which the clip would cut. */
-function ScoreRing({ value }: { value: number }) {
+ * gives the start its round cap, which the clip would cut. A notch in the
+ * ring marks the target. */
+function ScoreRing({ value, target }: { value: number; target: number }) {
   const id = useId();
   const turn = (Math.min(Math.max(value, 0), 100) / 100) * 360;
   return (
@@ -149,6 +156,17 @@ function ScoreRing({ value }: { value: number }) {
             </g>
           )}
         </g>
+      )}
+      {target > 0 && (
+        <line
+          x1="29"
+          y1="1.5"
+          x2="29"
+          y2="8.5"
+          strokeWidth="2"
+          className="stroke-muted-foreground"
+          transform={`rotate(${target * 3.6} 29 29)`}
+        />
       )}
     </svg>
   );

@@ -990,6 +990,9 @@ main with no PRs (q10).
 - [x] R4.11 Plan and Alignment are full-height square tabs at the top of the plan
       area; the work panel shows on the Plan tab only; `mod+alt+arrowleft` and
       `mod+alt+arrowright` step between the tabs, and each tab's tooltip shows its key
+- [x] R4.12 An "Alignment target" setting, 80 by default and 0 for none: the score
+      card reads "Below your 80% target" and the Build tooltip names the gap, but Build
+      always works
 
 Round 4 QA, on a release build with Claude Code connected:
 1. Kill a session's `openplan mcp` process: its plan's session count drops at once.
@@ -1260,6 +1263,7 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-31 | The build after GATE 7 round 4 is 0.5.0, skipping 0.4.0 | Sid's call |
 | 2026-10-31 | `read_plan` ends with each alignment question and its answer | An agent woken by answers given in the app needs to read them somewhere |
 | 2026-10-31 | The app reads unmerged PRs with the person's `gh` CLI on plan open, from a board Refresh control, and when a plan's last session leaves. When every PR reads merged it offers "All PRs merged. Mark completed?". It never completes a plan on its own | Sid (q5, q6, q15). The agent's reports go stale once its session ends. `gh` uses the person's own login and needs no stored secret. The person stays the one who completes (2026-10-28) |
+| 2026-10-31 | Alignment target setting, default 80, never gates Build | Sid's write-up recommends at least 80% and lets people set their own threshold |
 
 ---
 

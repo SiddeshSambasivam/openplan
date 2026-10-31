@@ -105,6 +105,7 @@ import {
   renameDocument,
   reviewSummaries,
   sendBuild,
+  setAlignmentTarget,
   setArchiveAfterDays,
   setBaseFolders,
   setFolders,
@@ -269,6 +270,7 @@ export default function App() {
     media: false,
     wake: true,
     archiveAfterDays: 7,
+    alignmentTarget: 80,
   });
   useEffect(() => {
     void getPreferences()
@@ -286,6 +288,10 @@ export default function App() {
   const changeArchiveAfterDays = useCallback((archiveAfterDays: number) => {
     setPreferences((p) => ({ ...p, archiveAfterDays }));
     void setArchiveAfterDays(archiveAfterDays);
+  }, []);
+  const changeAlignmentTarget = useCallback((alignmentTarget: number) => {
+    setPreferences((p) => ({ ...p, alignmentTarget }));
+    void setAlignmentTarget(alignmentTarget);
   }, []);
 
   // Completed plans are put away on launch and each time the board comes
@@ -1803,7 +1809,7 @@ export default function App() {
           onStatusOpenChange={setStatusOpen}
           offerCompletion={offerCompletion}
           onBuild={canBuild ? build : undefined}
-          buildTooltip={buildTooltip(workRecord)}
+          buildTooltip={buildTooltip(workRecord, preferences.alignmentTarget)}
           folders={knownFolders}
           folder={folder}
           onSelectFolder={setChosenFolder}
@@ -1995,6 +2001,7 @@ export default function App() {
                   articleRef={articleRef}
                   dark={dark}
                   media={preferences.media}
+                  alignmentTarget={preferences.alignmentTarget}
                   onEditorChange={onEditorChange}
                   onEnterEdit={toggleEdit}
                   onRetry={() => setReloadKey((k) => k + 1)}
@@ -2079,6 +2086,7 @@ export default function App() {
         onMediaChange={changeMedia}
         onWakeChange={changeWake}
         onArchiveAfterDaysChange={changeArchiveAfterDays}
+        onAlignmentTargetChange={changeAlignmentTarget}
       />
 
       <FindBar

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alignmentScore, areaKey, buildTooltip } from "./alignmentScore";
+import { alignmentScore, areaKey, belowTarget, buildTooltip } from "./alignmentScore";
 import type { Answer, Question, WorkRecord } from "./work";
 
 const question = (id: string, aspect: string, extra: Partial<Question> = {}): Question => ({
@@ -146,13 +146,45 @@ describe("buildTooltip", () => {
           question("q2", "error handling"),
           question("q3", "scale"),
         ]),
+        0,
       ),
     ).toBe("Starts the work. The agent asks about error handling and scale first.");
   });
 
-  it("says nothing more once every area is settled, or before any question", () => {
-    expect(buildTooltip(record([question("q1", "scope", { answer: pick })]))).toBeUndefined();
-    expect(buildTooltip(record([]))).toBeUndefined();
-    expect(buildTooltip(null)).toBeUndefined();
+  it("adds the score when it is below the target", () => {
+    const below = record([
+      question("q1", "scope", { answer: pick }),
+      question("q2", "error handling"),
+      question("q3", "scale"),
+    ]);
+    expect(buildTooltip(below, 80)).toBe(
+      "Starts the work. The score is 27, below your 80% target. The agent asks about error handling and scale first.",
+    );
+    expect(buildTooltip(record([question("q1", "scope", { answer: pick })]), 90)).toBe(
+      "Starts the work. The score is 80, below your 90% target.",
+    );
+  });
+
+  it("leaves the target out once the score meets it", () => {
+    const settled = record([
+      question("q1", "scope", { answer: reasoned }),
+      question("q2", "scale"),
+    ]);
+    expect(buildTooltip(settled, 60)).toBe("Starts the work. The agent asks about scale first.");
+    expect(buildTooltip(record([question("q1", "scope", { answer: pick })]), 80)).toBeUndefined();
+  });
+
+  it("says nothing more before any question", () => {
+    expect(buildTooltip(record([]), 80)).toBeUndefined();
+    expect(buildTooltip(null, 80)).toBeUndefined();
+  });
+});
+
+describe("belowTarget", () => {
+  it("is true only under a set target", () => {
+    expect(belowTarget(62, 80)).toBe(true);
+    expect(belowTarget(80, 80)).toBe(false);
+    expect(belowTarget(95, 80)).toBe(false);
+    expect(belowTarget(0, 0)).toBe(false);
   });
 });
