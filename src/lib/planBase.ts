@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { ReviewSummary } from "./board";
 import type { Identity } from "./comments";
 import { isTauri } from "./platform";
 
@@ -122,6 +123,12 @@ export async function scanPlans(): Promise<PlanSummary[]> {
 export async function listProjects(): Promise<ProjectInfo[]> {
   if (!isTauri) return [];
   return invoke<ProjectInfo[]>("list_projects");
+}
+
+/** What is open and what is waiting, per plan, in one read of the base. */
+export async function reviewSummaries(): Promise<ReviewSummary[]> {
+  if (!isTauri) return [];
+  return invoke<ReviewSummary[]>("review_summaries");
 }
 
 export async function searchPlans(query: string): Promise<SearchHit[]> {
