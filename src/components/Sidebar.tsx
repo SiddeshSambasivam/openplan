@@ -1,7 +1,6 @@
 import {
   ChevronDown,
   ChevronLeft,
-  ChevronRight,
   Columns3,
   Folder,
   FolderOpen,
@@ -19,6 +18,7 @@ import type { MainView } from "../lib/types";
 import { folderName, type FolderFilter } from "../lib/folders";
 import {
   loadCollapsedSections,
+  markStart,
   navbarToggleLabel,
   saveCollapsedSections,
   toggleSection,
@@ -66,8 +66,8 @@ interface SidebarProps {
   activePlanPath: string | null;
   onSelectPlan: (plan: PlanSummary) => void;
   onOpenSettings: () => void;
-  /** Keep the macOS traffic lights clear of the mark (overlay titlebar). */
-  padTop: boolean;
+  /** The macOS traffic lights are drawn over the top row. */
+  windowControls: boolean;
 }
 
 /** Memoized: the app re-renders on every keystroke of an edit, and none of
@@ -89,7 +89,7 @@ export const Sidebar = memo(function Sidebar({
   activePlanPath,
   onSelectPlan,
   onOpenSettings,
-  padTop,
+  windowControls,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<SectionId[]>(loadCollapsedSections);
   useEffect(() => saveCollapsedSections(collapsed), [collapsed]);
@@ -139,26 +139,20 @@ export const Sidebar = memo(function Sidebar({
 
   // One layout for both modes: every icon sits where the minimized column
   // centres it and only the labels fade, so a mode change moves nothing.
+  // Minimized, the top bar spans the window over the top row and carries
+  // the mark, so the row fades out of reach beneath it.
   return (
     <aside className="flex h-full w-full flex-col overflow-hidden border-r border-sidebar-border bg-sidebar">
-      {padTop && <div data-tauri-drag-region className="h-9 shrink-0" />}
-
-      <div data-tauri-drag-region className="flex shrink-0 items-center gap-1 px-2 pt-3 pb-1">
-        {minimized ? (
-          <ExpandMark onExpand={onToggle} />
-        ) : (
-          <span className="pointer-events-none flex size-8 shrink-0 items-center justify-center text-sidebar-foreground">
-            <BrandMark className="size-4" />
-          </span>
-        )}
-        <span
-          aria-hidden={minimized || undefined}
-          className={cn(
-            "pointer-events-none min-w-0 flex-1 truncate font-serif text-lg tracking-[-0.01em] text-sidebar-foreground",
-            FADE,
-            minimized && "opacity-0",
-          )}
-        >
+      <div
+        data-tauri-drag-region
+        aria-hidden={minimized || undefined}
+        className={cn("flex h-12 shrink-0 items-center gap-1 pr-2", FADE, minimized && "opacity-0")}
+        style={{ paddingLeft: markStart(windowControls) }}
+      >
+        <span className="pointer-events-none flex size-6 shrink-0 items-center justify-center text-sidebar-foreground">
+          <BrandMark className="size-4" />
+        </span>
+        <span className="pointer-events-none min-w-0 flex-1 truncate font-serif text-lg tracking-[-0.01em] text-sidebar-foreground">
           OpenPlan
         </span>
         {/* Stays mounted while minimized, faded and out of reach, so the
@@ -170,12 +164,10 @@ export const Sidebar = memo(function Sidebar({
           shortcut="navbar"
           tooltip={navbarToggleLabel(true)}
           aria-label={navbarToggleLabel(true)}
-          aria-hidden={minimized || undefined}
           tabIndex={minimized ? -1 : undefined}
           className={cn(
             "text-muted-foreground hover:text-foreground",
-            FADE,
-            minimized && "pointer-events-none opacity-0",
+            minimized && "pointer-events-none",
           )}
         >
           <ChevronLeft strokeWidth={1.5} className="size-4" />
@@ -271,9 +263,6 @@ const ACTIVE = "bg-sidebar-accent font-medium text-sidebar-accent-foreground";
 /** The labels' fade between the two modes, timed with the column's width. */
 const FADE = "transition-opacity duration-180 ease-out";
 
-/** The mark and the control it turns into, crossfading under the pointer. */
-const MORPH = "transition-[opacity,transform] duration-120 ease-out";
-
 /**
  * One navbar row. Minimized, the label fades out and moves into a tooltip,
  * which also carries the row's key. Expanded, only a row with a key has a
@@ -334,43 +323,6 @@ function NavRow({
         </TooltipContent>
       )}
     </Tooltip>
-  );
-}
-
-/** The OpenPlan mark of the minimized navbar, which has no room for a second
- * control. Under the pointer or keyboard focus it turns into the expand
- * control. */
-function ExpandMark({ onExpand }: { onExpand: () => void }) {
-  const label = navbarToggleLabel(false);
-  // The slot keeps the mark where the rows' icons are; the button is smaller.
-  return (
-    <span className="flex size-8 shrink-0 items-center justify-center">
-      <TooltipButton
-        variant="ghost"
-        size="icon-xs"
-        onClick={onExpand}
-        shortcut="navbar"
-        tooltip={label}
-        tooltipSide="right"
-        aria-label={label}
-        aria-expanded={false}
-        className="group/mark relative text-sidebar-foreground"
-      >
-        <BrandMark
-          className={cn(
-            "size-4 group-hover/mark:scale-90 group-hover/mark:opacity-0 group-focus-visible/mark:scale-90 group-focus-visible/mark:opacity-0",
-            MORPH,
-          )}
-        />
-        <ChevronRight
-          strokeWidth={1.5}
-          className={cn(
-            "absolute size-4 scale-90 text-muted-foreground opacity-0 group-hover/mark:scale-100 group-hover/mark:text-foreground group-hover/mark:opacity-100 group-focus-visible/mark:scale-100 group-focus-visible/mark:opacity-100",
-            MORPH,
-          )}
-        />
-      </TooltipButton>
-    </span>
   );
 }
 

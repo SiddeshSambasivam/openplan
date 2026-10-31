@@ -405,11 +405,14 @@
 }
 
 /* The navbar changing mode. The one width transition in the app: the main
-   area has to take back the room, which a transform cannot give it. In the
-   components layer so `transition-none` can still turn it off. */
+   area has to take back the room, which a transform cannot give it. The top
+   bar's reach over the column moves with it. In the components layer so
+   `transition-none` can still turn it off. */
 @layer components {
   .navbar-width {
-    transition: width 180ms ease-out;
+    transition:
+      width 180ms ease-out,
+      margin-left 180ms ease-out;
     will-change: width;
   }
 }

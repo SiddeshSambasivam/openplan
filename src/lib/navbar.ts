@@ -31,11 +31,15 @@ export const NAVBAR_OVERLAY_BREAKPOINT = 900;
 /** The minimized navbar's width: one icon button and its padding. */
 export const RAIL_WIDTH = 48;
 
-/** The top bar's own left padding. */
-export const TOP_BAR_PADDING = 16;
+/** The top bar's own left padding beside the expanded navbar. */
+const TOP_BAR_PADDING = 16;
 
 /** Where the macOS window controls end, with a gap after them. */
 const WINDOW_CONTROLS_END = 84;
+
+/** The mark's control, and the gap the top bar keeps after it. */
+const MARK_SIZE = 24;
+const TOP_BAR_GAP = 6;
 
 const MODE_KEY = `${STORAGE_PREFIX}sidebar`;
 const COLLAPSED_KEY = `${STORAGE_PREFIX}nav-collapsed`;
@@ -60,13 +64,25 @@ export function navbarToggleLabel(expanded: boolean): string {
 }
 
 /**
- * The space the top bar keeps before its content. `windowControls` is the
- * macOS traffic lights drawn over the page. The minimized navbar is too
- * narrow to clear them, the expanded one is not.
+ * Where the OpenPlan mark's control starts, from the window's left edge. The
+ * same in both modes, so the mark holds still when the mode changes.
+ * `windowControls` is the macOS traffic lights drawn over the page.
  */
-export function topBarGap(mode: NavbarMode, windowControls: boolean): number {
-  if (!windowControls || mode === "expanded") return 0;
-  return WINDOW_CONTROLS_END - RAIL_WIDTH - TOP_BAR_PADDING;
+export function markStart(windowControls: boolean): number {
+  return windowControls ? WINDOW_CONTROLS_END : (RAIL_WIDTH - MARK_SIZE) / 2;
+}
+
+/**
+ * How the top bar sits in the window. `pull` is how far it reaches left over
+ * the navbar's column, `lead` where its title starts from its own left edge.
+ * Minimized, it spans the window and carries the mark before the title.
+ */
+export function topBarLayout(
+  mode: NavbarMode,
+  windowControls: boolean,
+): { pull: number; lead: number } {
+  if (mode === "expanded") return { pull: 0, lead: TOP_BAR_PADDING };
+  return { pull: RAIL_WIDTH, lead: markStart(windowControls) + MARK_SIZE + TOP_BAR_GAP };
 }
 
 /** Reads the stored mode. Older builds stored open, rail, hidden and, before

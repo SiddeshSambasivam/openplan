@@ -72,7 +72,7 @@ import {
   RAIL_WIDTH,
   saveNavbarMode,
   stepNavbarItem,
-  topBarGap,
+  topBarLayout,
   type NavbarState,
 } from "./lib/navbar";
 import {
@@ -1626,7 +1626,9 @@ export default function App() {
           onPointerLeave={narrow && navbar.revealed ? concealNavbar : undefined}
           className={cn(
             "h-full",
-            narrow && "navbar-width fixed inset-y-0 left-0 z-40",
+            narrow && "navbar-width fixed inset-y-0 left-0",
+            // At rest it sits under the top bar, which spans the window.
+            narrow && (navbar.revealed ? "z-40" : "z-20"),
             navbar.revealed && "rounded-r-lg shadow-lg",
           )}
           style={narrow ? { width: navbar.revealed ? sidebarWidth : RAIL_WIDTH } : undefined}
@@ -1649,7 +1651,7 @@ export default function App() {
               activePlanPath={activePlanPath}
               onSelectPlan={selectPlan}
               onOpenSettings={openSettings}
-              padTop={windowControls}
+              windowControls={windowControls}
             />
           </div>
         </div>
@@ -1717,7 +1719,9 @@ export default function App() {
           onSendReview={onSendReview}
           sendNotice={sendNotice}
           onOpenFind={openFind}
-          leadingGap={topBarGap(layout, windowControls)}
+          layout={topBarLayout(layout, windowControls)}
+          navbarMinimized={layout === "minimized"}
+          onExpandNavbar={toggleSidebar}
         />
         {mainView === "board" && (
           <div ref={viewAreaRef} className="motion-view min-h-0 flex-1">
