@@ -133,6 +133,11 @@
   --persona-prop-light: oklch(1 0 0 / 92%);
   --persona-lens: oklch(1 0 0 / 35%);
 
+  /* onboarding: the welcome's rays and horizon, and the tour's dim overlay */
+  --onboarding-ray-strength: 0.07;
+  --onboarding-horizon: oklch(0.97 0 0);
+  --tour-scrim: oklch(0 0 0 / 45%);
+
   /* syntax highlighting (github-light inspired) */
   --syntax-comment: oklch(0.552 0.016 285.94);
   --syntax-keyword: oklch(0.525 0.192 27.12);
@@ -195,6 +200,10 @@
   --persona-bars: var(--persona-data-hi);
   --persona-shield: oklch(0.88 0.03 265);
   --persona-speech: oklch(0.95 0 0);
+
+  --onboarding-ray-strength: 0.09;
+  --onboarding-horizon: oklch(0.2 0 0);
+  --tour-scrim: oklch(0 0 0 / 60%);
 
   /* syntax highlighting (github-dark inspired) */
   --syntax-comment: oklch(0.681 0.014 285.5);
@@ -447,6 +456,73 @@
 
 .empty-scene[data-paused="true"] * {
   animation-play-state: paused;
+}
+
+/* The welcome's soft light from below the horizon, in the theme's own
+   foreground. Each ray sets its angle in `--angle`. The blur is static and
+   only transform and opacity move. The drift pauses when the window is
+   hidden or unfocused, and the entrance always finishes. */
+@keyframes onboarding-ray-in {
+  to {
+    transform: rotate(var(--angle)) scaleY(1);
+  }
+}
+
+@keyframes onboarding-ray-drift {
+  from {
+    transform: rotate(var(--angle)) scaleY(1);
+  }
+  to {
+    transform: rotate(calc(var(--angle) + 3deg)) scaleY(1.04);
+  }
+}
+
+.onboarding-rays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.onboarding-rays::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 70% at 50% 110%, var(--onboarding-horizon), transparent 70%);
+}
+
+.onboarding-ray {
+  position: absolute;
+  left: 50%;
+  bottom: -30%;
+  width: 18vw;
+  height: 150%;
+  margin-left: -9vw;
+  border-radius: 50%;
+  background: linear-gradient(to top, var(--foreground) 0%, transparent 78%);
+  filter: blur(22px);
+  opacity: var(--onboarding-ray-strength);
+  transform: rotate(var(--angle)) scaleY(0.2);
+  transform-origin: 50% 100%;
+  animation:
+    onboarding-ray-in 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards,
+    onboarding-ray-drift 14s ease-in-out 1.6s infinite alternate;
+}
+
+.onboarding-ray[data-thin] {
+  width: 6vw;
+  margin-left: -3vw;
+  filter: blur(12px);
+}
+
+.onboarding-rays[data-paused="true"] .onboarding-ray {
+  animation-play-state: running, paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-ray {
+    animation: none !important;
+    transform: rotate(var(--angle));
+  }
 }
 
 /* The persona avatars: a matte sphere lit from the top left, two pill eyes
