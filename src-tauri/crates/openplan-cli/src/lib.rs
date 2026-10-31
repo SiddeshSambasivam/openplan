@@ -5,7 +5,6 @@
 pub mod mcp;
 
 use openplan_core::base::Base;
-use openplan_core::plan::Status;
 use openplan_core::repo::{self, Author};
 use openplan_core::library;
 use std::path::Path;
@@ -15,7 +14,7 @@ openplan — manage the plans you and your coding agents share
 
 usage:
   openplan init              create the plan base, or say where it already is
-  openplan list [status]     list plans, optionally only one status
+  openplan list [tag]        list plans, optionally only one tag
   openplan add <file>        file an existing markdown document as a plan
   openplan doctor            check the base is healthy and report what is in it
   openplan install <tool>    connect claude-code, codex, or cursor to the base
@@ -53,34 +52,27 @@ fn init(ctx: &Context) -> String {
     format!("Plan base ready at {}", ctx.base.root.display())
 }
 
-fn list(ctx: &Context, status_filter: Option<&str>) -> Result<String, String> {
-    let wanted = match status_filter {
-        Some(raw) => Some(
-            Status::parse(raw)
-                .ok_or_else(|| format!("No such status: {raw}"))?,
-        ),
-        None => None,
-    };
+fn list(ctx: &Context, tag: Option<&str>) -> Result<String, String> {
     let mut entries = library::scan(ctx.base);
-    entries.retain(|e| wanted.map_or(true, |w| e.meta.status == w));
+    if let Some(tag) = tag {
+        entries.retain(|e| e.meta.tags.iter().any(|t| t == tag));
+        if entries.is_empty() {
+            return Ok(format!("No plans tagged {tag}."));
+        }
+    }
     if entries.is_empty() {
         return Ok("No plans yet.".to_string());
     }
     entries.sort_by(|a, b| b.meta.updated.cmp(&a.meta.updated));
-    let width = entries
-        .iter()
-        .map(|e| e.meta.status.as_str().len())
-        .max()
-        .unwrap_or(0);
     Ok(entries
         .iter()
         .map(|e| {
-            format!(
-                "{:width$}  {}  ({})",
-                e.meta.status.as_str(),
-                e.meta.title,
-                e.relative_path.display()
-            )
+            let tags = if e.meta.tags.is_empty() {
+                String::new()
+            } else {
+                format!("  [{}]", e.meta.tags.join(", "))
+            };
+            format!("{}{tags}  ({})", e.meta.title, e.relative_path.display())
         })
         .collect::<Vec<_>>()
         .join("\n"))
@@ -138,17 +130,17 @@ fn doctor(ctx: &Context) -> String {
         ),
         format!("plans      {}", entries.len()),
     ];
-    if !entries.is_empty() {
-        let mut counts: Vec<(Status, usize)> = Vec::new();
-        for entry in &entries {
-            match counts.iter_mut().find(|(s, _)| *s == entry.meta.status) {
+    let mut tags: Vec<(String, usize)> = Vec::new();
+    for entry in &entries {
+        for tag in &entry.meta.tags {
+            match tags.iter_mut().find(|(t, _)| t == tag) {
                 Some((_, n)) => *n += 1,
-                None => counts.push((entry.meta.status, 1)),
+                None => tags.push((tag.clone(), 1)),
             }
         }
-        for (status, n) in counts {
-            lines.push(format!("  {:12} {}", status.as_str(), n));
-        }
+    }
+    for (tag, n) in tags {
+        lines.push(format!("  {tag:12} {n}"));
     }
     lines.join("\n")
 }
@@ -323,33 +315,20 @@ mod tests {
     }
 
     #[test]
-    fn listing_can_be_narrowed_to_one_status() {
-        let base = temp_base("openplan-cli-list-status");
+    fn listing_can_be_narrowed_to_one_tag() {
+        let base = temp_base("openplan-cli-list-tag");
         std::fs::write(
             base.plans_dir().join("a.md"),
-            "---\ntitle: Alpha\nstatus: in-review\n---\n# Alpha\n",
+            "---\ntitle: Alpha\ntags: search\n---\n# Alpha\n",
         )
         .unwrap();
-        std::fs::write(
-            base.plans_dir().join("b.md"),
-            "---\ntitle: Beta\nstatus: done\n---\n# Beta\n",
-        )
-        .unwrap();
+        std::fs::write(base.plans_dir().join("b.md"), "---\ntitle: Beta\n---\n# Beta\n")
+            .unwrap();
 
-        let out = run_str(&["list", "in-review"], &ctx(&base)).unwrap();
+        let out = run_str(&["list", "search"], &ctx(&base)).unwrap();
 
         assert!(out.contains("Alpha"));
         assert!(!out.contains("Beta"), "{out}");
-        let _ = std::fs::remove_dir_all(&base.root);
-    }
-
-    #[test]
-    fn an_unknown_status_is_rejected_rather_than_matching_nothing() {
-        let base = temp_base("openplan-cli-list-bad-status");
-
-        let err = run_str(&["list", "pending"], &ctx(&base)).unwrap_err();
-
-        assert!(err.contains("No such status: pending"));
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
@@ -358,7 +337,7 @@ mod tests {
         let base = temp_base("openplan-cli-doctor");
         std::fs::write(
             base.plans_dir().join("a.md"),
-            "---\ntitle: Alpha\nstatus: in-review\n---\n# Alpha\n",
+            "---\ntitle: Alpha\ntags: search\n---\n# Alpha\n",
         )
         .unwrap();
 
@@ -366,7 +345,7 @@ mod tests {
 
         assert!(out.contains(&base.root.display().to_string()));
         assert!(out.contains("plans      1"));
-        assert!(out.contains("in-review    1"));
+        assert!(out.contains("search"));
         let _ = std::fs::remove_dir_all(&base.root);
     }
 }

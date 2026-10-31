@@ -51,9 +51,8 @@ import { useOutline } from "./lib/useOutline";
 import { usePlanBase } from "./lib/usePlanBase";
 import {
   commitBase,
-  setPlanStatus,
+  setPlanTags,
   SOURCE_LABELS,
-  type PlanStatus,
   type PlanSummary,
 } from "./lib/planBase";
 import { cn } from "./lib/utils";
@@ -502,10 +501,10 @@ export default function App() {
     [openFilePaths],
   );
 
-  const changeStatus = useCallback(
-    (status: PlanStatus) => {
+  const changeTags = useCallback(
+    (tags: string[]) => {
       if (!activePlan) return;
-      void setPlanStatus(activePlan.path, status).then(refreshPlans);
+      void setPlanTags(activePlan.path, tags).then(refreshPlans);
     },
     [activePlan, refreshPlans],
   );
@@ -1258,7 +1257,7 @@ export default function App() {
               >
                 <PlanMetaBar
                   plan={activePlan}
-                  onStatusChange={changeStatus}
+                  onTagsChange={changeTags}
                   onOpenHistory={() => setHistoryOpen(true)}
                 />
               </div>

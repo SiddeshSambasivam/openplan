@@ -1,26 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./platform";
 
-export const PLAN_STATUSES = [
-  "draft",
-  "in-review",
-  "approved",
-  "in-progress",
-  "done",
-  "archived",
-] as const;
-
-export type PlanStatus = (typeof PLAN_STATUSES)[number];
-
-export const STATUS_LABELS: Record<PlanStatus, string> = {
-  draft: "Draft",
-  "in-review": "In review",
-  approved: "Approved",
-  "in-progress": "In progress",
-  done: "Done",
-  archived: "Archived",
-};
-
 /** Where a plan came from — an agent's name, or the person using OpenPlan. */
 export const SOURCE_LABELS: Record<string, string> = {
   "claude-code": "Claude Code",
@@ -33,7 +13,8 @@ export const SOURCE_LABELS: Record<string, string> = {
 export interface PlanSummary {
   id: string;
   title: string;
-  status: PlanStatus;
+  /** Free labels, shared by the user and their agents. */
+  tags: string[];
   source: string;
   project: string | null;
   created: string | null;
@@ -70,10 +51,6 @@ export interface SearchHit {
   text: string;
 }
 
-export function isPlanStatus(value: string): value is PlanStatus {
-  return (PLAN_STATUSES as readonly string[]).includes(value);
-}
-
 export async function getBase(): Promise<BaseInfo | null> {
   if (!isTauri) return null;
   return invoke<BaseInfo>("get_base");
@@ -99,8 +76,8 @@ export async function searchPlans(query: string): Promise<SearchHit[]> {
   return invoke<SearchHit[]>("search_plans", { query });
 }
 
-export async function setPlanStatus(path: string, status: PlanStatus): Promise<void> {
-  return invoke<void>("set_plan_status", { path, status });
+export async function setPlanTags(path: string, tags: string[]): Promise<void> {
+  return invoke<void>("set_plan_tags", { path, tags });
 }
 
 export async function commitBase(message: string): Promise<void> {

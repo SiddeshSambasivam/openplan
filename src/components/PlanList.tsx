@@ -1,12 +1,6 @@
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
 import { useMemo, useState } from "react";
-import {
-  PLAN_STATUSES,
-  SOURCE_LABELS,
-  STATUS_LABELS,
-  type PlanStatus,
-  type PlanSummary,
-} from "@/lib/planBase";
+import { SOURCE_LABELS, type PlanSummary } from "@/lib/planBase";
 import {
   Tooltip,
   TooltipContent,
@@ -15,34 +9,6 @@ import {
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
 import { MarqueeText } from "./MarqueeText";
-import { StatusBadge } from "./StatusBadge";
-
-/** What is waiting on you comes first; what is finished sinks. */
-const ORDER: PlanStatus[] = [
-  "in-review",
-  "in-progress",
-  "approved",
-  "draft",
-  "done",
-  "archived",
-];
-
-function groupByStatus(plans: PlanSummary[]): [PlanStatus, PlanSummary[]][] {
-  const groups = new Map<PlanStatus, PlanSummary[]>();
-  for (const plan of plans) {
-    const status = PLAN_STATUSES.includes(plan.status) ? plan.status : "draft";
-    const group = groups.get(status);
-    if (group) group.push(plan);
-    else groups.set(status, [plan]);
-  }
-  for (const group of groups.values()) {
-    group.sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
-  }
-  return ORDER.filter((status) => groups.has(status)).map((status) => [
-    status,
-    groups.get(status)!,
-  ]);
-}
 
 interface PlanListProps {
   plans: PlanSummary[];
@@ -161,7 +127,16 @@ export function PlanList({
   onSelect,
   onSelectDocument,
 }: PlanListProps) {
-  const groups = useMemo(() => groupByStatus(plans), [plans]);
+  // Newest first; a plan without a date sorts by name at the end.
+  const sorted = useMemo(
+    () =>
+      [...plans].sort(
+        (a, b) =>
+          (b.updated ?? "").localeCompare(a.updated ?? "") ||
+          a.title.localeCompare(b.title),
+      ),
+    [plans],
+  );
   // A set follows whatever is being read until someone says otherwise, and
   // then it stays where they put it.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
@@ -178,10 +153,10 @@ export function PlanList({
 
   return (
     <div className="flex flex-col gap-3">
-      {groups.map(([status, group]) => (
-        <div key={status}>
+      {[sorted].map((group) => (
+        <div key="plans">
           <p className="px-2 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-            {STATUS_LABELS[status]}
+            Plans
             <span className="ml-1.5 tabular-nums opacity-60">{group.length}</span>
           </p>
           <ul className="flex flex-col gap-px">
@@ -236,8 +211,11 @@ export function PlanList({
                           {plan.documents.length}
                         </span>
                       )}
-                      {plan.status === "in-review" && (
-                        <StatusBadge status={plan.status} className="px-1" />
+                      {plan.tags.length > 0 && (
+                        <span className="max-w-24 shrink-0 truncate rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+                          {plan.tags[0]}
+                          {plan.tags.length > 1 && ` +${plan.tags.length - 1}`}
+                        </span>
                       )}
                     </button>
                   </TooltipTrigger>

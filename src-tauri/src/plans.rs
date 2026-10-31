@@ -3,7 +3,6 @@
 //! thin edge that turns it into something the interface can call.
 
 use openplan_core::base::Base;
-use openplan_core::plan::Status;
 use openplan_core::repo::Author;
 use openplan_core::{library, plan, repo, settings, standards};
 use serde::Serialize;
@@ -26,7 +25,7 @@ fn relative<'a>(base: &Base, path: &'a Path) -> Result<&'a Path, String> {
 pub struct PlanSummary {
     id: String,
     title: String,
-    status: String,
+    tags: Vec<String>,
     source: String,
     project: Option<String>,
     created: Option<String>,
@@ -41,7 +40,7 @@ impl From<library::PlanEntry> for PlanSummary {
         PlanSummary {
             id: entry.meta.id,
             title: entry.meta.title,
-            status: entry.meta.status.as_str().to_string(),
+            tags: entry.meta.tags,
             source: entry.meta.source,
             project: entry.meta.project,
             created: entry.meta.created,
@@ -130,19 +129,25 @@ pub async fn search_plans(query: String) -> Result<Vec<SearchHit>, String> {
         .collect())
 }
 
-/// Rewrites only the plan's status line, leaving its body untouched.
+/// Rewrites only the plan's tag line, leaving its body untouched.
 #[tauri::command]
-pub async fn set_plan_status(path: String, status: String) -> Result<(), String> {
-    let status = Status::parse(&status).ok_or_else(|| format!("Unknown status: {status}"))?;
+pub async fn set_plan_tags(path: String, tags: Vec<String>) -> Result<(), String> {
     let path = PathBuf::from(&path);
     let text = openplan_core::fs::read_to_string(&path)?;
     let mut parsed = plan::parse(&text, &path);
-    parsed.meta.status = status;
+    parsed.meta.tags = tags
+        .into_iter()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .collect();
     openplan_core::fs::atomic_write(&path, &plan::serialize(&parsed))?;
 
     let base = base()?;
-    let id = parsed.meta.id;
-    let _ = repo::commit_all(&base.root, &Author::user(), &format!("status: {id} → {}", status.as_str()));
+    let _ = repo::commit_all(
+        &base.root,
+        &Author::user(),
+        &format!("tags: {}", parsed.meta.id),
+    );
     Ok(())
 }
 

@@ -790,6 +790,7 @@ QA script for Sid: what to click, what to look for, which requirements it exerci
 | 2026-08-15 | App shell never scrolls: `overflow: hidden` on html/body, only inner panes scroll | Sid: the whole app could be scrolled vertically |
 | 2026-08-15 | GATE 1 waived so Phase 2 could start; Phase 1 QA still owed | Sid, explicitly. Recorded per §2 Process, which requires a waiver be logged rather than assumed |
 | 2026-08-15 | Onboarding leads with importing an existing folder, not with mining agent transcripts | Measured (§6.7): agent internals yield 4 plans on a machine whose real corpus is a 10-set folder. Codex has no prose plan to find |
+| 2026-08-16 | Status lifecycle removed; free tags replace it, settable by user and agents alike | Sid: keep it simple. Six fixed states was a workflow imposed on everyone; a tag means whatever its author meant. Old `status:` lines survive as preserved unknown keys |
 | 2026-08-16 | MCP server is a hand-rolled synchronous JSON-RPC loop over stdio, not rmcp | At this surface (handshake, tool list, dispatch) the SDK buys an async runtime and little else; verified against the real client — `claude mcp get openplan` reports Connected. Revisit if the protocol surface grows |
 | 2026-08-16 | Installers write only inside a marked block in files other tools own; dry-run writes nothing | An install that rewrites someone's CLAUDE.md, or a dry-run that writes at all (caught in testing), is how trust is lost |
 | 2026-08-16 | Onboarding: hello → import → connect, each skippable, detection during the hello | Sid's design, P3.0 |

@@ -45,7 +45,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, vec!["create_plan", "list_plans", "read_plan", "get_standards"]);
+    assert_eq!(names, vec!["create_plan", "list_plans", "tag_plan", "read_plan", "get_standards"]);
 
     let standards = ask(r##"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_standards","arguments":{}}}"##);
     assert!(standards["result"]["content"][0]["text"]
@@ -54,7 +54,7 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
         .contains("Plan standards"));
 
     let created = ask(
-        r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor\n\n## Context\n\nwhy","project":"~/work/api"}}}"##,
+        r##"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"create_plan","arguments":{"title":"Auth refactor","body":"# Auth refactor\n\n## Context\n\nwhy","project":"~/work/api","tags":["auth"]}}}"##,
     );
     assert_eq!(created["result"]["isError"], false, "{created}");
 
@@ -68,12 +68,16 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     assert!(listed["result"]["content"][0]["text"]
         .as_str()
         .unwrap()
-        .contains("auth-refactor [draft] Auth refactor"));
+        .contains("auth-refactor [auth] Auth refactor"));
+
+    let tagged = ask(r##"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"tag_plan","arguments":{"id":"auth-refactor","tags":["auth","needs-review"]}}}"##);
+    assert_eq!(tagged["result"]["isError"], false, "{tagged}");
 
     let read = ask(r##"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"read_plan","arguments":{"id":"auth-refactor"}}}"##);
     let text = read["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("source: claude-code"), "client name normalised: {text}");
     assert!(text.contains("project: ~/work/api"));
+    assert!(text.contains("tags: auth, needs-review"), "{text}");
 
     drop(stdin);
     server.wait().unwrap();

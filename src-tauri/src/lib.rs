@@ -213,7 +213,7 @@ pub fn run() {
             plans::get_standards,
             plans::set_standards_overrides,
             plans::search_plans,
-            plans::set_plan_status,
+            plans::set_plan_tags,
             plans::commit_base,
             plans::plan_history,
             plans::plan_at_revision,

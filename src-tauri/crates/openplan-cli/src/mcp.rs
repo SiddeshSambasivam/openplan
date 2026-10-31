@@ -7,7 +7,7 @@
 
 use openplan_core::base::Base;
 use openplan_core::import::iso_from_unix;
-use openplan_core::plan::{self, slugify, Plan, PlanMeta, Status};
+use openplan_core::plan::{self, slugify, Plan, PlanMeta};
 use openplan_core::repo::{self, Author};
 use openplan_core::{fs, library, settings, standards};
 use serde_json::{json, Value};
@@ -52,19 +52,32 @@ fn tool_list() -> Value {
                 "properties": {
                     "title": { "type": "string", "description": "One line, reading as a change" },
                     "body": { "type": "string", "description": "The plan, as markdown" },
-                    "project": { "type": "string", "description": "The repo or context the plan belongs to" }
+                    "project": { "type": "string", "description": "The repo or context the plan belongs to" },
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Free labels, e.g. [\"search\", \"infra\"]" }
                 },
                 "required": ["title", "body"]
             }
         },
         {
             "name": "list_plans",
-            "description": "The plans in the user's plan base, with status and id.",
+            "description": "The plans in the user's plan base, with id and tags.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "status": { "type": "string", "description": "Only this status (draft, in-review, approved, in-progress, done, archived)" }
+                    "tag": { "type": "string", "description": "Only plans carrying this tag" }
                 }
+            }
+        },
+        {
+            "name": "tag_plan",
+            "description": "Replace a plan's tags. Tags are free labels shared by the user and their agents.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "tags": { "type": "array", "items": { "type": "string" } }
+                },
+                "required": ["id", "tags"]
             }
         },
         {
@@ -106,11 +119,21 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
         );
     }
     let now = now_iso();
+    let tags = args
+        .get("tags")
+        .and_then(Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
     let filed = Plan {
         meta: PlanMeta {
             id: id.clone(),
             title: title.trim().to_string(),
-            status: Status::Draft,
+            tags,
             source: author.to_string(),
             project: args.get("project").and_then(Value::as_str).map(str::to_string),
             created: Some(now.clone()),
@@ -130,19 +153,14 @@ fn create_plan(base: &Base, author: &str, args: &Value) -> Value {
     ) {
         return text_result(e, true);
     }
-    text_result(format!("Filed as {id} (status: draft)."), false)
+    text_result(format!("Filed as {id}."), false)
 }
 
 fn list_plans(base: &Base, args: &Value) -> Value {
-    let wanted = match args.get("status").and_then(Value::as_str) {
-        Some(raw) => match Status::parse(raw) {
-            Some(status) => Some(status),
-            None => return text_result(format!("No such status: {raw}"), true),
-        },
-        None => None,
-    };
     let mut entries = library::scan(base);
-    entries.retain(|e| wanted.map_or(true, |w| e.meta.status == w));
+    if let Some(tag) = args.get("tag").and_then(Value::as_str) {
+        entries.retain(|e| e.meta.tags.iter().any(|t| t == tag));
+    }
     if entries.is_empty() {
         return text_result("No plans yet.", false);
     }
@@ -150,15 +168,48 @@ fn list_plans(base: &Base, args: &Value) -> Value {
     let lines: Vec<String> = entries
         .iter()
         .map(|e| {
-            format!(
-                "{} [{}] {}",
-                e.meta.id,
-                e.meta.status.as_str(),
-                e.meta.title
-            )
+            let tags = if e.meta.tags.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", e.meta.tags.join(", "))
+            };
+            format!("{}{tags} {}", e.meta.id, e.meta.title)
         })
         .collect();
     text_result(lines.join("\n"), false)
+}
+
+fn tag_plan(base: &Base, author: &str, args: &Value) -> Value {
+    let Some(id) = args.get("id").and_then(Value::as_str) else {
+        return text_result("tag_plan needs an id.", true);
+    };
+    let Some(tags) = args.get("tags").and_then(Value::as_array) else {
+        return text_result("tag_plan needs tags, an array of strings.", true);
+    };
+    let Some(entry) = library::scan(base).into_iter().find(|e| e.meta.id == id) else {
+        return text_result(format!("No plan called {id}."), true);
+    };
+    let text = match fs::read_to_string(&entry.path) {
+        Ok(text) => text,
+        Err(e) => return text_result(e, true),
+    };
+    let mut parsed = plan::parse(&text, &entry.path);
+    parsed.meta.tags = tags
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect();
+    if let Err(e) = fs::atomic_write(&entry.path, &plan::serialize(&parsed)) {
+        return text_result(e, true);
+    }
+    if let Err(e) = repo::commit_all(
+        &base.root,
+        &Author::agent(author),
+        &format!("agent({author}): tag {id}"),
+    ) {
+        return text_result(e, true);
+    }
+    text_result(format!("Tagged {id}: {}", parsed.meta.tags.join(", ")), false)
 }
 
 fn read_plan(base: &Base, args: &Value) -> Value {
@@ -224,6 +275,7 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                 match name {
                     "create_plan" => Ok(create_plan(base, &author, &args)),
                     "list_plans" => Ok(list_plans(base, &args)),
+                    "tag_plan" => Ok(tag_plan(base, &author, &args)),
                     "read_plan" => Ok(read_plan(base, &args)),
                     "get_standards" => Ok(get_standards()),
                     other => Err((-32602, format!("No such tool: {other}"))),

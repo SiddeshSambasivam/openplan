@@ -5,51 +5,14 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-/// Where a plan is in its life. Unknown values read as `Draft` rather than
-/// failing, so a plan written by a newer build still opens in an older one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
-pub enum Status {
-    #[default]
-    Draft,
-    InReview,
-    Approved,
-    InProgress,
-    Done,
-    Archived,
-}
-
-impl Status {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Status::Draft => "draft",
-            Status::InReview => "in-review",
-            Status::Approved => "approved",
-            Status::InProgress => "in-progress",
-            Status::Done => "done",
-            Status::Archived => "archived",
-        }
-    }
-
-    pub fn parse(value: &str) -> Option<Status> {
-        match value.trim() {
-            "draft" => Some(Status::Draft),
-            "in-review" => Some(Status::InReview),
-            "approved" => Some(Status::Approved),
-            "in-progress" => Some(Status::InProgress),
-            "done" => Some(Status::Done),
-            "archived" => Some(Status::Archived),
-            _ => None,
-        }
-    }
-}
-
 /// What the app knows about a plan without reading its body.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlanMeta {
     pub id: String,
     pub title: String,
-    pub status: Status,
+    /// Free labels, chosen by whoever files or reads the plan. There is no
+    /// fixed lifecycle; a tag means whatever its author meant.
+    pub tags: Vec<String>,
     pub source: String,
     pub project: Option<String>,
     pub created: Option<String>,
@@ -106,6 +69,16 @@ fn parse_pairs(block: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+/// `tags: search, infra` reads and writes as a comma-separated line.
+fn parse_tags(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
 fn lookup<'a>(pairs: &'a [(String, String)], key: &str) -> Option<&'a str> {
     pairs
         .iter()
@@ -141,7 +114,7 @@ pub fn parse(text: &str, path: &Path) -> Plan {
                 meta: PlanMeta {
                     title: title_from(text, &id),
                     id,
-                    status: Status::default(),
+                    tags: Vec::new(),
                     source: "manual".to_string(),
                     project: None,
                     created: None,
@@ -160,9 +133,7 @@ pub fn parse(text: &str, path: &Path) -> Plan {
         title: lookup(&pairs, "title")
             .map(str::to_string)
             .unwrap_or_else(|| title_from(body, &id)),
-        status: lookup(&pairs, "status")
-            .and_then(Status::parse)
-            .unwrap_or_default(),
+        tags: lookup(&pairs, "tags").map(parse_tags).unwrap_or_default(),
         source: lookup(&pairs, "source").unwrap_or("manual").to_string(),
         project: lookup(&pairs, "project").map(str::to_string),
         created: lookup(&pairs, "created").map(str::to_string),
@@ -186,7 +157,9 @@ pub fn serialize(plan: &Plan) -> String {
     };
     set("id", &plan.meta.id);
     set("title", &plan.meta.title);
-    set("status", plan.meta.status.as_str());
+    if !plan.meta.tags.is_empty() {
+        set("tags", &plan.meta.tags.join(", "));
+    }
     set("source", &plan.meta.source);
     if let Some(project) = &plan.meta.project {
         set("project", project);
@@ -246,12 +219,12 @@ mod tests {
     #[test]
     fn reads_the_metadata_a_plan_declares() {
         let plan = parse_str(
-            "---\nid: auth-refactor\ntitle: Auth refactor\nstatus: in-review\n\
+            "---\nid: auth-refactor\ntitle: Auth refactor\ntags: search, infra\n\
              source: claude-code\nproject: ~/work/api\ncreated: 2026-08-15T10:00:00Z\n---\n# Body\n",
         );
 
         assert_eq!(plan.meta.title, "Auth refactor");
-        assert_eq!(plan.meta.status, Status::InReview);
+        assert_eq!(plan.meta.tags, vec!["search", "infra"]);
         assert_eq!(plan.meta.source, "claude-code");
         assert_eq!(plan.meta.project.as_deref(), Some("~/work/api"));
         assert_eq!(plan.body, "# Body\n");
@@ -264,7 +237,7 @@ mod tests {
 
         assert_eq!(plan.meta.title, "Just some notes");
         assert_eq!(plan.meta.id, "auth-refactor");
-        assert_eq!(plan.meta.status, Status::Draft);
+        assert!(plan.meta.tags.is_empty());
         assert_eq!(plan.meta.source, "manual");
         assert_eq!(plan.body, "# Just some notes\n\nwritten by hand\n");
         assert!(plan.derived);
@@ -276,11 +249,22 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_status_reads_as_a_draft_rather_than_failing() {
-        assert_eq!(
-            parse_str("---\nstatus: whatever\n---\n# X\n").meta.status,
-            Status::Draft
-        );
+    fn a_status_line_from_before_the_pivot_is_kept_but_not_interpreted() {
+        let plan = parse_str("---\nstatus: in-review\ntitle: X\n---\n# X\n");
+
+        assert!(serialize(&plan).contains("status: in-review"), "unknown keys survive");
+    }
+
+    #[test]
+    fn tags_round_trip_and_empty_tags_write_nothing() {
+        let mut plan = parse_str("---\ntitle: X\n---\n# X\n");
+        assert!(!serialize(&plan).contains("tags:"));
+
+        plan.meta.tags = vec!["search".into(), "infra".into()];
+        let out = serialize(&plan);
+
+        assert!(out.contains("tags: search, infra"), "{out}");
+        assert_eq!(parse_str(&out).meta.tags, vec!["search", "infra"]);
     }
 
     #[test]
@@ -305,12 +289,12 @@ mod tests {
     #[test]
     fn writing_a_plan_that_had_none_gives_it_frontmatter() {
         let mut plan = parse_str("# Hand written\n\nbody\n");
-        plan.meta.status = Status::Approved;
+        plan.meta.tags = vec!["infra".into()];
 
         let out = serialize(&plan);
 
         assert!(out.starts_with("---\n"));
-        assert!(out.contains("status: approved"));
+        assert!(out.contains("tags: infra"));
         assert!(out.ends_with("# Hand written\n\nbody\n"));
     }
 
@@ -337,17 +321,5 @@ mod tests {
         assert_eq!(slugify(""), "untitled");
     }
 
-    #[test]
-    fn every_status_survives_being_written_and_read_back() {
-        for status in [
-            Status::Draft,
-            Status::InReview,
-            Status::Approved,
-            Status::InProgress,
-            Status::Done,
-            Status::Archived,
-        ] {
-            assert_eq!(Status::parse(status.as_str()), Some(status));
-        }
-    }
+
 }
