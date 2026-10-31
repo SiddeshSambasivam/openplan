@@ -101,6 +101,21 @@
   --persona-oncall-hi: oklch(0.85 0.114 78.9);
   --persona-oncall: oklch(0.747 0.148 69.8);
   --persona-oncall-deep: oklch(0.553 0.125 60.4);
+  --persona-research-hi: oklch(0.74 0.11 250);
+  --persona-research: oklch(0.6 0.15 252);
+  --persona-research-deep: oklch(0.45 0.14 255);
+  --persona-accessibility-hi: oklch(0.8 0.13 145);
+  --persona-accessibility: oklch(0.66 0.15 147);
+  --persona-accessibility-deep: oklch(0.5 0.13 150);
+  --persona-data-hi: oklch(0.8 0.1 215);
+  --persona-data: oklch(0.66 0.12 218);
+  --persona-data-deep: oklch(0.5 0.1 222);
+  --persona-security-hi: oklch(0.74 0.04 265);
+  --persona-security: oklch(0.57 0.05 265);
+  --persona-security-deep: oklch(0.42 0.05 265);
+  --persona-support-hi: oklch(0.8 0.12 40);
+  --persona-support: oklch(0.67 0.17 34);
+  --persona-support-deep: oklch(0.52 0.16 30);
   --persona-agent-hi: oklch(0.843 0.011 274.9);
   --persona-agent: oklch(0.72 0.015 277);
   --persona-agent-deep: oklch(0.523 0.021 275.3);
@@ -110,6 +125,13 @@
   --persona-beret: oklch(0.381 0.115 345.5);
   --persona-headset: oklch(0.37 0.019 277.3);
   --persona-siren: oklch(0.626 0.193 23);
+  --persona-halo: oklch(0.8 0.16 84);
+  --persona-bars: var(--persona-data-deep);
+  --persona-shield: oklch(0.38 0.07 265);
+  --persona-speech: oklch(0.4 0.02 277.3);
+  /* the white props drawn on the sphere, and the glass of the magnifier */
+  --persona-prop-light: oklch(1 0 0 / 92%);
+  --persona-lens: oklch(1 0 0 / 35%);
 
   /* syntax highlighting (github-light inspired) */
   --syntax-comment: oklch(0.552 0.016 285.94);
@@ -169,6 +191,10 @@
   --persona-shadow: oklch(0 0 0 / 50%);
   --persona-beret: oklch(0.5 0.14 345.5);
   --persona-headset: oklch(0.6 0.02 277.3);
+  --persona-halo: oklch(0.875 0.143 86.6);
+  --persona-bars: var(--persona-data-hi);
+  --persona-shield: oklch(0.88 0.03 265);
+  --persona-speech: oklch(0.95 0 0);
 
   /* syntax highlighting (github-dark inspired) */
   --syntax-comment: oklch(0.681 0.014 285.5);
@@ -435,6 +461,10 @@
   flex: none;
   width: 1em;
   height: 1em;
+  /* Grey unless the role is one this build draws. */
+  --hi: var(--persona-agent-hi);
+  --body: var(--persona-agent);
+  --deep: var(--persona-agent-deep);
 }
 .persona[data-role="product"] {
   --hi: var(--persona-product-hi);
@@ -456,10 +486,30 @@
   --body: var(--persona-oncall);
   --deep: var(--persona-oncall-deep);
 }
-.persona[data-role="agent"] {
-  --hi: var(--persona-agent-hi);
-  --body: var(--persona-agent);
-  --deep: var(--persona-agent-deep);
+.persona[data-role="research"] {
+  --hi: var(--persona-research-hi);
+  --body: var(--persona-research);
+  --deep: var(--persona-research-deep);
+}
+.persona[data-role="accessibility"] {
+  --hi: var(--persona-accessibility-hi);
+  --body: var(--persona-accessibility);
+  --deep: var(--persona-accessibility-deep);
+}
+.persona[data-role="data"] {
+  --hi: var(--persona-data-hi);
+  --body: var(--persona-data);
+  --deep: var(--persona-data-deep);
+}
+.persona[data-role="security"] {
+  --hi: var(--persona-security-hi);
+  --body: var(--persona-security);
+  --deep: var(--persona-security-deep);
+}
+.persona[data-role="support"] {
+  --hi: var(--persona-support-hi);
+  --body: var(--persona-support);
+  --deep: var(--persona-support-deep);
 }
 .persona::after {
   content: "";
@@ -582,7 +632,7 @@
   width: 0.3em;
   height: 0.3em;
   border-radius: 50%;
-  border: 0.03em solid oklch(1 0 0 / 92%);
+  border: 0.03em solid var(--persona-prop-light);
 }
 .persona-glasses::before {
   left: 0;
@@ -596,7 +646,7 @@
   right: 0.29em;
   top: 0.1em;
   height: 0.03em;
-  background: oklch(1 0 0 / 92%);
+  background: var(--persona-prop-light);
 }
 /* designer: a tilted beret */
 .persona-beret {
@@ -667,6 +717,92 @@
 }
 .persona[data-live] .persona-siren {
   animation: persona-pulse 1.6s ease-in-out infinite;
+}
+/* researcher: a magnifier at the side */
+.persona-lens {
+  position: absolute;
+  right: -14%;
+  top: 50%;
+  width: 0.3em;
+  height: 0.3em;
+  border-radius: 50%;
+  border: 0.045em solid var(--persona-headset);
+  background: var(--persona-lens);
+}
+.persona-lens::after {
+  content: "";
+  position: absolute;
+  left: 80%;
+  top: 80%;
+  width: 0.045em;
+  height: 0.16em;
+  border-radius: 0.02em;
+  background: var(--persona-headset);
+  transform: rotate(-45deg);
+  transform-origin: top;
+}
+/* accessibility: a halo above the head */
+.persona-halo {
+  position: absolute;
+  left: 22%;
+  top: -20%;
+  width: 0.56em;
+  height: 0.15em;
+  border-radius: 50%;
+  border: 0.05em solid var(--persona-halo);
+}
+/* data analyst: three bars that rise */
+.persona-bars {
+  position: absolute;
+  left: 36%;
+  top: -26%;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.035em;
+  height: 0.3em;
+}
+.persona-bars > span {
+  width: 0.065em;
+  height: 0.12em;
+  border-radius: 0.02em;
+  background: var(--persona-bars);
+}
+.persona-bars > span:nth-child(2) {
+  height: 0.2em;
+}
+.persona-bars > span:nth-child(3) {
+  height: 0.3em;
+}
+/* security: a small shield on top */
+.persona-shield {
+  position: absolute;
+  left: 50%;
+  top: -20%;
+  width: 0.24em;
+  height: 0.28em;
+  margin-left: -0.12em;
+  background: var(--persona-shield);
+  clip-path: polygon(50% 0, 100% 18%, 92% 62%, 50% 100%, 8% 62%, 0 18%);
+}
+/* support lead: a speech bubble at the top right */
+.persona-speech {
+  position: absolute;
+  right: -16%;
+  top: -16%;
+  width: 0.34em;
+  height: 0.24em;
+  border-radius: 0.08em;
+  background: var(--persona-speech);
+}
+.persona-speech::after {
+  content: "";
+  position: absolute;
+  left: 0.05em;
+  bottom: -0.06em;
+  width: 0.08em;
+  height: 0.08em;
+  background: var(--persona-speech);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
 }
 
 /* Three dots that rise in turn beside a persona who is typing. They move

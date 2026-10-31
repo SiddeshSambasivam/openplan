@@ -50,8 +50,11 @@ export function PersonaAvatar({
   );
 }
 
+/* Spelled out until `Role` holds the five newer personas too. */
+type HatRole = Role | "research" | "accessibility" | "data" | "security" | "support";
+
 /* Props that sit on the head and stay still while the face turns. */
-const HATS: Partial<Record<Role, ReactNode>> = {
+const HATS: Partial<Record<HatRole, ReactNode>> = {
   product: <span className="persona-pennant" />,
   design: <span className="persona-beret" />,
   oncall: (
@@ -63,4 +66,15 @@ const HATS: Partial<Record<Role, ReactNode>> = {
       <span className="persona-siren" />
     </>
   ),
+  research: <span className="persona-lens" />,
+  accessibility: <span className="persona-halo" />,
+  data: (
+    <span className="persona-bars">
+      <span />
+      <span />
+      <span />
+    </span>
+  ),
+  security: <span className="persona-shield" />,
+  support: <span className="persona-speech" />,
 };
