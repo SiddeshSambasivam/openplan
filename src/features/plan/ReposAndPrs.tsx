@@ -12,7 +12,7 @@ import { WorkHeading } from "./WorkHeading";
 export function ReposAndPrs({ repos, prs }: { repos: Repo[]; prs: Pr[] }) {
   const readsAvailable = useContext(PrReadsAvailable);
   return (
-    <section>
+    <section data-tour="repos-prs">
       <WorkHeading title="Repos and PRs" />
       <ul className="space-y-1.5">
         {repos.map((repo) => (

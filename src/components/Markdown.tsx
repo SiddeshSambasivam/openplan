@@ -177,6 +177,8 @@ function handleAnchorClick(e: MouseEvent<HTMLAnchorElement>, href?: string) {
   }
 }
 
+const TRY_A_COMMENT = "Try a comment.";
+
 /** What a video shows as when media is off: a link naming its file. */
 function FileLink({ src, label }: { src?: string; label?: string }) {
   if (!src) return null;
@@ -261,6 +263,13 @@ export const Markdown = memo(function Markdown({
     },
     source({ node, src, ...props }) {
       return <source {...props} src={resolveAssetSrc(src, docPath)} />;
+    },
+    // The demo plan's quote that the tour asks the person to comment on.
+    blockquote({ node, ...props }) {
+      const tour = hastToText(node as HastNode | undefined)
+        .trimStart()
+        .startsWith(TRY_A_COMMENT);
+      return <blockquote {...props} data-tour={tour ? "try-comment" : undefined} />;
     },
     pre({ children, node, ...props }) {
       const fence = node as HastNode | undefined;

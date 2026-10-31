@@ -22,7 +22,11 @@ export function AlignmentScoreCard({ score, target }: { score: AlignmentScore; t
   const shown = useCountUp(score.total);
   const settled = score.areas.filter((area) => area.settled).length;
   return (
-    <section aria-label="Alignment score" className="flex shrink-0 items-center gap-2">
+    <section
+      aria-label="Alignment score"
+      data-tour="score"
+      className="flex shrink-0 items-center gap-2"
+    >
       <div role="img" aria-label={`Alignment score ${score.total} out of 100`} className="relative size-8 shrink-0">
         <ScoreRing value={shown} target={target} />
         <span className="absolute inset-0 grid place-items-center text-xs font-semibold tabular-nums">

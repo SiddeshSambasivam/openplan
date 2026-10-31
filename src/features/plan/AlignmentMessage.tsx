@@ -50,7 +50,11 @@ export function AlignmentMessage({
   const words = recorded ? "" : (draft?.text.trim() ?? "");
   const persona = question.role ? personaOf(question.role) : null;
   return (
-    <div className="flex flex-col gap-3" data-question={question.id}>
+    <div
+      className="flex flex-col gap-3"
+      data-question={question.id}
+      data-tour={recorded || answer ? undefined : "open-question"}
+    >
       <div className="flex gap-2.5">
         <span className="w-8 shrink-0">
           <PersonaAvatar role={question.role} className="mt-0.5 text-3xl" />

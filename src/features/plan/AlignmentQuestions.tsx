@@ -15,6 +15,7 @@ import {
 } from "@/lib/alignmentDrafts";
 import { alignmentScore } from "@/lib/alignmentScore";
 import { readPanel } from "@/lib/personRoles";
+import { emitTourEvent } from "@/lib/tour";
 import { PLATFORM, shortcutFor, useShortcuts } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import {
@@ -167,6 +168,7 @@ export function AlignmentQuestions({
     choose(question.id);
     if (!answers[question.id]) {
       cheerFor(question, questions, { ...answers, [question.id]: { kind: "option", options: [option] } });
+      emitTourEvent("question-answered");
     }
   };
 
@@ -176,6 +178,7 @@ export function AlignmentQuestions({
     if (!active) return;
     if (!answers[active.id]) return setMissing(true);
     cheerFor(active, questions, answers);
+    emitTourEvent("question-answered");
     const after = nextWaiting(inTab, drafts, active.id);
     setChosen(after?.id ?? null);
     // With nothing left to reply to, the field goes, and Send is next.
@@ -407,6 +410,7 @@ export function PeopleRail({
   ];
   return (
     <nav
+      data-tour="reviewers"
       inert={leaving}
       onAnimationEnd={(event) => leaving && event.target === event.currentTarget && onLeft()}
       className={cn(
@@ -469,6 +473,8 @@ function ThreadHead({
         variant="ghost"
         size="sm"
         shortcut="peopleRail"
+        // With the rail hidden, the tour lights the way to it.
+        data-tour={railShown ? undefined : "reviewers"}
         tooltip={railShown ? "Hide the people" : "Show the people"}
         tooltipAlign="start"
         aria-label={railShown ? "Hide the people" : "Show the people"}

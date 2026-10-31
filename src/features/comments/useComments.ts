@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "@/lib/platform";
 import { commitBase, sendComments } from "@/lib/planBase";
+import { emitTourEvent } from "@/lib/tour";
 import {
   isPending,
   markSent,
@@ -89,6 +90,7 @@ export function useComments(
         ],
         false,
       );
+      emitTourEvent("comment-added");
     },
     [threads, save, identity],
   );
@@ -144,6 +146,7 @@ export function useComments(
     if (pendingCount === 0 || !path) return { threads: 0, sessions: 0 };
     const ids = threads.filter(isPending).map((t) => t.id);
     await save(markSent(threads, new Date().toISOString()), false);
+    emitTourEvent("review-sent");
     const label = ids.length === 1 ? "thread" : "threads";
     await commitBase(`review: ${planId ?? "plan"} (${ids.length} ${label})`);
     return { threads: ids.length, sessions: await sendComments(path, ids) };

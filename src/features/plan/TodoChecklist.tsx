@@ -41,7 +41,7 @@ export function TodoChecklist({
   const mounted = useMountedKeys(todos.map(keyOf));
 
   return (
-    <section>
+    <section data-tour="todos">
       <WorkHeading
         title="Todos"
         aside={counted.total > 0 && <span className="tabular-nums">{progressText(counted)}</span>}
