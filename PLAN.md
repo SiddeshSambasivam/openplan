@@ -1105,6 +1105,24 @@ Known and decided, not bugs: an idle session hears about a review on its next
 keystroke, not at once (D11, superseded 2026-10-31 by the inbox wake-up); record decisions render as plain text; only the
 upright Inter face is vendored, so italics are synthesised.
 
+### Phase 8 — 0.6.0: builds on S3 and updates in the app
+Specification and decisions q1 to q6: the filed plan "Ship OpenPlan builds from S3 and
+update the app in place". Started 2026-10-31 on Sid's recorded GATE 7 waiver (§9).
+- [ ] P8.1 Updater key pair in GitHub secrets and the password manager (Sid)
+- [ ] P8.2 AWS: private bucket, CloudFront with origin access control, GitHub OIDC
+      role, monthly budget alarm; the commands and the host recorded here
+- [ ] P8.3 `latest.json` from the `.sig` files and the host **(T)**
+- [ ] P8.4 CI: updater artifacts, signing secrets, a `publish` job that uploads
+      `releases/<version>/` and then `latest.json`
+- [ ] P8.5 Updater and process plugins, endpoint and public key, `checkUpdates`
+      setting **(T)**
+- [ ] P8.6 Settings > Updates, the top bar notice, the package-install hint, the
+      unsaved-edits guard; checks at launch and on focus after 24 hours **(T)**
+- [ ] P8.7 Release 0.6.0 by hand, then update it to 0.6.1 on each platform
+- [ ] **GATE 8 — Sid manual QA & approval** (0.6.0 updates to 0.6.1 on macOS,
+      Windows with a live agent session, and Linux AppImage; a `.deb` copy shows the
+      download hint; idle CPU ~0%)
+
 ---
 
 ## 9. Decision log
@@ -1298,6 +1316,7 @@ upright Inter face is vendored, so italics are synthesised.
 | 2026-10-31 | The score only rises. Coverage is 80 times the settled areas over the required areas (edge cases, error handling, scale) plus every settled area. Each answer with a reason gives 5 points, up to 20. Every plan gets the new score, including plans already in alignment | Sid (R5.1, q3, q4): the score went from 80 to 48 when a second round arrived, because each asked area grew the denominator before it could be answered. A share of answers with a reason could also fall. The full question bank as denominator was rejected: 12 feature aspects would push agents past three questions a round |
 | 2026-10-31 | New unanswered questions on the open plan switch it to the Alignment tab. A window in the background calls `requestUserAttention` once, then not again until it is focused. No `openplan://` deep link | Sid (R5.5, q2, q5): Tauri's core window API needs no new dependency. One request per background period keeps several sessions from nagging. Nobody has checked whether Claude Code desktop opens custom-scheme links |
 | 2026-10-31 | Every question with options ends with "Write my own" | Sid (R5.3, q1): the composer already took free text, but nothing on the question said so |
+| 2026-10-31 | **GATE 7 waived and Phase 8 (0.6.0, S3 builds and in-app updates) starts** | Sid, 2026-10-31: "Gate waived", after the rule was pointed out. Recorded per §2 Process. GATE 7 QA remains owed |
 
 ---
 
