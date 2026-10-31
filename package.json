@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "tauri": "sh scripts/tauri.sh",
-    "build:sidecar": "cargo build --release -p openplan-cli --manifest-path src-tauri/Cargo.toml && mkdir -p src-tauri/binaries && cp src-tauri/target/release/openplan \"src-tauri/binaries/openplan-$(rustc -vV | sed -n 's/host: //p')\""
+    "build:sidecar": "node scripts/build-sidecar.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.4",
