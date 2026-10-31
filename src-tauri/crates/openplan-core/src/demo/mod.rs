@@ -7,28 +7,28 @@ use crate::comments::{self, CommentThread};
 use crate::fs::atomic_write;
 use crate::import::now_iso;
 use crate::library;
-use crate::plan;
 use crate::repo::{self, Author};
 use crate::work::{self, WorkRecord};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// The question roles asked when the person has not said what they do.
 pub const DEFAULT_PANEL: [&str; 4] = ["product", "engineering", "design", "oncall"];
 
-/// Writes the demo plans and their sidecars into the base and commits them,
-/// unless a demo plan is already there, so a person's changes and deletions
-/// stand. `panel` is the question roles of the person's panel. The alignment
-/// plan asks one question from each, in that order. Returns the plans
-/// written.
+/// Writes each demo plan that is missing from the base, with its sidecars,
+/// and commits them. A demo plan already in the base, or any file at a demo
+/// plan's path, is left as it is, so a person's changes stand. `panel` is the
+/// question roles of the person's panel. The alignment plan asks one
+/// question from each, in that order. Returns the plans written.
 pub fn seed_demo(base: &Base, panel: &[&str]) -> Result<Vec<PathBuf>, String> {
-    if has_demo(base) {
-        return Ok(Vec::new());
-    }
+    let present = demo_ids(base);
     let now = now_iso();
     let mut written = Vec::new();
     for demo in &DEMOS {
         let path = base.plans_dir().join(demo.file);
+        if path.exists() || present.iter().any(|id| demo.file == format!("{id}.md")) {
+            continue;
+        }
         atomic_write(&path, &demo.plan.replace(NOW, &now))?;
         if let Some(template) = demo.work {
             work::write(&path, &work_record(template, &now, panel)?)?;
@@ -38,7 +38,9 @@ pub fn seed_demo(base: &Base, panel: &[&str]) -> Result<Vec<PathBuf>, String> {
         }
         written.push(path);
     }
-    repo::commit_all(&base.root, &Author::app(), "add: demo plans")?;
+    if !written.is_empty() {
+        repo::commit_all(&base.root, &Author::app(), "add: demo plans")?;
+    }
     Ok(written)
 }
 
@@ -88,23 +90,13 @@ const DEMOS: [Demo; 5] = [
 /// Stands for the moment of the seed in every template.
 const NOW: &str = "{now}";
 
-/// How many of the panel's questions arrive answered. The rest stay open, so
-/// the score sits below the target and Build shows what is missing.
-const ANSWERED: usize = 2;
-
-/// A demo plan anywhere in the base, or any file where one would go.
-fn has_demo(base: &Base) -> bool {
-    DEMOS.iter().any(|demo| base.plans_dir().join(demo.file).exists())
-        || library::plan_paths(base).iter().any(|path| is_demo(path))
-}
-
-fn is_demo(path: &Path) -> bool {
-    std::fs::read_to_string(path).is_ok_and(|text| {
-        plan::parse(&text, path)
-            .frontmatter
-            .iter()
-            .any(|(key, value)| key == "demo" && value == "true")
-    })
+/// The ids of the demo plans anywhere in the base.
+fn demo_ids(base: &Base) -> Vec<String> {
+    library::scan(base)
+        .into_iter()
+        .filter(|entry| entry.meta.demo)
+        .map(|entry| entry.meta.id)
+        .collect()
 }
 
 /// The template's record, its alignment narrowed to the panel. Narrowed as
@@ -119,8 +111,10 @@ fn work_record(template: &str, now: &str, panel: &[&str]) -> Result<WorkRecord, 
     serde_json::from_value(record).map_err(|e| format!("A demo work record does not read: {e}"))
 }
 
-/// One question per panel role, numbered in the panel's order, with only the
-/// first `ANSWERED` keeping their answers.
+/// One question per panel role, numbered in the panel's order. The first
+/// keeps its option and reason. The second is answered in the person's own
+/// words, as "Write my own" does. The rest stay open, so the score sits below
+/// the target and Build shows what is missing.
 fn panel_questions(all: &Value, panel: &[&str]) -> Value {
     let all = all.as_array().map_or(&[][..], Vec::as_slice);
     panel
@@ -130,15 +124,31 @@ fn panel_questions(all: &Value, panel: &[&str]) -> Value {
         .map(|(at, question)| {
             let mut question = question.clone();
             question["id"] = Value::from(format!("q{}", at + 1));
-            if at >= ANSWERED {
-                if let Some(fields) = question.as_object_mut() {
-                    fields.remove("answer");
-                    fields.remove("answeredBy");
+            match at {
+                0 => {}
+                1 => question["answer"] = written_answer(&question),
+                _ => {
+                    if let Some(fields) = question.as_object_mut() {
+                        fields.remove("answer");
+                        fields.remove("answeredBy");
+                    }
                 }
             }
             question
         })
         .collect()
+}
+
+/// The template's picked option and reason, as the person would write them.
+fn written_answer(question: &Value) -> Value {
+    let picked = &question["answer"]["options"][0];
+    let label = question["options"]
+        .as_array()
+        .and_then(|options| options.iter().find(|o| o["id"] == *picked))
+        .and_then(|option| option["label"].as_str())
+        .unwrap_or_default();
+    let note = question["answer"]["note"].as_str().unwrap_or_default();
+    serde_json::json!({ "kind": "text", "text": format!("{label}. {note}") })
 }
 
 fn threads(template: &str, now: &str) -> Result<Vec<CommentThread>, String> {
@@ -152,7 +162,7 @@ mod tests {
     use crate::base::ensure_base;
     use crate::comments::{self, ThreadState};
     use crate::plan::{self, Status};
-    use crate::work::{self, Answer, PrState, TodoState, WorkRecord};
+    use crate::work::{self, Answer, PrState, Role, TodoState, WorkRecord};
     use serde_json::Value;
     use std::path::Path;
 
@@ -199,6 +209,7 @@ mod tests {
             let plan = plan::parse(&text, path);
             assert!(!plan.derived, "{path:?}");
             assert!(text.contains("\ndemo: true\n"), "{path:?}");
+            assert!(plan.meta.demo, "{path:?}");
             assert_eq!(plan.meta.folders, ["Demo"], "{path:?}");
             assert_eq!(plan.meta.plan_type.as_deref(), Some("feature"), "{path:?}");
             assert_eq!(plan.meta.id, path.file_stem().unwrap().to_str().unwrap());
@@ -228,21 +239,41 @@ mod tests {
 
         let paths = seed_demo(&base, &panel).unwrap();
 
-        let record = record(&by_stage(&paths, Status::Alignment));
+        assert_asks(&record(&by_stage(&paths, Status::Alignment)), &panel);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_designer_is_asked_by_the_designer_panel() {
+        let base = temp_base("openplan-core-demo-designer");
+        let panel = ["design", "research", "accessibility", "engineering"];
+
+        let paths = seed_demo(&base, &panel).unwrap();
+
+        assert_asks(&record(&by_stage(&paths, Status::Alignment)), &panel);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    /// One question per panel role in the panel's order. The first is
+    /// answered with an option and a reason, the second in the person's own
+    /// words, and the rest are open.
+    fn assert_asks(record: &WorkRecord, panel: &[&str]) {
         let questions = &record.alignment.as_ref().unwrap().questions;
-        let roles: Vec<Value> = questions.iter().map(|q| serde_json::to_value(&q.role).unwrap()).collect();
-        assert_eq!(roles, panel.map(Value::from), "in the panel's order");
+        let roles: Vec<&str> = questions.iter().filter_map(|q| q.role.as_ref().map(Role::as_str)).collect();
+        assert_eq!(roles, panel, "in the panel's order");
         let ids: Vec<&str> = questions.iter().map(|q| q.id.as_str()).collect();
         assert_eq!(ids, ["q1", "q2", "q3", "q4"]);
-        for answered in &questions[..2] {
-            match &answered.answer {
-                Some(Answer::Chosen { note: Some(note), .. }) => assert!(!note.is_empty()),
-                other => panic!("{} should be answered with a reason: {other:?}", answered.id),
-            }
+        match &questions[0].answer {
+            Some(Answer::Chosen { note: Some(note), .. }) => assert!(!note.is_empty()),
+            other => panic!("q1 should be an option with a reason: {other:?}"),
         }
+        match &questions[1].answer {
+            Some(Answer::Text { text }) => assert!(!text.is_empty()),
+            other => panic!("q2 should be written by the person: {other:?}"),
+        }
+        assert!(questions[..2].iter().all(|q| q.answered_by.is_some()));
         assert!(questions[2..].iter().all(|q| q.answer.is_none() && q.answered_by.is_none()));
-        assert_eq!(work::pending_questions(&record), 2);
-        let _ = std::fs::remove_dir_all(&base.root);
+        assert_eq!(work::pending_questions(record), 2);
     }
 
     #[test]
@@ -267,17 +298,52 @@ mod tests {
     }
 
     #[test]
-    fn a_second_seed_writes_nothing() {
+    fn a_second_seed_writes_nothing_and_commits_nothing() {
         let base = temp_base("openplan-core-demo-twice");
         let first = seed_demo(&base, &DEFAULT_PANEL).unwrap();
         std::fs::write(&first[0], "---\ntitle: Mine now\ndemo: true\n---\n# Mine now\n").unwrap();
-        std::fs::remove_file(&first[1]).unwrap();
 
         let second = seed_demo(&base, &DEFAULT_PANEL).unwrap();
 
         assert_eq!(second, Vec::<PathBuf>::new());
         assert!(read(&first[0]).contains("Mine now"), "what the person changed stays");
-        assert!(!first[1].exists(), "what the person deleted stays deleted");
+        let relative = first[0].strip_prefix(&base.root).unwrap();
+        assert_eq!(crate::repo::history(&base.root, relative).unwrap().len(), 1, "the person's edit is left for them");
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_reseed_writes_back_only_the_missing_plans() {
+        let base = temp_base("openplan-core-demo-reseed");
+        let first = seed_demo(&base, &DEFAULT_PANEL).unwrap();
+        std::fs::remove_file(&first[1]).unwrap();
+        crate::repo::commit_all(&base.root, &crate::repo::Author::user(), "delete").unwrap();
+        let moved_on = read(&first[2]).replace("status: in-progress", "status: in-review");
+        std::fs::write(&first[2], &moved_on).unwrap();
+
+        let second = seed_demo(&base, &DEFAULT_PANEL).unwrap();
+
+        assert_eq!(second, [first[1].clone()]);
+        assert_eq!(plan::parse(&read(&first[1]), &first[1]).meta.status, Status::Alignment);
+        assert_eq!(read(&first[2]), moved_on, "a plan moved to a later stage stays where it is");
+        let relative = first[1].strip_prefix(&base.root).unwrap();
+        let latest = &crate::repo::history(&base.root, relative).unwrap()[0];
+        assert_eq!(latest.message, "add: demo plans", "the reseed is committed");
+        assert_eq!(crate::repo::read_at(&base.root, relative, &latest.id).unwrap(), read(&first[1]));
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_demo_plan_kept_elsewhere_in_the_base_is_not_written_again() {
+        let base = temp_base("openplan-core-demo-elsewhere");
+        let first = seed_demo(&base, &DEFAULT_PANEL).unwrap();
+        let kept = base.root.join("Kept").join("dark-mode.md");
+        std::fs::create_dir_all(kept.parent().unwrap()).unwrap();
+        std::fs::rename(&first[0], &kept).unwrap();
+
+        assert_eq!(seed_demo(&base, &DEFAULT_PANEL).unwrap(), Vec::<PathBuf>::new());
+
+        assert!(!first[0].exists());
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
@@ -287,9 +353,11 @@ mod tests {
         let taken = base.plans_dir().join("demo-add-dark-mode.md");
         std::fs::write(&taken, "# My own dark mode plan\n").unwrap();
 
-        assert_eq!(seed_demo(&base, &DEFAULT_PANEL).unwrap(), Vec::<PathBuf>::new());
+        let written = seed_demo(&base, &DEFAULT_PANEL).unwrap();
 
         assert_eq!(read(&taken), "# My own dark mode plan\n");
+        assert_eq!(written.len(), DEMOS.len() - 1);
+        assert!(!written.contains(&taken));
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
@@ -362,7 +430,6 @@ mod tests {
             assert_eq!(plan::serialize(&plan::parse(&text, path)), text, "{}", demo.file);
             if let Some(template) = demo.work {
                 let value: Value = serde_json::from_str(&template.replace(NOW, "x")).unwrap();
-                let value = only_roles(value, &DEFAULT_PANEL);
                 let typed: WorkRecord = serde_json::from_value(value.clone()).unwrap();
                 assert_eq!(serde_json::to_value(typed).unwrap(), value, "{}", demo.file);
             }
@@ -402,13 +469,5 @@ mod tests {
                 "security", "support"
             ]
         );
-    }
-
-    /// The questions of the roles `Role` holds today.
-    fn only_roles(mut value: Value, roles: &[&str]) -> Value {
-        if let Some(Value::Array(questions)) = value.pointer_mut("/alignment/questions") {
-            questions.retain(|q| roles.iter().any(|role| q["role"] == *role));
-        }
-        value
     }
 }
