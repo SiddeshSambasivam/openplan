@@ -76,6 +76,10 @@ pub struct Question {
     pub id: String,
     pub aspect: String,
     pub question: String,
+    /// Why the question matters for this plan, and what in the code or the
+    /// plan raised it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     pub options: Vec<Choice>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recommended: Option<String>,
@@ -95,6 +99,9 @@ pub struct Choice {
     pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub consequence: Option<String>,
+    /// What the option costs or gives up.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tradeoff: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -174,6 +181,7 @@ pub struct Pr {
 #[serde(rename_all = "lowercase")]
 pub enum PrState {
     Open,
+    Draft,
     Merged,
     Closed,
 }
@@ -372,7 +380,7 @@ pub fn progress(record: &WorkRecord) -> (usize, usize) {
 }
 
 /// What the board shows of one plan's record on its card: todo progress,
-/// the repos and how many PRs are merged.
+/// the repos and the PRs.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct PlanProgress {
     pub path: PathBuf,
@@ -384,8 +392,17 @@ pub struct PlanProgress {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct PrSummary {
-    pub total: usize,
-    pub merged: usize,
+    /// In the order the agent first reported them.
+    pub reported: Vec<PrReport>,
+    /// The plan works in a repo with a remote, so a PR is to come while none
+    /// is reported. A plain folder never gets one.
+    pub expected: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct PrReport {
+    pub url: String,
+    pub state: PrState,
 }
 
 /// Progress for each plan that has a record. A plan without one, or with one
@@ -396,18 +413,21 @@ pub fn progress_of(doc_paths: &[PathBuf]) -> Vec<PlanProgress> {
         .filter_map(|path| {
             let record = read(path).ok()??;
             let (done, total) = progress(&record);
-            let merged = record
+            let reported = record
                 .prs
                 .iter()
-                .filter(|pr| pr.state == PrState::Merged)
-                .count();
+                .map(|pr| PrReport {
+                    url: pr.url.clone(),
+                    state: pr.state,
+                })
+                .collect();
             Some(PlanProgress {
                 path: path.clone(),
                 done,
                 total,
                 prs: PrSummary {
-                    total: record.prs.len(),
-                    merged,
+                    reported,
+                    expected: record.repos.iter().any(|repo| repo.remote.is_some()),
                 },
                 repos: record.repos,
             })
@@ -511,10 +531,12 @@ mod tests {
             id: id.to_string(),
             aspect: "tests".to_string(),
             question: "Which tests?".to_string(),
+            context: None,
             options: vec![Choice {
                 id: "a".to_string(),
                 label: "Unit tests".to_string(),
                 consequence: None,
+                tradeoff: None,
             }],
             recommended: Some("a".to_string()),
             must_answer: false,
@@ -603,6 +625,60 @@ mod tests {
         assert_eq!(json["alignment"]["questions"][0]["mustAnswer"], false);
         assert_eq!(json["prs"][0]["review"], "changes-requested");
         assert!(json["prs"][0]["reportedAt"].is_string());
+    }
+
+    #[test]
+    fn a_draft_pr_round_trips() {
+        let dir = temp_dir("openplan-core-work-draft-pr");
+        let doc = dir.join("plan.md");
+
+        let record = modify(&doc, |r| {
+            record_pr(r, pr("https://x/pull/1", PrState::Draft));
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(read(&doc).unwrap().unwrap(), record);
+        assert_eq!(serde_json::to_value(&record).unwrap()["prs"][0]["state"], "draft");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_detailed_question_round_trips() {
+        let dir = temp_dir("openplan-core-work-detailed-question");
+        let doc = dir.join("plan.md");
+        let detailed = Question {
+            context: Some("`load` in `library.rs` reads every plan on each board open.".to_string()),
+            options: vec![Choice {
+                id: "a".to_string(),
+                label: "Cache in memory".to_string(),
+                consequence: Some("The board opens at once after the first time.".to_string()),
+                tradeoff: Some("Costs a full read on every launch.".to_string()),
+            }],
+            ..question("q1", Some(Answer::Agent {}))
+        };
+
+        let record = modify(&doc, |r| record_alignment(r, vec![detailed]).map_err(|ids| ids.join(","))).unwrap();
+
+        assert_eq!(read(&doc).unwrap().unwrap(), record);
+        let json = serde_json::to_value(&record).unwrap();
+        let question = &json["alignment"]["questions"][0];
+        assert!(question["context"].as_str().unwrap().contains("library.rs"));
+        assert_eq!(question["options"][0]["tradeoff"], "Costs a full read on every launch.");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_question_from_before_context_and_tradeoffs_still_reads() {
+        let question: Question = serde_json::from_str(
+            r#"{"id":"q1","aspect":"tests","question":"Which tests?","options":[{"id":"a","label":"Unit","consequence":"Fast"}],"answer":{"kind":"agent"}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(question.context, None);
+        assert_eq!(question.options[0].tradeoff, None);
+        let json = serde_json::to_value(&question).unwrap();
+        assert!(json.get("context").is_none() && json["options"][0].get("tradeoff").is_none());
     }
 
     #[test]
@@ -746,6 +822,16 @@ mod tests {
         assert!(all_prs_merged(&record));
 
         record_pr(&mut record, pr("https://x/pull/2", PrState::Open));
+        assert!(!all_prs_merged(&record));
+    }
+
+    #[test]
+    fn a_draft_pr_is_not_merged() {
+        let mut record = WorkRecord::default();
+        record_pr(&mut record, pr("https://x/pull/1", PrState::Merged));
+
+        record_pr(&mut record, pr("https://x/pull/2", PrState::Draft));
+
         assert!(!all_prs_merged(&record));
     }
 
@@ -930,7 +1016,7 @@ mod tests {
             add_todos(r, &texts(&["a", "b"]), "claude-code", None);
             set_repos(r, vec![repo.clone()]);
             record_pr(r, pr("https://github.com/owner/openplan/pull/1", PrState::Merged));
-            record_pr(r, pr("https://github.com/owner/openplan/pull/2", PrState::Open));
+            record_pr(r, pr("https://github.com/owner/openplan/pull/2", PrState::Draft));
             update_todo(r, "t1", TodoState::Done, None, "claude-code").map(|_| ())
         })
         .unwrap();
@@ -945,9 +1031,46 @@ mod tests {
                 done: 1,
                 total: 2,
                 repos: vec![repo],
-                prs: PrSummary { total: 2, merged: 1 },
+                prs: PrSummary {
+                    reported: vec![
+                        PrReport {
+                            url: "https://github.com/owner/openplan/pull/1".to_string(),
+                            state: PrState::Merged,
+                        },
+                        PrReport {
+                            url: "https://github.com/owner/openplan/pull/2".to_string(),
+                            state: PrState::Draft,
+                        },
+                    ],
+                    expected: true,
+                },
             }]
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_pr_is_expected_only_from_a_plan_that_works_in_a_git_repo() {
+        let dir = temp_dir("openplan-core-work-pr-expected");
+        let in_repo = dir.join("in-repo.md");
+        let in_folder = dir.join("in-folder.md");
+        let repo = |remote: Option<&str>| Repo {
+            path: "~/code/x".to_string(),
+            remote: remote.map(str::to_string),
+            branch: None,
+        };
+        for (doc, remote) in [(&in_repo, Some("github.com/owner/x")), (&in_folder, None)] {
+            modify(doc, |r| {
+                set_repos(r, vec![repo(remote)]);
+                Ok(())
+            })
+            .unwrap();
+        }
+
+        let listed = progress_of(&[in_repo, in_folder]);
+
+        let expected: Vec<_> = listed.iter().map(|p| p.prs.expected).collect();
+        assert_eq!(expected, [true, false]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

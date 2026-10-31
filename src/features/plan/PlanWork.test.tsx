@@ -136,6 +136,47 @@ describe("AlignmentTab", () => {
     expect(html.indexOf("Which tests?")).toBeLessThan(html.indexOf("D1. Ask in the harness"));
   });
 
+  it("shows why a question was asked and what the chosen option costs, the rest folded", () => {
+    const html = alignmentTab(
+      record({
+        alignment: {
+          askedAt: "2026-10-28T09:00:00Z",
+          questions: [
+            {
+              id: "q1",
+              aspect: "performance",
+              question: "Where does the plan cache live?",
+              context: "The board reads every plan file each time it opens.",
+              options: [
+                {
+                  id: "a",
+                  label: "In memory",
+                  consequence: "The board opens at once after launch.",
+                  tradeoff: "Launch reads every plan once.",
+                },
+                {
+                  id: "b",
+                  label: "On disk",
+                  consequence: "The board opens at once, even at launch.",
+                  tradeoff: "A second copy that can go stale.",
+                },
+              ],
+              recommended: "a",
+              mustAnswer: false,
+              answer: { kind: "option", options: ["a"] },
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(html).toContain("The board reads every plan file each time it opens.");
+    expect(html).toContain("The board opens at once after launch.");
+    expect(html).toContain("Launch reads every plan once.");
+    expect(html).toContain("Show the other options");
+    expect(html).not.toContain("A second copy that can go stale.");
+  });
+
   it("says alignment has not been recorded when the record has none", () => {
     expect(alignmentTab(null)).toContain("No alignment yet.");
     expect(alignmentTab(record({ decisions: [decision] }))).toContain(

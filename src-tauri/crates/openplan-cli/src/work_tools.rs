@@ -17,7 +17,7 @@ pub fn tools() -> Vec<Value> {
     vec![
         json!({
             "name": "record_alignment",
-            "description": "Record the alignment questions you asked in the harness and the person's answers, once the last answer arrives. Every question needs an answer. A draft moves to alignment.",
+            "description": "Record the alignment questions you asked in the harness and the person's answers, once the last answer arrives. Every question needs an answer. Fill each question's context and each option's consequence and tradeoff, so the plan page shows why it was asked and what each choice costs. A draft moves to alignment.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -30,6 +30,7 @@ pub fn tools() -> Vec<Value> {
                                 "id": { "type": "string", "description": "q1, q2, and on" },
                                 "aspect": { "type": "string", "description": "The question bank aspect, such as tests or edge cases" },
                                 "question": { "type": "string" },
+                                "context": { "type": "string", "description": "Two to four sentences on why this question matters for this plan and what you found in the code or the plan that raised it. Name the files where they apply." },
                                 "options": {
                                     "type": "array",
                                     "items": {
@@ -37,7 +38,8 @@ pub fn tools() -> Vec<Value> {
                                         "properties": {
                                             "id": { "type": "string" },
                                             "label": { "type": "string" },
-                                            "consequence": { "type": "string", "description": "One line" }
+                                            "consequence": { "type": "string", "description": "What happens if the person picks it, in one sentence" },
+                                            "tradeoff": { "type": "string", "description": "What it costs or gives up, and when it is the right pick, in one sentence" }
                                         },
                                         "required": ["id", "label"]
                                     }
@@ -132,7 +134,7 @@ pub fn tools() -> Vec<Value> {
         }),
         json!({
             "name": "record_pr",
-            "description": "Record a pull request after you open it, and again with the same url whenever its state, checks or review change.",
+            "description": "Record a pull request after you open it, and again with the same url whenever its state, checks or review change. Its state is draft while the PR is a draft.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -144,7 +146,7 @@ pub fn tools() -> Vec<Value> {
                             "repo": { "type": "string" },
                             "branch": { "type": "string" },
                             "todos": { "type": "array", "items": { "type": "string" }, "description": "The ids of the todos it covers" },
-                            "state": { "type": "string", "enum": ["open", "merged", "closed"] },
+                            "state": { "type": "string", "enum": ["open", "draft", "merged", "closed"], "description": "draft while the PR is a draft" },
                             "checks": { "type": "string", "enum": ["pending", "passing", "failing"] },
                             "review": { "type": "string", "enum": ["waiting", "changes-requested", "approved"] }
                         },
@@ -373,6 +375,10 @@ pub fn render_pr_body(
         out.push_str("## What was agreed\n\n");
         for question in &alignment.questions {
             out.push_str(&format!("- {} {}\n", question.question, answer_line(question)));
+            if let Some(context) = question.context.as_ref().filter(|_| departs(question)) {
+                let one_line = context.split_whitespace().collect::<Vec<_>>().join(" ");
+                out.push_str(&format!("  {one_line}\n"));
+            }
         }
         out.push('\n');
     }
@@ -461,6 +467,19 @@ fn answer_line(question: &Question) -> String {
     }
 }
 
+/// Whether the answer is other than the recommended option. Why a question
+/// was asked is worth a reviewer's time only then.
+fn departs(question: &Question) -> bool {
+    match &question.answer {
+        Some(Answer::Chosen { options }) => question
+            .recommended
+            .as_ref()
+            .is_some_and(|recommended| options != std::slice::from_ref(recommended)),
+        Some(Answer::Text { .. }) => true,
+        Some(Answer::Agent {}) | None => false,
+    }
+}
+
 /// Changes the record under its lock. A plan from before 0.3.0 carries its
 /// PR in frontmatter, and the first write copies it in.
 fn change_record(
@@ -530,6 +549,7 @@ mod tests {
             id: id.to_string(),
             label: label.to_string(),
             consequence: None,
+            tradeoff: None,
         }
     }
 
@@ -538,6 +558,7 @@ mod tests {
             id: id.to_string(),
             aspect: "tests".to_string(),
             question: text.to_string(),
+            context: Some(format!("Why {id} came up.")),
             options: vec![choice("a", "Unit tests"), choice("b", "Unit and end-to-end tests")],
             recommended: Some("a".to_string()),
             must_answer: false,
@@ -566,7 +587,14 @@ mod tests {
                 questions: vec![
                     question("q1", "What has to be tested?", Answer::Chosen { options: vec!["b".to_string()] }),
                     question("q2", "Where does the logic live?", Answer::Agent {}),
-                    question("q3", "What happens to old records?", Answer::Text { text: "Leave them.".to_string() }),
+                    Question {
+                        context: None,
+                        ..question("q3", "What happens to old records?", Answer::Text { text: "Leave them.".to_string() })
+                    },
+                    Question {
+                        context: Some("The guard reads the record.\n\nOld records have no todos.".to_string()),
+                        ..question("q4", "Who may skip the guard?", Answer::Text { text: "Nobody.".to_string() })
+                    },
                 ],
             }),
             decisions: vec![Decision {
@@ -626,6 +654,43 @@ mod tests {
     #[test]
     fn a_summary_section_stops_at_the_next_section() {
         assert_eq!(summary(BODY), "The server refuses moves the work has not earned.\n\n```sh\n# not a heading\n```");
+    }
+
+    #[test]
+    fn context_is_printed_only_where_the_answer_departs_from_the_recommendation() {
+        let body = render_pr_body("p", "P", "", &record(), None);
+
+        assert!(body.contains("  Why q1 came up.\n"), "{body}");
+        assert!(!body.contains("Why q2"), "{body}");
+        assert!(body.contains("  The guard reads the record. Old records have no todos.\n"), "{body}");
+    }
+
+    fn schema_of(tool: &str) -> Value {
+        tools()
+            .into_iter()
+            .find(|t| t["name"] == tool)
+            .unwrap_or_else(|| panic!("no {tool}"))["inputSchema"]
+            .clone()
+    }
+
+    #[test]
+    fn record_pr_takes_a_draft_state() {
+        let tool = tools().into_iter().find(|t| t["name"] == "record_pr").unwrap();
+        let states = &schema_of("record_pr")["properties"]["pr"]["properties"]["state"]["enum"];
+
+        assert_eq!(states, &json!(["open", "draft", "merged", "closed"]));
+        assert!(tool["description"].as_str().unwrap().contains("draft while the PR is a draft"));
+    }
+
+    #[test]
+    fn record_alignment_asks_for_each_questions_context_and_each_options_tradeoff() {
+        let tool = tools().into_iter().find(|t| t["name"] == "record_alignment").unwrap();
+        let question = &schema_of("record_alignment")["properties"]["questions"]["items"];
+
+        assert!(question["properties"]["context"]["description"].is_string());
+        assert!(question["properties"]["options"]["items"]["properties"]["tradeoff"]["description"].is_string());
+        let description = tool["description"].as_str().unwrap();
+        assert!(description.contains("context") && description.contains("tradeoff"), "{description}");
     }
 
     #[test]

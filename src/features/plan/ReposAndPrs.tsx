@@ -1,4 +1,5 @@
-import { Folder, FolderGit2, GitBranch, GitPullRequest } from "lucide-react";
+import { Folder, FolderGit2, GitBranch } from "lucide-react";
+import { PrGlyph } from "@/components/PlanFacts";
 import { Badge } from "@/components/ui/badge";
 import { openExternal } from "@/lib/platform";
 import { prBadges, prLabel, type Pr, type Repo } from "@/lib/work";
@@ -31,7 +32,7 @@ export function ReposAndPrs({ repos, prs }: { repos: Repo[]; prs: Pr[] }) {
         ))}
         {prs.map((pr) => (
           <li key={pr.url} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-            <GitPullRequest aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+            <PrGlyph state={pr.state} className="size-3.5" />
             <a
               href={pr.url}
               title={pr.url}
