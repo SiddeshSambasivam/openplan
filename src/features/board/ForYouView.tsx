@@ -1,6 +1,6 @@
 import { MessageCircleQuestionMark, MessageSquareText } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
-import { NewBadge, PlanRowFacts } from "@/components/PlanFacts";
+import { DemoBadge, NewBadge, PlanRowFacts } from "@/components/PlanFacts";
 import type { CardDisplay } from "@/lib/cardDisplay";
 import { useNewPlans } from "@/lib/newPlans";
 import type { PlanProgress } from "@/lib/work";
@@ -73,7 +73,7 @@ function Group({
                   <StatusGlyph status={plan.status} />
                   <span className="flex min-w-0 flex-1 items-center gap-2">
                     <span className="truncate font-medium">{plan.title}</span>
-                    {fresh.has(plan.path) && <NewBadge />}
+                    {plan.demo ? <DemoBadge /> : fresh.has(plan.path) && <NewBadge />}
                   </span>
                   <span className="flex items-center gap-3 text-xs text-muted-foreground">
                     <PlanRowFacts

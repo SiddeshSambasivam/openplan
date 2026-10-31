@@ -8,7 +8,7 @@ import { STATUS_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { branchHolds, buildSetTree, type SetNode } from "@/lib/planTree";
 import type { PlanProgress } from "@/lib/work";
-import { NewBadge, PlanRowFacts } from "./PlanFacts";
+import { DemoBadge, NewBadge, PlanRowFacts } from "./PlanFacts";
 import { StatusGlyph } from "./StatusGlyph";
 import {
   PlanContextMenu,
@@ -250,7 +250,8 @@ const PlanRow = memo(function PlanRow({
   sessions: number;
   work?: PlanProgress;
   display: CardDisplay;
-  /** Filed in the last few minutes: the row carries a New tag. */
+  /** Filed in the last few minutes: the row carries a New tag, unless it
+   * is a demo plan, which carries a Demo tag. */
   fresh: boolean;
   expanded: boolean;
   /** Null unless this row is the one being renamed. */
@@ -329,7 +330,7 @@ const PlanRow = memo(function PlanRow({
           ) : (
             <span className="flex min-w-0 flex-1 items-center gap-2">
               <span className="truncate font-medium">{plan.title}</span>
-              {fresh && <NewBadge />}
+              {plan.demo ? <DemoBadge /> : fresh && <NewBadge />}
             </span>
           )}
           <span className="flex items-center gap-3 text-xs text-muted-foreground">
