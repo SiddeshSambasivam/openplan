@@ -136,6 +136,9 @@ import { addFolder, filterByFolder, removeFolder, type FolderFilter } from "./li
 import { loadRecent, pushRecent, saveRecent } from "./lib/recent";
 import { BoardView } from "./features/board/BoardView";
 import { DisplayMenu } from "./features/board/DisplayMenu";
+import { PrRefreshButton } from "./features/board/PrRefreshButton";
+import { PrReadsAvailable } from "./lib/prState";
+import { usePrStateRefresh } from "./lib/usePrStateRefresh";
 import { ForYouView } from "./features/board/ForYouView";
 import { ListView } from "./features/board/ListView";
 import { DeletePlansDialog } from "./features/board/DeletePlansDialog";
@@ -667,7 +670,18 @@ export default function App() {
   }, []);
 
   const workRecord = useWorkRecord(activePlan?.path ?? null);
-  const offerCompletion = activePlan != null && offersCompletion(activePlan.status, workRecord);
+  const offerCompletion =
+    activePlan != null && offersCompletion(activePlan.status, workRecord?.prs);
+  const prState = usePrStateRefresh({
+    plans,
+    progress: workProgress,
+    sessions,
+    openPlanPath: mainView === "plan" ? (activePlan?.path ?? null) : null,
+  });
+  const completePlan = useCallback(
+    (plan: PlanSummary) => void setPlanStatus(plan.path, "completed").then(refreshPlans),
+    [refreshPlans],
+  );
 
   const changeFolders = useCallback(
     (plan: PlanSummary, folders: string[]) => {
@@ -1698,7 +1712,7 @@ export default function App() {
   };
   useShortcuts(shortcutHandlers);
 
-  return (
+  const page = (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
       {/* The column holds the navbar's place in the layout. In a narrow
           window it keeps the minimized width and the navbar grows over the
@@ -1787,7 +1801,14 @@ export default function App() {
           onSelectFolder={setChosenFolder}
           viewTools={
             mainView === "board" && (
-              <DisplayMenu display={cardDisplay} onChange={changeCardDisplay} />
+              <>
+                <PrRefreshButton
+                  refreshing={prState.refreshing}
+                  available={prState.available}
+                  onRefresh={prState.refreshAll}
+                />
+                <DisplayMenu display={cardDisplay} onChange={changeCardDisplay} />
+              </>
             )
           }
           doc={activeDoc}
@@ -1829,6 +1850,7 @@ export default function App() {
               folders={knownFolders}
               onFoldersChange={changeFolders}
               onOpen={selectPlan}
+              onComplete={completePlan}
             />
           </SelectionArea>
         )}
@@ -2095,4 +2117,5 @@ export default function App() {
       )}
     </div>
   );
+  return <PrReadsAvailable.Provider value={prState.available}>{page}</PrReadsAvailable.Provider>;
 }

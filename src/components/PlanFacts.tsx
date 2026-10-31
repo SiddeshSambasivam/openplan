@@ -12,13 +12,14 @@ import {
   User,
   type LucideIcon,
 } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Fragment, useContext, useState } from "react";
 import { ClaudeCodeIcon, CodexIcon, CursorIcon } from "./AgentIcons";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { shortDate } from "@/lib/board";
 import type { CardDisplay } from "@/lib/cardDisplay";
 import { SOURCE_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
+import { PR_STATE_NOTE, PrReadsAvailable } from "@/lib/prState";
 import { cn } from "@/lib/utils";
 import {
   mostAdvancedPr,
@@ -200,13 +201,15 @@ const AVATAR_PX = 32;
  * A plan in a repo with no PR yet shows a muted icon, and a plan with no
  * repo shows nothing. */
 export function PrCount({ prs }: { prs?: PrSummary }) {
+  const readsAvailable = useContext(PrReadsAvailable);
   if (!prs) return null;
   const state = mostAdvancedPr(prs.reported.map((pr) => pr.state));
   if (!state && !prs.expected) return null;
   const count = prs.reported.length;
+  const summary = prSummaryText(prs);
   return (
     <span
-      title={prSummaryText(prs)}
+      title={readsAvailable || count === 0 ? summary : `${summary}\n\n${PR_STATE_NOTE}`}
       className="flex shrink-0 items-center gap-1 tabular-nums"
     >
       <PrGlyph state={state ?? "none"} className="size-3" />

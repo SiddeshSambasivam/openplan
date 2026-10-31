@@ -22,6 +22,7 @@ import {
   TODO_MARKS,
   todoTitle,
   type Pr,
+  type PrSummary,
   type Question,
   type Todo,
   type TodoState,
@@ -365,7 +366,7 @@ describe("prBadges", () => {
 });
 
 describe("offersCompletion", () => {
-  const withPrs = (prs: Pr[]): WorkRecord => ({ ...record([]), prs });
+  const withPrs = (prs: Pr[]) => prs;
 
   it("offers completion once every recorded PR on an in-review plan is merged", () => {
     const merged = withPrs([pr({ state: "merged" }), pr({ url: "b", state: "merged" })]);
@@ -388,7 +389,14 @@ describe("offersCompletion", () => {
 
   it("offers nothing for a plan with no PRs or no record", () => {
     expect(offersCompletion("in-review", withPrs([]))).toBe(false);
-    expect(offersCompletion("in-review", null)).toBe(false);
+    expect(offersCompletion("in-review", undefined)).toBe(false);
+  });
+
+  it("reads a card's PR summary the same way", () => {
+    const reported = (state: Pr["state"]): PrSummary["reported"] => [{ url: "a", state }];
+
+    expect(offersCompletion("in-review", reported("merged"))).toBe(true);
+    expect(offersCompletion("in-review", reported("open"))).toBe(false);
   });
 
   it("offers nothing outside in-review", () => {

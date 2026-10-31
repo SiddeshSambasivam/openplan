@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Check,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -18,7 +19,7 @@ import type { ContentWidth } from "../lib/width";
 import type { FolderFilter } from "../lib/folders";
 import { VIEW_LABELS, type ListView } from "../lib/origin";
 import type { PlanSummary, Status } from "../lib/planBase";
-import type { TodoCount } from "../lib/work";
+import { COMPLETION_PROMPT, type TodoCount } from "../lib/work";
 import { navbarToggleLabel } from "../lib/navbar";
 import { cn } from "../lib/utils";
 import { BrandMark } from "./BrandMark";
@@ -264,7 +265,7 @@ export function Header({
       {onPlan && offerCompletion && (
         <>
           <span className="truncate pl-1 text-xs text-muted-foreground">
-            All pull requests are merged.
+            {COMPLETION_PROMPT.said}
           </span>
           <TooltipButton
             size="xs"
@@ -272,7 +273,8 @@ export function Header({
             onClick={() => onStatusChange("completed")}
             tooltip="Move this plan to Completed"
           >
-            Mark completed
+            <Check />
+            {COMPLETION_PROMPT.asked}
           </TooltipButton>
         </>
       )}

@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { PR_STATE_NOTE, PrReadsAvailable } from "@/lib/prState";
 import type { PrSummary } from "@/lib/work";
 import { PrCount, PrGlyph, QuestionCount, RepoMark } from "./PlanFacts";
 
@@ -50,6 +51,20 @@ describe("PrCount", () => {
 
     expect(html).toContain("lucide-git-pull-request-create");
     expect(html).toContain("No pull request yet");
+  });
+
+  it("says the state is the agent's report while the app cannot read it", () => {
+    const html = (prs: PrSummary, available: boolean) =>
+      renderToStaticMarkup(
+        <PrReadsAvailable.Provider value={available}>
+          <PrCount prs={prs} />
+        </PrReadsAvailable.Provider>,
+      );
+    const note = PR_STATE_NOTE.replace(/'/g, "&#x27;");
+
+    expect(html(summary(["open"]), false)).toContain(note);
+    expect(html(summary(["open"]), true)).not.toContain(note);
+    expect(html(summary([]), false)).not.toContain(note);
   });
 
   it("shows nothing for a plan that has no repo and no PR", () => {

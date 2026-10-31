@@ -41,6 +41,7 @@ function board(
         folders={[]}
         onFoldersChange={() => {}}
         onOpen={() => {}}
+        onComplete={() => {}}
       />
     </TooltipProvider>,
   );
@@ -127,5 +128,40 @@ describe("BoardView card display", () => {
 
     expect(board([fresh])).toContain(">New<");
     expect(board([old])).not.toContain(">New<");
+  });
+});
+
+describe("BoardView completion prompt", () => {
+  const work = (path: string, states: ("open" | "merged")[]): PlanProgress => ({
+    path,
+    done: 0,
+    total: 0,
+    pendingQuestions: 0,
+    repos: [],
+    prs: {
+      reported: states.map((state, n) => ({ url: `https://github.com/o/r/pull/${n}`, state })),
+      expected: true,
+    },
+  });
+
+  it("asks to complete an in-review plan once every PR reads merged", () => {
+    const html = board(
+      [plan("a", "in-review")],
+      CARD_DISPLAY_DEFAULTS,
+      new Map([["/base/a.md", work("/base/a.md", ["merged", "merged"])]]),
+    );
+
+    expect(html).toContain("All PRs merged.");
+    expect(html).toContain("Mark completed?");
+  });
+
+  it("asks nothing while a PR is open", () => {
+    const html = board(
+      [plan("a", "in-review")],
+      CARD_DISPLAY_DEFAULTS,
+      new Map([["/base/a.md", work("/base/a.md", ["merged", "open"])]]),
+    );
+
+    expect(html).not.toContain("Mark completed?");
   });
 });

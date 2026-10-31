@@ -14,6 +14,11 @@ export function sessionCounts(sessions: LiveSession[]): Map<string, number> {
   return counts;
 }
 
+/** The plans that had a session in `before` and have none in `after`. */
+export function plansLeft(before: Map<string, number>, after: Map<string, number>): string[] {
+  return [...before.keys()].filter((plan) => !after.has(plan));
+}
+
 /** What the top bar says after a review or Build went out. With no session
  * on the plan, the next session to take it hears it. */
 export function deliveryLine(sessions: number): string {

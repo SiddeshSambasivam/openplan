@@ -59,6 +59,30 @@ function expandMark(html: string): string {
 }
 
 describe("Header", () => {
+  it("asks to complete the plan once every PR reads merged", () => {
+    const plan = {
+      id: "a",
+      title: "Plan a",
+      status: "in-review" as const,
+      type: null,
+      source: "claude-code" as const,
+      pr: null,
+      created: null,
+      updated: null,
+      path: "/base/a.md",
+      relativePath: "a.md",
+      documents: [],
+      folders: [],
+      completed: null,
+    };
+
+    const html = bar({ mainView: "plan", title: "Plan a", plan, offerCompletion: true });
+
+    expect(html).toContain("All PRs merged.");
+    expect(html).toContain("Mark completed?");
+    expect(bar({ mainView: "plan", title: "Plan a", plan })).not.toContain("Mark completed?");
+  });
+
   it("has no theme control, which lives in the profile menu", () => {
     expect(bar()).not.toMatch(/theme/i);
   });

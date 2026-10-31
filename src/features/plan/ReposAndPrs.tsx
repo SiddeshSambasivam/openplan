@@ -1,13 +1,16 @@
 import { GitBranch } from "lucide-react";
+import { useContext } from "react";
 import { PrGlyph, RepoMark } from "@/components/PlanFacts";
 import { Badge } from "@/components/ui/badge";
 import { openExternal } from "@/lib/platform";
+import { PR_STATE_NOTE, PrReadsAvailable } from "@/lib/prState";
 import { prBadges, prLabel, type Pr, type Repo } from "@/lib/work";
 import { WorkHeading } from "./WorkHeading";
 
 /** Where the work happens and what it has opened for review. PR state is
- * what the agent last reported. */
+ * what the agent last reported, or what the app last read. */
 export function ReposAndPrs({ repos, prs }: { repos: Repo[]; prs: Pr[] }) {
+  const readsAvailable = useContext(PrReadsAvailable);
   return (
     <section>
       <WorkHeading title="Repos and PRs" />
@@ -40,8 +43,13 @@ export function ReposAndPrs({ repos, prs }: { repos: Repo[]; prs: Pr[] }) {
             >
               {prLabel(pr.url)}
             </a>
-            {prBadges(pr).map((badge) => (
-              <Badge key={badge.label} variant={badge.variant} className="font-normal">
+            {prBadges(pr).map((badge, index) => (
+              <Badge
+                key={badge.label}
+                variant={badge.variant}
+                title={index === 0 && !readsAvailable ? PR_STATE_NOTE : undefined}
+                className="font-normal"
+              >
                 {badge.label}
               </Badge>
             ))}

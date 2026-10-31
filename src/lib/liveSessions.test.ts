@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deliveryLine, sessionCounts, wakeLine } from "./liveSessions";
+import { deliveryLine, plansLeft, sessionCounts, wakeLine } from "./liveSessions";
 
 const session = (id: string, plans: string[]) => ({
   id,
@@ -60,5 +60,25 @@ describe("wakeLine", () => {
     expect(wakeLine(false)).toBe(
       "Couldn't wake the session. It will hear on your next message.",
     );
+  });
+});
+
+describe("plansLeft", () => {
+  it("names the plans whose last session left", () => {
+    const before = new Map([
+      ["auth-refactor", 1],
+      ["token-refresh", 2],
+      ["search", 1],
+    ]);
+    const after = new Map([
+      ["token-refresh", 1],
+      ["search", 1],
+    ]);
+
+    expect(plansLeft(before, after)).toEqual(["auth-refactor"]);
+  });
+
+  it("names none when sessions only arrive", () => {
+    expect(plansLeft(new Map(), new Map([["search", 1]]))).toEqual([]);
   });
 });

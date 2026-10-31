@@ -51,6 +51,7 @@ function render(plans: PlanSummary[], selected: string[]) {
           folders={[]}
           onFoldersChange={() => {}}
           onOpen={() => {}}
+          onComplete={() => {}}
         />
       </SelectionArea>
     </TooltipProvider>,

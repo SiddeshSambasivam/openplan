@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Folder } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Folder } from "lucide-react";
 import { memo, useMemo, useState, type ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FolderPicker } from "@/components/FolderPicker";
@@ -28,7 +28,7 @@ import { entrance, useMountedKeys } from "@/lib/motion";
 import { useNewPlans } from "@/lib/newPlans";
 import { STATUS_HINTS, STATUS_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
-import type { PlanProgress } from "@/lib/work";
+import { COMPLETION_PROMPT, offersCompletion, type PlanProgress } from "@/lib/work";
 import { PlanContextMenu, SELECTED_CARD, useSelectedMark } from "./PlanActions";
 
 interface BoardViewProps {
@@ -44,12 +44,15 @@ interface BoardViewProps {
   folders: string[];
   onFoldersChange: (plan: PlanSummary, folders: string[]) => void;
   onOpen: (plan: PlanSummary) => void;
+  /** The person accepts a card's offer to complete its plan. */
+  onComplete: (plan: PlanSummary) => void;
 }
 
 interface CardActions {
   folders: string[];
   onFoldersChange: (plan: PlanSummary, folders: string[]) => void;
   onOpen: (plan: PlanSummary) => void;
+  onComplete: (plan: PlanSummary) => void;
 }
 
 function Card({
@@ -78,6 +81,7 @@ function Card({
 }) {
   const enter = entrance(index, mountedWith);
   const selected = useSelectedMark(plan.path);
+  const completable = offersCompletion(plan.status, work?.prs.reported);
   return (
     // The menu sits beside the card's button rather than inside it: a
     // button cannot hold another one.
@@ -118,7 +122,27 @@ function Card({
               </span>
             )}
           </span>
+          {/* The button that answers sits over the empty line below the
+              prompt: a button cannot hold another one. */}
+          {completable && (
+            <span className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+              {COMPLETION_PROMPT.said}
+              <span aria-hidden className="h-6" />
+            </span>
+          )}
         </button>
+        {completable && (
+          <TooltipButton
+            size="xs"
+            variant="outline"
+            onClick={() => actions.onComplete(plan)}
+            tooltip="Move this plan to Completed"
+            className="absolute bottom-3 left-3"
+          >
+            <Check />
+            {COMPLETION_PROMPT.asked}
+          </TooltipButton>
+        )}
         {/* The tag gives way to the folder menu, which opens in its place. */}
         {fresh && (
           <NewBadge className="pointer-events-none absolute top-2.5 right-2 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0" />
@@ -281,6 +305,7 @@ export const BoardView = memo(function BoardView({
   folders,
   onFoldersChange,
   onOpen,
+  onComplete,
 }: BoardViewProps) {
   const columns = useMemo(() => boardColumns(plans), [plans]);
   const fresh = useNewPlans(plans);
@@ -290,7 +315,7 @@ export const BoardView = memo(function BoardView({
   );
   // Finished work starts folded; opening a column is for this visit only.
   const [unfolded, setUnfolded] = useState<Status[]>([]);
-  const actions = { folders, onFoldersChange, onOpen };
+  const actions = { folders, onFoldersChange, onOpen, onComplete };
 
   if (plans.length === 0) {
     return <EmptyState title="No plans yet" hint="Your agents will file them here." />;

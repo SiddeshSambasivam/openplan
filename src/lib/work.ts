@@ -95,7 +95,8 @@ export interface Todo {
 
 export type PrState = "open" | "draft" | "merged" | "closed";
 
-/** What the agent last reported. The app never fetches PR state. */
+/** What the agent last reported, or what the app last read with the
+ * person's GitHub CLI. */
 export interface Pr {
   url: string;
   repo?: string;
@@ -352,12 +353,20 @@ export function showsWorkPanel(record: WorkRecord | null): boolean {
   return record.todos.length + record.repos.length + record.prs.length > 0;
 }
 
-/** Completed stays the person's call. The app offers it once the agent has
- * reported every PR merged, which it never checks for itself. */
-export function offersCompletion(status: Status, record: WorkRecord | null): boolean {
-  const prs = record?.prs ?? [];
-  return status === "in-review" && prs.length > 0 && prs.every((pr) => pr.state === "merged");
+/** Completed stays the person's call. The app offers it once every PR on
+ * the plan reads merged, and never completes the plan itself. Takes a
+ * record's PRs or a card's summary of them. */
+export function offersCompletion(
+  status: Status,
+  prs: { state: PrState }[] | undefined,
+): boolean {
+  return (
+    status === "in-review" && prs != null && prs.length > 0 && prs.every((pr) => pr.state === "merged")
+  );
 }
+
+/** What the top bar and a card ask once every PR reads merged. */
+export const COMPLETION_PROMPT = { said: "All PRs merged.", asked: "Mark completed?" };
 
 /** A PR link short enough for a row: `owner/repo#12` where the host's URL
  * shape is known. */
