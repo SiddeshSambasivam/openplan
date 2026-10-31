@@ -75,6 +75,8 @@ pub struct Alignment {
 pub struct Question {
     pub id: String,
     pub aspect: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<Role>,
     pub question: String,
     /// Why the question matters for this plan, and what in the code or the
     /// plan raised it.
@@ -93,6 +95,17 @@ pub struct Question {
     /// rounds have none and count as the first.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub round: Option<u32>,
+}
+
+/// Who on a team would ask the question.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    Product,
+    Engineering,
+    Design,
+    /// The person paged when it breaks.
+    Oncall,
 }
 
 /// One option offered for a question.
@@ -584,6 +597,7 @@ mod tests {
         Question {
             id: id.to_string(),
             aspect: "tests".to_string(),
+            role: None,
             question: "Which tests?".to_string(),
             context: None,
             options: vec![Choice {
@@ -731,9 +745,24 @@ mod tests {
         .unwrap();
 
         assert_eq!(question.context, None);
+        assert_eq!(question.role, None);
         assert_eq!(question.options[0].tradeoff, None);
         let json = serde_json::to_value(&question).unwrap();
         assert!(json.get("context").is_none() && json["options"][0].get("tradeoff").is_none());
+    }
+
+    #[test]
+    fn a_question_says_which_role_asks_it() {
+        let roles = [Role::Product, Role::Engineering, Role::Design, Role::Oncall];
+
+        let written = serde_json::to_value(roles).unwrap();
+
+        assert_eq!(written, serde_json::json!(["product", "engineering", "design", "oncall"]));
+        let asked = Question {
+            role: Some(Role::Oncall),
+            ..question("q1", None)
+        };
+        assert_eq!(serde_json::to_value(&asked).unwrap()["role"], "oncall");
     }
 
     #[test]

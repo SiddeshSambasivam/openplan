@@ -29,6 +29,11 @@ pub fn tools() -> Vec<Value> {
                             "properties": {
                                 "id": { "type": "string", "description": "q1, q2, and on" },
                                 "aspect": { "type": "string", "description": "The question bank aspect, such as tests or edge cases" },
+                                "role": {
+                                    "type": "string",
+                                    "enum": ["product", "engineering", "design", "oncall"],
+                                    "description": "Who asks it: product is the product owner, engineering the tech lead, design the designer, and oncall the on-call engineer, the person paged when it breaks"
+                                },
                                 "question": { "type": "string" },
                                 "context": { "type": "string", "description": "Two to four sentences on why this question matters for this plan and what you found in the code or the plan that raised it. Name the files where they apply." },
                                 "options": {
@@ -567,6 +572,7 @@ mod tests {
         Question {
             id: id.to_string(),
             aspect: "tests".to_string(),
+            role: None,
             question: text.to_string(),
             context: Some(format!("Why {id} came up.")),
             options: vec![choice("a", "Unit tests"), choice("b", "Unit and end-to-end tests")],
@@ -703,6 +709,17 @@ mod tests {
         assert!(question["properties"]["options"]["items"]["properties"]["tradeoff"]["description"].is_string());
         let description = tool["description"].as_str().unwrap();
         assert!(description.contains("context") && description.contains("tradeoff"), "{description}");
+    }
+
+    #[test]
+    fn a_question_names_one_of_four_roles_and_says_what_each_is() {
+        let role = &schema_of("record_alignment")["properties"]["questions"]["items"]["properties"]["role"];
+
+        assert_eq!(role["enum"], json!(["product", "engineering", "design", "oncall"]));
+        let description = role["description"].as_str().unwrap();
+        for who in ["product owner", "tech lead", "designer", "the person paged when it breaks"] {
+            assert!(description.contains(who), "{description}");
+        }
     }
 
     #[test]

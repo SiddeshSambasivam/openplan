@@ -707,6 +707,7 @@ mod tests {
             vec![Question {
                 id: "q1".to_string(),
                 aspect: "tests".to_string(),
+                role: None,
                 question: "Which tests?".to_string(),
                 context: None,
                 options: Vec::new(),
