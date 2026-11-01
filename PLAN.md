@@ -236,10 +236,14 @@ which brings back any demo plan the person deleted. Finishing the tour shows a
 bubble, a plan landing in Draft and two reviewers asking, under "Start a session
 with your agent".
 
-Importing existing plans lives in Settings > Import plans (0.3.0): it runs
-discovery each time the section opens, lists each agent's loose plans and folders
-that look like plans, and importing **copies** (the originals stay put). Imported
-hashes are remembered, so a second import skips what is already filed.
+The last screen also offers "Open OpenPlan when you log in", off by default, with
+the same switch in Settings > General. On macOS the window's close button hides
+the window and the app keeps running, so agents stay connected; the Dock icon
+brings it back and Cmd+Q saves, then quits. Elsewhere closing the window quits.
+
+The app no longer imports plans or scans folders (0.7.0 fix): agent detection
+reads only `~/.claude`, `~/.codex` and `~/.cursor`, so macOS never asks for
+Documents, Downloads or Music. `openplan import` in the CLI still copies a plan in.
 
 ### 4.2 Reading & tracking
 
@@ -1401,6 +1405,9 @@ Run on a release build, or `pnpm tauri dev` with the dev profile.
 | 2026-11-01 | Phase 9 decisions D1 to D20, in full with their options in the filed plan "Ask the person's role during onboarding and let it decide which personas go deep": the role picks a panel of four from nine personas, each in depth or plain words (D1, D15); the role lives in the person's settings and reaches agents through `get_standards` (D2, D3); one `person_roles.json` feeds Rust and TypeScript (D4); six roles (D6); onboarding follows the app theme with the app's lockup (D7, D13); a hint on the Alignment tab for people with no role (D8); agents are picked, then set up with visible steps and Retry (D9, D10); five demo plans, one per stage, marked `demo: true` and hidden from agents (D11, D14); an in-app tour over the real screens instead of slides (D12), with three try-it steps, a Resume pill, and a replay that restores only missing demo plans (D18 to D20); questions outside the panel go to its closest member in plain words, one to three a round (D16, D17) | Sid, through the plan's alignment rounds and review, 2026-10-31 to 2026-11-01 |
 | 2026-11-01 | After trying the build: every panel reviewer asks in depth, so the plain-words voice and its tags are gone (supersedes D1 and D5 in part); the onboarding rays sway on every step and lean toward the pointer; the tour ends on a "You're ready" card over the dimmed board; the empty board shows what a session with an agent leads to; demo cards drop their duplicate Demo folder chip | Sid, 2026-11-01, trying the dev build |
 | 2026-11-01 | Phase 9 ships as 0.7.0, a beta: Settings > About tags the version Beta and says it lasts until 1.0.0, the first release Sid calls proper. Released from `main` with GATE 7, 8 and 9 QA still owed | Sid, 2026-11-01: "Increase the version to 0.7.0 and show a beta tag in about", then "push and deploy this release" |
+| 2026-11-01 | On macOS the close button hides the window and the app keeps running until Cmd+Q; the Dock icon reopens it. Supersedes the 2026-09-22 rule that the loopback server lives and dies with the window | Sid (bug plan q1): agents should stay connected after the window closes. One process, no daemon, event-driven, so idle cost stays near zero (NFR-8). A custom Quit item lets the page save first, since the stock Quit ends the app before it can |
+| 2026-11-01 | "Open OpenPlan when you log in", off by default, on onboarding's last screen and in Settings > General, through `tauri-plugin-autostart` (LaunchAgent on macOS) | Sid (q2): ask before starting at login. The official Tauri plugin is the one new dependency: login items differ on every platform, and it covers all three |
+| 2026-11-01 | Settings > Import plans and the folder scan are removed; agent detection reads only the agents' own folders | Sid (q3): remove Import plans. The scan of Desktop, Documents and home was what made macOS ask for Downloads, Documents and Music. Supersedes the 2026-10-29 move of import into Settings. The CLI's `openplan import` stays |
 | 2026-10-31 | The license is Apache 2.0, not MIT | Sid's call. It allows the same use as MIT and adds an explicit patent grant and terms for contributions, which matter once pull requests are accepted. Rejected: GPL-3.0 (forces forks open, deters adoption) and the Functional Source License (not open source) |
 | 2026-10-31 | macOS builds are ad-hoc signed (`bundle.macOS.signingIdentity: "-"`) and not notarized | Sid has no Apple Developer ID. An unsigned download can fail with "is damaged and can't be opened", which only `xattr` gets past; an ad-hoc signed one gets Open Anyway in Privacy & Security. Revisit with a Developer ID, which adds signing and notarization secrets to CI and changes nothing else |
 | 2026-11-01 | The plan bar gives way by its own width (a size container), not the window's: below 896px the labelled actions keep only their icon, tooltip and key; below 1024px the word count and "All PRs merged." go; below 768px reading width and font size go and stay in Settings. The title keeps at least 10rem | At 720 the title shrank to nothing. The window width misleads here: at 900 the expanded navbar leaves the bar narrower than at 720 with the rail. Rejected: an overflow menu, which hides actions people use daily behind a click |
