@@ -136,7 +136,7 @@
   --persona-lens: oklch(1 0 0 / 35%);
 
   /* onboarding: the welcome's rays and horizon, and the tour's dim overlay */
-  --onboarding-ray-strength: 0.07;
+  --onboarding-ray-strength: 0.1;
   --onboarding-horizon: oklch(0.97 0 0);
   --tour-scrim: oklch(0 0 0 / 45%);
 
@@ -203,7 +203,7 @@
   --persona-shield: oklch(0.88 0.03 265);
   --persona-speech: oklch(0.95 0 0);
 
-  --onboarding-ray-strength: 0.09;
+  --onboarding-ray-strength: 0.13;
   --onboarding-horizon: oklch(0.2 0 0);
   --tour-scrim: oklch(0 0 0 / 60%);
 
@@ -600,10 +600,12 @@
 
 @keyframes onboarding-ray-drift {
   from {
+    opacity: var(--onboarding-ray-strength);
     transform: rotate(var(--angle)) scaleY(1);
   }
   to {
-    transform: rotate(calc(var(--angle) + var(--sway))) scaleY(1.03);
+    opacity: calc(var(--onboarding-ray-strength) * 0.45);
+    transform: rotate(calc(var(--angle) + var(--sway))) scaleY(1.08);
   }
 }
 
@@ -620,10 +622,10 @@
 .onboarding-rays::before {
   content: "";
   position: absolute;
-  inset: 0 -5%;
-  background: radial-gradient(109% 70% at 50% 110%, var(--onboarding-horizon), transparent 70%);
+  inset: 0 -8%;
+  background: radial-gradient(116% 70% at 50% 110%, var(--onboarding-horizon), transparent 70%);
   transform-origin: 50% 100%;
-  transform: translateX(calc(var(--lean-x) * 3%)) scaleY(calc(1 - var(--lean-y) * 0.06));
+  transform: translateX(calc(var(--lean-x) * 6%)) scaleY(calc(1 - var(--lean-y) * 0.1));
   will-change: transform;
 }
 
@@ -632,7 +634,7 @@
   position: absolute;
   inset: 0;
   transform-origin: 50% 130%;
-  transform: rotate(calc(var(--lean-x) * 4deg));
+  transform: rotate(calc(var(--lean-x) * 8deg));
   will-change: transform;
 }
 

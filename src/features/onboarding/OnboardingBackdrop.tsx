@@ -3,17 +3,17 @@ import { follow, isSettled, type Follow } from "@/lib/follow";
 import { cn } from "@/lib/utils";
 
 /** Each ray's angle and how far it sways, in degrees, its sway's period in
- * seconds, and whether it is a thin one. The periods share no factor, so
+ * seconds, and whether it is a thin one. The periods all differ, so
  * the rays drift out of step. */
 const RAYS: [number, number, number, boolean][] = [
-  [-58, 1.6, 23, false],
-  [-40, -2.2, 17, true],
-  [-24, 1.2, 29, false],
-  [-9, -1.8, 19, true],
-  [7, 2, 26, true],
-  [22, -1.4, 21, false],
-  [39, 2.4, 31, true],
-  [56, -1.6, 24, false],
+  [-58, 4, 13, false],
+  [-40, -5.5, 11, true],
+  [-24, 3, 17, false],
+  [-9, -4.5, 12, true],
+  [7, 5, 16, true],
+  [22, -3.5, 14, false],
+  [39, 6, 19, true],
+  [56, -4, 15, false],
 ];
 
 /**
@@ -30,7 +30,7 @@ export function OnboardingBackdrop({ dim }: { dim: boolean }) {
       ref={ref}
       aria-hidden
       data-paused={paused}
-      className={cn("onboarding-rays transition-opacity duration-900", dim && "opacity-60")}
+      className={cn("onboarding-rays transition-opacity duration-900", dim && "opacity-85")}
     >
       <div className="onboarding-fan">
         {RAYS.map(([angle, sway, period, thin]) => (
