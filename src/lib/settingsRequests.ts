@@ -12,3 +12,14 @@ export function onRoleSettingsRequest(handler: () => void): () => void {
   requests.addEventListener("role", handler);
   return () => requests.removeEventListener("role", handler);
 }
+
+/** Opens Settings on Agents. */
+export function openAgentSettings(): void {
+  requests.dispatchEvent(new Event("agents"));
+}
+
+/** Calls `handler` on each request until the returned function runs. */
+export function onAgentSettingsRequest(handler: () => void): () => void {
+  requests.addEventListener("agents", handler);
+  return () => requests.removeEventListener("agents", handler);
+}

@@ -39,7 +39,7 @@ import { UPDATES_WORK } from "@/lib/useUpdates";
 import { TooltipButton } from "@/components/TooltipButton";
 import { cn } from "@/lib/utils";
 import type { Identity } from "@/lib/comments";
-import { onRoleSettingsRequest } from "@/lib/settingsRequests";
+import { onAgentSettingsRequest, onRoleSettingsRequest } from "@/lib/settingsRequests";
 import { AgentSettings } from "./AgentSettings";
 import { ImportPlans } from "./ImportPlans";
 import { ProfileSettings } from "./ProfileSettings";
@@ -220,6 +220,15 @@ export function SettingsDialog({
         onSectionChange("profile");
         onOpenChange(true);
         setRevealRole(true);
+      }),
+    [onSectionChange, onOpenChange],
+  );
+
+  useEffect(
+    () =>
+      onAgentSettingsRequest(() => {
+        onSectionChange("agents");
+        onOpenChange(true);
       }),
     [onSectionChange, onOpenChange],
   );
