@@ -1,6 +1,6 @@
 [package]
 name = "openplan-core"
-version = "0.7.0"
+version = "0.7.1"
 license = "Apache-2.0"
 description = "The OpenPlan file contract: plan base layout, atomic writes, and comment sidecars"
 authors = ["Siddesh Sambasivam"]
