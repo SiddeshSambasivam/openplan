@@ -1,48 +1,83 @@
-// Writes the updater's latest.json from a folder of signed bundles.
-// Usage: node updater-manifest.mjs --version <x.y.z> --host https://<host> \
-//          --notes "..." --dir <bundles folder> --out <latest.json path>
+// Writes the updater's static manifests.
+// One platform, from that platform's folder of signed bundles:
+//   node updater-manifest.mjs --platform <os-arch> --version <x.y.z> \
+//     --host https://<host> --notes "..." --dir <bundles folder> --out <path>
+// Every platform, from the four platform manifests:
+//   node updater-manifest.mjs --combine --out <latest.json path> <manifest>...
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+/** Each platform the updater serves, keyed as the updater names it, and the end of its bundle's name. */
+export const PLATFORMS = {
+  "darwin-aarch64": ".app.tar.gz",
+  "darwin-x86_64": ".app.tar.gz",
+  "linux-x86_64": ".AppImage",
+  "windows-x86_64": "-setup.exe",
+};
+
 /**
- * The updater's static manifest, with every platform filled in. Throws, naming
- * the platform, if a bundle or its signature is missing, so a release never
- * ships a manifest that leaves a platform out.
+ * The manifest for one platform, whose bundles live in `releases/<version>/<platform>/`.
+ * Throws, naming the platform, if its bundle or signature is missing.
  *
- * @param {{ version: string, notes: string, pubDate: string, host: string, files: string[] }} release
+ * @param {{ platform: string, version: string, notes: string, pubDate: string, host: string, files: string[] }} release
  */
-export function buildManifest({ version, notes, pubDate, host, files }) {
+export function platformManifest({ platform, version, notes, pubDate, host, files }) {
+  const suffix = PLATFORMS[platform];
+  if (!suffix) throw new Error(`Unknown platform "${platform}"`);
   if (!host.startsWith("https://")) throw new Error(`The host must start with https://, got "${host}"`);
-  const releaseUrl = `${host.replace(/\/+$/, "")}/releases/${version}`;
-  const entry = (platform, suffix) => {
-    const bundle = singleBundle(files, platform, suffix);
-    return {
-      url: `${releaseUrl}/${encodeURIComponent(basename(bundle))}`,
-      signature: readSignature(files, platform, bundle),
-    };
-  };
-  // One universal macOS build serves both architectures.
-  const mac = entry("darwin", ".app.tar.gz");
+  const bundle = singleBundle(files, platform, suffix);
+  const folder = `${host.replace(/\/+$/, "")}/releases/${version}/${platform}`;
   return {
     version,
     notes,
     pub_date: pubDate,
     platforms: {
-      "darwin-aarch64": mac,
-      "darwin-x86_64": mac,
-      "linux-x86_64": entry("linux-x86_64", ".AppImage"),
-      "windows-x86_64": entry("windows-x86_64", "-setup.exe"),
+      [platform]: {
+        url: `${folder}/${encodeURIComponent(basename(bundle))}`,
+        signature: readSignature(files, platform, bundle),
+      },
     },
+  };
+}
+
+/**
+ * The manifest for every platform, joined from each platform's own. Throws if a
+ * platform is missing or built twice, or the builds disagree on the version, so
+ * a copy never reads a release that has no bundle for it.
+ *
+ * @param {ReturnType<typeof platformManifest>[]} manifests
+ */
+export function combineManifests(manifests) {
+  const platforms = {};
+  for (const manifest of manifests) {
+    if (manifest.version !== manifests[0].version) {
+      throw new Error(`Builds of ${manifests[0].version} and ${manifest.version} cannot share a release`);
+    }
+    for (const [platform, entry] of Object.entries(manifest.platforms)) {
+      if (platforms[platform]) throw new Error(`${platform} was built twice`);
+      platforms[platform] = entry;
+    }
+  }
+  const missing = Object.keys(PLATFORMS).filter((platform) => !platforms[platform]);
+  if (missing.length) throw new Error(`No build for ${missing.join(", ")}`);
+  return {
+    version: manifests[0].version,
+    notes: manifests[0].notes,
+    pub_date: manifests.map((manifest) => manifest.pub_date).sort().at(-1),
+    platforms,
   };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();
 
 function main() {
-  const { values } = parseArgs({
+  const { values, positionals } = parseArgs({
+    allowPositionals: true,
     options: {
+      combine: { type: "boolean" },
+      platform: { type: "string" },
       version: { type: "string" },
       host: { type: "string" },
       notes: { type: "string" },
@@ -50,21 +85,24 @@ function main() {
       out: { type: "string" },
     },
   });
-  const missing = ["version", "host", "notes", "dir", "out"].filter((name) => !values[name]);
+  const required = values.combine ? ["out"] : ["platform", "version", "host", "notes", "dir", "out"];
+  const missing = required.filter((name) => !values[name]);
   if (missing.length) fail(`Missing ${missing.map((name) => `--${name}`).join(", ")}`);
   try {
-    const files = readdirSync(values.dir, { recursive: true }).map((name) => join(values.dir, name));
-    const manifest = buildManifest({
-      version: values.version,
-      notes: values.notes,
-      pubDate: new Date().toISOString(),
-      host: values.host,
-      files,
-    });
+    const manifest = values.combine ? combineFiles(positionals) : platformFromDir(values);
     writeFileSync(values.out, `${JSON.stringify(manifest, null, 2)}\n`);
   } catch (error) {
     fail(error.message);
   }
+}
+
+function platformFromDir({ platform, version, notes, host, dir }) {
+  const files = readdirSync(dir, { recursive: true }).map((name) => join(dir, name));
+  return platformManifest({ platform, version, notes, pubDate: new Date().toISOString(), host, files });
+}
+
+function combineFiles(paths) {
+  return combineManifests(paths.map((path) => JSON.parse(readFileSync(path, "utf8"))));
 }
 
 function singleBundle(files, platform, suffix) {
