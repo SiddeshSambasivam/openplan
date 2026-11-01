@@ -96,6 +96,24 @@ export function TourRow({ onTakeTour }: { onTakeTour?: () => void }) {
           Take the tour
         </Button>
       </Row>
+      {import.meta.env.DEV && (
+        <Row
+          label="Replay onboarding"
+          hint="Shows the welcome flow again. Your plans are not affected. Development builds only."
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              void import("@tauri-apps/api/core").then(({ invoke }) =>
+                invoke("reset_onboarding").then(() => window.location.reload()),
+              )
+            }
+          >
+            Replay
+          </Button>
+        </Row>
+      )}
     </>
   );
 }
@@ -548,29 +566,6 @@ export function SettingsDialog({
                 <code className="mt-3 block truncate rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
                   {base?.root ?? "Not available outside the desktop app"}
                 </code>
-
-                {import.meta.env.DEV && (
-                  <div className="mt-5 border-t border-border pt-4">
-                    <p className="text-sm text-foreground">Development</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={() =>
-                        void import("@tauri-apps/api/core").then(({ invoke }) =>
-                          invoke("reset_onboarding").then(() =>
-                            window.location.reload(),
-                          ),
-                        )
-                      }
-                    >
-                      Replay onboarding
-                    </Button>
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      Shows the welcome flow again. Your plans are not affected.
-                    </p>
-                  </div>
-                )}
               </>
             )}
 
