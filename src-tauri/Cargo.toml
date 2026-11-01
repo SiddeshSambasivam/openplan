@@ -3,7 +3,7 @@ members = ["crates/*"]
 
 [package]
 name = "openplan-app"
-version = "0.7.1"
+version = "0.7.2"
 license = "Apache-2.0"
 description = "One place to manage the plans you and your coding agents collaborate on"
 authors = ["Siddesh Sambasivam"]
