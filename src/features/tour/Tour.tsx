@@ -20,6 +20,7 @@ import {
   type TourStep,
 } from "@/lib/tour";
 import { cn } from "@/lib/utils";
+import { TourFinish } from "./TourFinish";
 
 interface TourProps {
   /** The demo plans and their status, read when a step is chosen. */
@@ -54,7 +55,7 @@ export function Tour({ stages, location, onOpenView, onClose, navbarWidth }: Tou
   closeRef.current = onClose;
   useEffect(() => {
     if (state == null) closeRef.current();
-    else if (!state.paused) openRef.current(TOUR_STEPS[state.index]);
+    else if (state !== "finished" && !state.paused) openRef.current(TOUR_STEPS[state.index]);
   }, [state]);
 
   // Only a change of place counts as leaving, so the step's own opening of
@@ -67,7 +68,7 @@ export function Tour({ stages, location, onOpenView, onClose, navbarWidth }: Tou
     if (lastPlace.current === placeKey) return;
     lastPlace.current = placeKey;
     const now = stateRef.current;
-    if (now && !now.paused && !viewMatches(TOUR_STEPS[now.index], location)) {
+    if (now && now !== "finished" && !now.paused && !viewMatches(TOUR_STEPS[now.index], location)) {
       dispatch({ type: "leave" });
     }
   }, [placeKey, location, dispatch]);
@@ -75,6 +76,7 @@ export function Tour({ stages, location, onOpenView, onClose, navbarWidth }: Tou
   useEffect(() => onTourEvent((event) => dispatch({ type: "try", event })), [dispatch]);
 
   if (state == null) return null;
+  if (state === "finished") return <TourFinish dispatch={dispatch} />;
   if (state.paused) {
     return (
       <ResumePill

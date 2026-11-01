@@ -104,9 +104,29 @@ describe("startTour", () => {
 });
 
 describe("nextStep", () => {
-  it("moves on with Next and finishes after the last step", () => {
+  it("moves on with Next and shows the finish after the last step", () => {
     expect(nextStep(at(0), { type: "next" }, ALL_STAGES)).toEqual(at(1));
-    expect(nextStep(at(12), { type: "next" }, ALL_STAGES)).toBeNull();
+    expect(nextStep(at(12), { type: "next" }, ALL_STAGES)).toBe("finished");
+  });
+
+  it("closes without the finish when the tour is skipped, even on the last step", () => {
+    expect(nextStep(at(12), { type: "skip" }, ALL_STAGES)).toBeNull();
+  });
+
+  it("closes the finish with Get started or Esc", () => {
+    expect(nextStep("finished", { type: "next" }, ALL_STAGES)).toBeNull();
+    expect(nextStep("finished", { type: "skip" }, ALL_STAGES)).toBeNull();
+  });
+
+  it("keeps the finish open on every other action", () => {
+    for (const action of [
+      { type: "back" },
+      { type: "leave" },
+      { type: "resume" },
+      { type: "try", event: "comment-added" },
+    ] as const) {
+      expect(nextStep("finished", action, ALL_STAGES)).toBe("finished");
+    }
   });
 
   it("goes back with Back and stays on the first step", () => {
