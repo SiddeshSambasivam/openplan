@@ -1,6 +1,5 @@
 import {
   Bot,
-  Download,
   FileText,
   Folder,
   Info,
@@ -42,7 +41,6 @@ import { cn } from "@/lib/utils";
 import type { Identity } from "@/lib/comments";
 import { onAgentSettingsRequest, onRoleSettingsRequest } from "@/lib/settingsRequests";
 import { AgentSettings } from "./AgentSettings";
-import { ImportPlans } from "./ImportPlans";
 import { ProfileSettings } from "./ProfileSettings";
 
 const SECTIONS = [
@@ -51,7 +49,6 @@ const SECTIONS = [
   { id: "agents", label: "Agents", icon: Bot },
   { id: "standards", label: "Standards", icon: FileText },
   { id: "base", label: "Plan base", icon: Folder },
-  { id: "import", label: "Import plans", icon: Download },
   { id: "updates", label: "Updates", icon: RefreshCw },
   { id: "about", label: "About", icon: Info },
 ] as const;
@@ -575,24 +572,6 @@ export function SettingsDialog({
                 <code className="mt-3 block truncate rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
                   {base?.root ?? "Not available outside the desktop app"}
                 </code>
-              </>
-            )}
-
-            {section === "import" && (
-              <>
-                <h2 className="text-sm font-semibold">Import plans</h2>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Bring in plans your agents already wrote on this machine.
-                  Importing makes a copy. Your original files stay where they
-                  are, and plans already here are skipped.
-                </p>
-                {isTauri ? (
-                  <ImportPlans />
-                ) : (
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    Available in the desktop app.
-                  </p>
-                )}
               </>
             )}
           </div>

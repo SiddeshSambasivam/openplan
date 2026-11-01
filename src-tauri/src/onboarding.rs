@@ -1,15 +1,12 @@
-//! First-run: who this is, what is installed, what can be imported, and
-//! connecting the tools they chose. Import and install logic live in
-//! openplan-core; these commands are the interface's way in.
+//! First-run: who this is, what is installed, and connecting the tools they
+//! chose. Install logic lives in openplan-core; these commands are the
+//! interface's way in.
 
 use openplan_core::base::Base;
-use openplan_core::import::{import_path, iso_from_unix, Outcome};
-use openplan_core::repo::Author;
 use openplan_core::roles::{self, PersonRole};
 use openplan_core::{demo, discovery, integrations, settings};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 fn home() -> Result<PathBuf, String> {
     dirs::home_dir().ok_or_else(|| "Couldn't find your home directory.".to_string())
@@ -84,104 +81,11 @@ pub async fn reset_onboarding() -> Result<(), String> {
     update_settings(|s| s.onboarded = false)
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DetectedAgent {
-    id: String,
-    name: String,
-    installed: bool,
-    /// Loose plans this tool has written, importable directly.
-    plans: Vec<PathBuf>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DiscoveredFolder {
-    path: PathBuf,
-    documents: usize,
-    named_for_plans: bool,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Sources {
-    agents: Vec<DetectedAgent>,
-    folders: Vec<DiscoveredFolder>,
-}
-
+/// Which agent tools this machine has. Reads only the tools' own folders,
+/// so macOS never asks for access to the person's other folders.
 #[tauri::command]
-pub async fn discover_sources() -> Result<Sources, String> {
-    let home = home()?;
-    let agents = discovery::agents(&home)
-        .into_iter()
-        .map(|a| DetectedAgent {
-            id: a.id.to_string(),
-            name: a.name.to_string(),
-            installed: a.installed,
-            plans: a.plans,
-        })
-        .collect();
-    let folders = discovery::plan_folders(&home, Duration::from_millis(400))
-        .into_iter()
-        .map(|f| DiscoveredFolder {
-            path: f.path,
-            documents: f.documents,
-            named_for_plans: f.named_for_plans,
-        })
-        .collect();
-    Ok(Sources { agents, folders })
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Imported {
-    filed: usize,
-    documents: usize,
-    already_there: usize,
-}
-
-/// Files one path into the base. A folder of plans files each plan inside
-/// it; a single document or a plan set files as one. `source` is who the
-/// plans are from — an agent's id for its own, "import" otherwise.
-#[tauri::command]
-pub async fn import_source(
-    path: String,
-    source: String,
-    state: tauri::State<'_, crate::plans::BaseState>,
-) -> Result<Imported, String> {
-    let base = state.get()?;
-    let author = if source == "import" {
-        settings::me()
-    } else {
-        Author::agent_for(&source, &settings::current_identity())
-    };
-    let now = iso_from_unix(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0) as i64,
-    );
-    let path = std::path::PathBuf::from(&path);
-    let outcomes = if path.is_dir() {
-        openplan_core::import::import_folder(base, &author, &source, &path, &now)?
-    } else {
-        vec![import_path(base, &author, &source, &path, &now)?]
-    };
-    let mut result = Imported {
-        filed: 0,
-        documents: 0,
-        already_there: 0,
-    };
-    for outcome in outcomes {
-        match outcome {
-            Outcome::Filed { documents, .. } => {
-                result.filed += 1;
-                result.documents += documents;
-            }
-            Outcome::AlreadyThere { .. } => result.already_there += 1,
-        }
-    }
-    Ok(result)
+pub async fn detect_agents() -> Result<Vec<discovery::Agent>, String> {
+    Ok(discovery::agents(&home()?))
 }
 
 #[derive(Serialize)]

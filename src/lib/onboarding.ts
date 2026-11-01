@@ -6,7 +6,7 @@ export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 /** The folder the demo plans are filed in. */
 export const DEMO_FOLDER = "Demo";
 
-/** An agent tool discovery looked for. */
+/** An agent tool OpenPlan can connect. */
 export interface AgentOption {
   id: string;
   name: string;
@@ -129,10 +129,9 @@ export function onboardingKey(
   return null;
 }
 
-/** The agent tools discovery looks for, and whether each is on this machine. */
+/** The agent tools OpenPlan can connect, and whether each is on this machine. */
 export async function detectAgents(call: Invoke): Promise<AgentOption[]> {
-  const found = (await call("discover_sources")) as { agents: AgentOption[] };
-  return found.agents.map(({ id, name, installed }) => ({ id, name, installed }));
+  return (await call("detect_agents")) as AgentOption[];
 }
 
 /** Every tool on this machine starts picked. */

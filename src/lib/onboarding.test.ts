@@ -195,14 +195,16 @@ describe("installTools", () => {
 });
 
 describe("agent setup outside onboarding", () => {
-  it("lists what discovery found, with only the installed tools picked", async () => {
-    const call = async () => ({
-      agents: AGENTS.map((agent) => ({ ...agent, plans: ["/plans/a.md"] })),
-      folders: [],
-    });
+  it("lists the tools detection found, with only the installed tools picked", async () => {
+    const calls: string[] = [];
+    const call = async (command: string) => {
+      calls.push(command);
+      return AGENTS;
+    };
 
     const agents = await detectAgents(call);
 
+    expect(calls).toEqual(["detect_agents"]);
     expect(agents).toEqual(AGENTS);
     expect(pickedByDefault(agents)).toEqual(["claude-code", "codex"]);
   });
