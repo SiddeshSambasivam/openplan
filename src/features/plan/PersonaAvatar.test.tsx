@@ -33,4 +33,11 @@ describe("PersonaAvatar", () => {
     expect(html).toContain('data-role="agent"');
     expect(html).not.toMatch(/persona-(pennant|glasses|beret|siren|lens|halo|bars|shield|speech)/);
   });
+
+  it("hops once with happy eyes when asked", () => {
+    const html = renderToStaticMarkup(<PersonaAvatar role="design" hop />);
+    expect(html).toContain('data-hop=""');
+    expect(html).toContain('data-happy=""');
+    expect(avatar("design")).not.toMatch(/data-(hop|happy)/);
+  });
 });

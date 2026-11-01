@@ -13,11 +13,14 @@ import { watchAvatar } from "./personaMotion";
 export function PersonaAvatar({
   role,
   typing = false,
+  hop = false,
   className,
 }: {
   role?: Role;
   /** Bobs, as if writing. */
   typing?: boolean;
+  /** Hops once with happy eyes as it turns true. */
+  hop?: boolean;
   className?: string;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -29,6 +32,8 @@ export function PersonaAvatar({
       aria-hidden
       data-role={drawn ?? "agent"}
       data-typing={typing ? "" : undefined}
+      data-hop={hop ? "" : undefined}
+      data-happy={hop ? "" : undefined}
       className={cn("persona", className)}
     >
       <span className="persona-head">
