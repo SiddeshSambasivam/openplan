@@ -67,7 +67,8 @@
       "binaries/openplan"
     ],
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": "-",
+      "minimumSystemVersion": "10.13"
     }
   },
   "mainBinaryName": "openplan-app"
