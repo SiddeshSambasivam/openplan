@@ -20,6 +20,7 @@ import {
   type OnboardingResult,
   type OnboardingStep,
 } from "@/lib/onboarding";
+import { markStart } from "@/lib/navbar";
 import { cn } from "@/lib/utils";
 import { AgentPicker } from "./AgentPicker";
 import { AgentSetup } from "./AgentSetup";
@@ -34,6 +35,8 @@ const RISE = "animate-in fade-in slide-in-from-bottom-3 duration-600 fill-mode-b
 
 interface OnboardingProps {
   onDone: (result: OnboardingResult) => void;
+  /** The macOS traffic lights are drawn over the top left. */
+  windowControls: boolean;
 }
 
 /**
@@ -41,7 +44,7 @@ interface OnboardingProps {
  * up and the setup itself, then the board. Every step after the welcome can
  * be skipped, and every action has a key.
  */
-export function Onboarding({ onDone }: OnboardingProps) {
+export function Onboarding({ onDone, windowControls }: OnboardingProps) {
   const [state, dispatch] = useReducer(step, undefined, startOnboarding);
   const [detected, setDetected] = useState(false);
   const [finishing, setFinishing] = useState(false);
@@ -107,7 +110,11 @@ export function Onboarding({ onDone }: OnboardingProps) {
     <div className="fixed inset-0 z-50 overflow-clip bg-background text-foreground">
       <OnboardingBackdrop dim={state.step !== "welcome"} />
 
-      <header className="absolute inset-x-0 top-0 z-10 flex h-13 items-center justify-between px-4">
+      <header
+        data-tauri-drag-region
+        className="absolute inset-x-0 top-0 z-10 flex h-13 items-center justify-between px-4"
+        style={windowControls ? { paddingLeft: markStart(true) } : undefined}
+      >
         <div className="flex w-30">
           {showsBack && (
             <Button

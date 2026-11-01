@@ -14,7 +14,7 @@ const AGENTS = [
 ];
 
 describe("Onboarding", () => {
-  const html = renderToStaticMarkup(<Onboarding onDone={() => {}} />);
+  const html = renderToStaticMarkup(<Onboarding onDone={() => {}} windowControls={false} />);
 
   it("opens on the welcome with the lockup and its key", () => {
     expect(html).toContain("OpenPlan");
@@ -24,6 +24,12 @@ describe("Onboarding", () => {
 
   it("shows no Back on the welcome", () => {
     expect(html).not.toContain("Esc");
+  });
+
+  it("starts its top bar after the macOS window buttons", () => {
+    const mac = renderToStaticMarkup(<Onboarding onDone={() => {}} windowControls />);
+    expect(mac).toMatch(/<header[^>]*padding-left:84px/);
+    expect(html).not.toMatch(/<header[^>]*padding-left/);
   });
 });
 

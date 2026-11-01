@@ -2238,7 +2238,7 @@ export default function App() {
 
       {dragging && <DropOverlay />}
 
-      {needsOnboarding && <Onboarding onDone={finishOnboarding} />}
+      {needsOnboarding && <Onboarding onDone={finishOnboarding} windowControls={windowControls} />}
 
       {tourRunning && !needsOnboarding && (
         <Tour
