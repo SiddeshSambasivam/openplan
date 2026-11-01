@@ -3,23 +3,53 @@ name: Build
 on:
   push:
     tags: ["v*"]
+    # Pushes to main only compile, to save the Rust cache that tag runs restore.
+    branches: [main]
+    paths:
+      - "src-tauri/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
+
+env:
+  BUNDLE: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' }}
+  PUBLISH: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
 
 jobs:
   build:
     permissions:
       contents: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: "--target universal-apple-darwin"
-          - platform: ubuntu-22.04
-            args: ""
-          - platform: windows-latest
-            args: ""
-    runs-on: ${{ matrix.platform }}
+          - platform: darwin-aarch64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - platform: darwin-x86_64
+            runner: macos-latest
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+          - platform: linux-x86_64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb,rpm
+          # The updater installs only the NSIS setup.exe.
+          - platform: windows-x86_64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -32,52 +62,107 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.target }}
 
+      # A tag run can restore only the default branch's caches, so only branch runs save.
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: ${{ matrix.target }}
+          save-if: ${{ github.ref_type == 'branch' }}
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf
 
       - run: pnpm install --frozen-lockfile
 
+      # The same compile as a release, without the bundles.
+      - name: Compile
+        if: env.BUNDLE != 'true'
+        run: pnpm tauri build --target ${{ matrix.target }} --no-bundle
+
       - uses: tauri-apps/tauri-action@v0
-        id: tauri
+        if: env.BUNDLE == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           # On tag pushes, create a draft release with installers attached.
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('OpenPlan {0}', github.ref_name) || '' }}
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: ${{ github.ref_type == 'tag' && format('OpenPlan {0}', github.ref_name) || '' }}
           releaseDraft: true
-          args: ${{ matrix.args }}
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Write the platform's update manifest
+        if: env.BUNDLE == 'true'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          HOST: ${{ vars.UPDATES_HOST }}
+        run: |
+          APP_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          VERSION="$APP_VERSION"
+          NOTES="OpenPlan $VERSION"
+          if [ "$PUBLISH" = true ]; then
+            TAG="$GITHUB_REF_NAME"
+            VERSION="${TAG#v}"
+            # A tag that differs from the app's version would offer the same update forever.
+            if [ "$VERSION" != "$APP_VERSION" ]; then
+              echo "Tag $TAG does not match the app version $APP_VERSION" >&2
+              exit 1
+            fi
+            # Checkout leaves a lightweight tag, so fetch the real one to read its message.
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            if [ "$(git cat-file -t "$TAG")" = tag ]; then
+              NOTES="$(git tag -l --format='%(contents)' "$TAG")"
+            fi
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          mkdir -p "release/$PLATFORM" updates
+          shopt -s nullglob
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/*/*.{dmg,tar.gz,exe,deb,rpm,AppImage,sig} "release/$PLATFORM/"
+          node scripts/updater-manifest.mjs --platform "$PLATFORM" --version "$VERSION" --host "$HOST" \
+            --notes "$NOTES" --dir "release/$PLATFORM" --out "updates/$PLATFORM.json"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: env.PUBLISH == 'true'
+        with:
+          role-to-assume: ${{ vars.UPDATES_ROLE_ARN }}
+          aws-region: ${{ vars.UPDATES_REGION }}
+
+      # The bundles go up before the manifest that names them.
+      - name: Publish the platform's update
+        if: env.PUBLISH == 'true'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          BUCKET: ${{ vars.UPDATES_BUCKET }}
+        run: |
+          aws s3 cp release "s3://$BUCKET/releases/$VERSION/" --recursive \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 cp "updates/$PLATFORM.json" "s3://$BUCKET/updates/$PLATFORM.json" \
+            --cache-control "no-cache" --content-type application/json
+
+      - name: Upload the manifest
+        if: env.BUNDLE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ matrix.platform }}
+          path: updates/
 
       - name: Upload bundles
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: bundles-${{ matrix.platform }}
-          path: |
-            src-tauri/target/**/bundle/**/*.dmg
-            src-tauri/target/**/bundle/**/*.app.tar.gz
-            src-tauri/target/**/bundle/**/*.msi
-            src-tauri/target/**/bundle/**/*.exe
-            src-tauri/target/**/bundle/**/*.deb
-            src-tauri/target/**/bundle/**/*.rpm
-            src-tauri/target/**/bundle/**/*.AppImage
-            src-tauri/target/**/bundle/**/*.sig
-          if-no-files-found: warn
+          path: release/
 
-  # Runs only after every platform built. latest.json goes up last, so the
-  # app never sees a release whose files are not all in place.
+  # Copies older than per-platform manifests read latest.json. It goes up only
+  # after every platform built, so it never names a release missing a platform.
   publish:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -92,44 +177,25 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: bundles-*
-          path: bundles
+          pattern: manifest-*
+          path: updates
           merge-multiple: true
 
+      - name: Write latest.json
+        run: |
+          node scripts/updater-manifest.mjs --combine --out latest.json updates/*.json
+          cat latest.json
+
       - uses: aws-actions/configure-aws-credentials@v4
+        if: env.PUBLISH == 'true'
         with:
           role-to-assume: ${{ vars.UPDATES_ROLE_ARN }}
           aws-region: ${{ vars.UPDATES_REGION }}
 
-      - name: Write the updater manifest
-        env:
-          TAG: ${{ github.ref_name }}
-          HOST: ${{ vars.UPDATES_HOST }}
-        run: |
-          VERSION="${TAG#v}"
-          # A tag that differs from the app's version would offer the same update forever.
-          APP_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-          if [ "$VERSION" != "$APP_VERSION" ]; then
-            echo "Tag $TAG does not match the app version $APP_VERSION" >&2
-            exit 1
-          fi
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          # Checkout leaves a lightweight tag, so fetch the real one to read its message.
-          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
-          NOTES="OpenPlan $VERSION"
-          if [ "$(git cat-file -t "$TAG")" = tag ]; then
-            NOTES="$(git tag -l --format='%(contents)' "$TAG")"
-          fi
-          mkdir release
-          find bundles -type f -exec mv {} release/ \;
-          node scripts/updater-manifest.mjs --version "$VERSION" --host "$HOST" \
-            --notes "$NOTES" --dir release --out release/latest.json
-
-      - name: Upload the release, then latest.json
+      - name: Upload latest.json
+        if: env.PUBLISH == 'true'
         env:
           BUCKET: ${{ vars.UPDATES_BUCKET }}
         run: |
-          aws s3 cp release "s3://$BUCKET/releases/$VERSION/" --recursive \
-            --cache-control "public, max-age=31536000, immutable"
-          aws s3 cp release/latest.json "s3://$BUCKET/latest.json" \
+          aws s3 cp latest.json "s3://$BUCKET/latest.json" \
             --cache-control "no-cache" --content-type application/json
