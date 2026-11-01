@@ -1,4 +1,4 @@
-import { DEMO_FOLDER } from "./onboarding";
+import { DEMO_FOLDER, type AgentOption } from "./onboarding";
 import { documentLabel } from "./planTree";
 import { STATUS_FLOW, STATUS_ORDER, type PlanSummary, type Status } from "./planBase";
 import type { PlanProgress } from "./work";
@@ -33,6 +33,35 @@ const DEMO_BUILDING = "demo-sync-notes-across-devices";
  * what its Demo folder would. */
 export function folderChips(plan: PlanSummary): string[] {
   return plan.demo ? plan.folders.filter((folder) => folder !== DEMO_FOLDER) : plan.folders;
+}
+
+/** What the empty board says happens after a session starts. It names the
+ * agents on this computer, or every one OpenPlan works with when none are
+ * there or the search has not ended. */
+export function sessionHint(agents: AgentOption[] | null): string {
+  const found = foundAgents(agents).map((agent) => agent.name);
+  const names = found.length > 0 ? found : ["Claude Code", "Codex", "Cursor"];
+  return `Ask ${orList(names)} to plan a change. The plan lands here as a Draft, and your reviewers ask what it leaves open before anyone builds.`;
+}
+
+/** Only a search that ended with no agent asks the person to set one up. */
+export function needsAgentSetup(agents: AgentOption[] | null): boolean {
+  return agents != null && foundAgents(agents).length === 0;
+}
+
+/** The agent whose mark the empty board's session shows. */
+export function sessionAgent(agents: AgentOption[] | null): string {
+  const found = foundAgents(agents);
+  return found.find((agent) => agent.id === "claude-code")?.id ?? found[0]?.id ?? "claude-code";
+}
+
+function foundAgents(agents: AgentOption[] | null): AgentOption[] {
+  return (agents ?? []).filter((agent) => agent.installed);
+}
+
+function orList(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} or ${items[items.length - 1]}`;
 }
 
 /** Newest first; a plan with no date sorts by title at the end. */

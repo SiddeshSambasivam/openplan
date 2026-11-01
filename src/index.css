@@ -460,6 +460,132 @@
   animation-play-state: paused;
 }
 
+/* The empty board's session scene. Every part runs on one 11s loop: the
+   request types until 24%, the plan settles in Draft by 44%, the reviewers
+   hop in by 54% and ask by 61%, the scene rests, then fades from 90%. It
+   opens on the rest, so the first frame tells the whole story. A hidden or
+   unfocused window pauses it. Reduced motion shows the resting frame. */
+.session-scene {
+  --session-loop: 11s;
+  --session-start: -6.6s;
+  --session-ease: cubic-bezier(0.2, 0, 0, 1);
+  animation: session-scene var(--session-loop) var(--session-start) linear infinite;
+}
+
+.session-cover {
+  transform: scaleX(0);
+  animation: session-cover var(--session-loop) var(--session-start) linear infinite;
+}
+
+.session-card {
+  animation: session-card var(--session-loop) var(--session-start) var(--session-ease) infinite;
+}
+
+.session-reviewer {
+  animation: session-reviewer var(--session-loop) var(--session-start) var(--session-ease)
+    infinite both;
+}
+
+.session-reviewer + .session-reviewer {
+  animation-delay: calc(var(--session-start) + 0.25s);
+}
+
+.session-question {
+  transform-origin: bottom left;
+  animation: session-question var(--session-loop) var(--session-start) var(--session-ease)
+    infinite;
+}
+
+.session-scene[data-paused="true"],
+.session-scene[data-paused="true"] * {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-scene,
+  .session-scene * {
+    animation: none !important;
+  }
+}
+
+@keyframes session-scene {
+  0% {
+    opacity: 0;
+  }
+  4%,
+  90% {
+    opacity: 1;
+  }
+  97%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes session-cover {
+  0%,
+  6% {
+    transform: scaleX(1);
+    animation-timing-function: steps(32, end);
+  }
+  24%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes session-card {
+  0%,
+  26% {
+    opacity: 0;
+    transform: translate(-64px, -64px) scale(0.7);
+  }
+  31% {
+    opacity: 1;
+    transform: translate(-64px, -46px) scale(0.8);
+  }
+  44%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes session-reviewer {
+  0%,
+  46% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+  54%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes session-question {
+  0%,
+  56% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  61%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* The welcome's soft light from below the horizon, in the theme's own
    foreground. Each ray sets its angle in `--angle`. The blur is static and
    only transform and opacity move. The drift pauses when the window is

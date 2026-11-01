@@ -5,14 +5,18 @@ import {
   FOLDED,
   folderChips,
   forYou,
+  needsAgentSetup,
   pageTitle,
   relativeTime,
+  sessionAgent,
+  sessionHint,
   shortDate,
   sortPlans,
   statusGroups,
   steppedPlan,
   viewOrder,
 } from "./board";
+import type { AgentOption } from "./onboarding";
 import { STATUS_FLOW, STATUS_ORDER, type PlanSummary, type Status } from "./planBase";
 
 function plan(overrides: Partial<PlanSummary> & { id: string }): PlanSummary {
@@ -330,5 +334,47 @@ describe("demoBuildPlan", () => {
     ];
 
     expect(demoBuildPlan(plans)).toBeUndefined();
+  });
+});
+
+function agents(installed: string[]): AgentOption[] {
+  return [
+    { id: "claude-code", name: "Claude Code", installed: installed.includes("claude-code") },
+    { id: "codex", name: "Codex", installed: installed.includes("codex") },
+    { id: "cursor", name: "Cursor", installed: installed.includes("cursor") },
+  ];
+}
+
+describe("sessionHint", () => {
+  it("names only the agents on this computer", () => {
+    expect(sessionHint(agents(["codex"]))).toBe(
+      "Ask Codex to plan a change. The plan lands here as a Draft, and your reviewers ask what it leaves open before anyone builds.",
+    );
+    expect(sessionHint(agents(["claude-code", "cursor"]))).toMatch(/^Ask Claude Code or Cursor to plan/);
+  });
+
+  it("names all three when none are found, or before the search ends", () => {
+    expect(sessionHint(agents([]))).toMatch(/^Ask Claude Code, Codex or Cursor to plan a change\./);
+    expect(sessionHint(null)).toMatch(/^Ask Claude Code, Codex or Cursor to plan a change\./);
+  });
+});
+
+describe("needsAgentSetup", () => {
+  it("is true only once the search found no agent", () => {
+    expect(needsAgentSetup(agents([]))).toBe(true);
+    expect(needsAgentSetup(agents(["cursor"]))).toBe(false);
+    expect(needsAgentSetup(null)).toBe(false);
+  });
+});
+
+describe("sessionAgent", () => {
+  it("is Claude Code when it is there, or when no agent is", () => {
+    expect(sessionAgent(agents(["codex", "claude-code"]))).toBe("claude-code");
+    expect(sessionAgent(agents([]))).toBe("claude-code");
+    expect(sessionAgent(null)).toBe("claude-code");
+  });
+
+  it("is the one found otherwise", () => {
+    expect(sessionAgent(agents(["cursor", "codex"]))).toBe("codex");
   });
 });
