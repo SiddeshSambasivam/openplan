@@ -460,9 +460,11 @@
   animation-play-state: paused;
 }
 
-/* The welcome's soft light from below the horizon, in the theme's own
-   foreground. Each ray sets its angle in `--angle`. The blur is static and
-   only transform and opacity move. The drift pauses when the window is
+/* The onboarding's soft light from below the horizon, in the theme's own
+   foreground. Each ray sets its angle in `--angle` and sways by `--sway`
+   over `--period`. The fan tilts and the horizon shifts toward the pointer
+   by `--lean-x` and `--lean-y`, which script eases. The blur is static and
+   only transform and opacity move. The sway pauses when the window is
    hidden or unfocused, and the entrance always finishes. */
 @keyframes onboarding-ray-in {
   to {
@@ -475,21 +477,37 @@
     transform: rotate(var(--angle)) scaleY(1);
   }
   to {
-    transform: rotate(calc(var(--angle) + 3deg)) scaleY(1.04);
+    transform: rotate(calc(var(--angle) + var(--sway))) scaleY(1.03);
   }
 }
 
 .onboarding-rays {
+  --lean-x: 0;
+  --lean-y: 0;
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 
+/* Wider than the window, so a lean to the side never shows its edge, and
+   rises from its bottom edge, so a lean up never opens a gap below it. */
 .onboarding-rays::before {
   content: "";
   position: absolute;
+  inset: 0 -5%;
+  background: radial-gradient(109% 70% at 50% 110%, var(--onboarding-horizon), transparent 70%);
+  transform-origin: 50% 100%;
+  transform: translateX(calc(var(--lean-x) * 3%)) scaleY(calc(1 - var(--lean-y) * 0.06));
+  will-change: transform;
+}
+
+/* Turns about the rays' common foot, below the window. */
+.onboarding-fan {
+  position: absolute;
   inset: 0;
-  background: radial-gradient(120% 70% at 50% 110%, var(--onboarding-horizon), transparent 70%);
+  transform-origin: 50% 130%;
+  transform: rotate(calc(var(--lean-x) * 4deg));
+  will-change: transform;
 }
 
 .onboarding-ray {
@@ -507,7 +525,7 @@
   transform-origin: 50% 100%;
   animation:
     onboarding-ray-in 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards,
-    onboarding-ray-drift 14s ease-in-out 1.6s infinite alternate;
+    onboarding-ray-drift var(--period) ease-in-out 1.6s infinite alternate;
 }
 
 .onboarding-ray[data-thin] {
@@ -524,6 +542,10 @@
   .onboarding-ray {
     animation: none !important;
     transform: rotate(var(--angle));
+  }
+  .onboarding-rays::before,
+  .onboarding-fan {
+    transform: none;
   }
 }
 

@@ -26,8 +26,9 @@ export interface TourStep {
   tryIt?: { event: TryEvent; label: string };
 }
 
-/** Closed is null. A paused tour keeps its step for the Resume pill. */
-export type TourState = { index: number; paused: boolean } | null;
+/** Closed is null. A paused tour keeps its step for the Resume pill.
+ * Finished is the moment after the last step, until the person closes it. */
+export type TourState = { index: number; paused: boolean } | "finished" | null;
 
 export type TourAction =
   | { type: "next" }
@@ -195,6 +196,7 @@ export function startTour(stages: DemoStages): TourState {
  * returns the state it was given, so nothing re-renders. */
 export function nextStep(state: TourState, action: TourAction, stages: DemoStages): TourState {
   if (state == null || action.type === "skip") return null;
+  if (state === "finished") return action.type === "next" ? null : state;
   if (state.paused) {
     if (action.type !== "resume") return state;
     const index = shownFrom(state.index, 1, stages);
@@ -342,9 +344,10 @@ const SIDE_ORDER: Record<Side, Side[]> = {
 const EVENTS = new EventTarget();
 const EVENT_NAME = "tour";
 
+/** Past the last step is the finish. */
 function moveOn(state: { index: number }, stages: DemoStages): TourState {
   const index = shownFrom(state.index + 1, 1, stages);
-  return index == null ? null : { index, paused: false };
+  return index == null ? "finished" : { index, paused: false };
 }
 
 /** The first step from `index`, walking by `step`, whose demo plan is
