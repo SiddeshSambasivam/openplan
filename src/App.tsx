@@ -375,6 +375,12 @@ export default function App() {
     );
   }, []);
 
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const readIdentity = useCallback(() => {
+    void getIdentity().then(setIdentity).catch(() => {});
+  }, []);
+  useEffect(readIdentity, [readIdentity]);
+
   // The tour is mounted only while it runs. Starting it first writes back
   // any demo plan the person deleted, so a replay has every stage to show.
   const [tourRunning, setTourRunning] = useState(false);
@@ -392,12 +398,14 @@ export default function App() {
   const finishOnboarding = useCallback(
     ({ folder, startTour }: OnboardingResult) => {
       setNeedsOnboarding(false);
+      // Onboarding has just saved the name the profile shows.
+      readIdentity();
       setChosenFolder(folder);
       setMainView("board");
       if (startTour) takeTour();
       else refreshPlans();
     },
-    [refreshPlans, takeTour],
+    [readIdentity, refreshPlans, takeTour],
   );
 
   const [dirty, setDirty] = useState(false);
@@ -1344,11 +1352,6 @@ export default function App() {
 
   // macOS hides the traffic lights in fullscreen; the room the sidebar and
   // header reserve for them goes with them.
-  const [identity, setIdentity] = useState<Identity | null>(null);
-  useEffect(() => {
-    void getIdentity().then(setIdentity).catch(() => {});
-  }, []);
-
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     if (!isTauri) return;
