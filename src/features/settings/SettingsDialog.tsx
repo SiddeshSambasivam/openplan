@@ -28,6 +28,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -79,6 +80,18 @@ function Row({
       </div>
       <div className="shrink-0">{children}</div>
     </div>
+  );
+}
+
+/** About's version, tagged as beta until 1.0.0. */
+export function VersionRow({ version }: { version: string | null }) {
+  return (
+    <Row label="Version" hint="OpenPlan is in beta until 1.0.0. Things may change between versions.">
+      <span className="flex items-center gap-2">
+        <Badge variant="outline">Beta</Badge>
+        <span className="text-sm text-muted-foreground tabular-nums">{version ?? "…"}</span>
+      </span>
+    </Row>
   );
 }
 
@@ -547,11 +560,7 @@ export function SettingsDialog({
                   One place for the plans you and your agents work on.
                 </p>
                 <div className="mt-4 divide-y divide-border border-t border-border">
-                  <Row label="Version">
-                    <span className="text-sm text-muted-foreground tabular-nums">
-                      {version ?? "…"}
-                    </span>
-                  </Row>
+                  <VersionRow version={version} />
                 </div>
               </>
             )}
