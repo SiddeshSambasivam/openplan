@@ -1,6 +1,5 @@
 import { Check, ChevronLeft, ChevronRight, Folder } from "lucide-react";
 import { memo, useMemo, useState, type ReactNode } from "react";
-import { EmptyState } from "@/components/EmptyState";
 import { FolderPicker } from "@/components/FolderPicker";
 import { StatusGlyph } from "@/components/StatusGlyph";
 import {
@@ -20,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import {
   boardColumns,
   FOLDED,
+  folderChips,
   shortDate,
   type ReviewSummary,
   type StatusGroup,
@@ -27,6 +27,7 @@ import {
 import type { CardDisplay } from "@/lib/cardDisplay";
 import { entrance, useMountedKeys } from "@/lib/motion";
 import { useNewPlans } from "@/lib/newPlans";
+import { BoardEmptyState } from "./BoardEmptyState";
 import { STATUS_HINTS, STATUS_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { cn } from "@/lib/utils";
 import { COMPLETION_PROMPT, offersCompletion, type PlanProgress } from "@/lib/work";
@@ -115,7 +116,7 @@ function Card({
             {plan.title}
           </span>
           {display.repos && <RepoLine repos={work?.repos ?? []} className="text-xs" />}
-          {display.folders && <FolderBadges folders={plan.folders} />}
+          {display.folders && <FolderBadges folders={folderChips(plan)} />}
           {/* Wraps rather than clips once a narrow column runs out of room. */}
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             {display.sessions && <LiveMark sessions={sessions} />}
@@ -328,7 +329,7 @@ export const BoardView = memo(function BoardView({
   const actions = { folders, onFoldersChange, onOpen, onComplete };
 
   if (plans.length === 0) {
-    return <EmptyState title="No plans yet" hint="Your agents will file them here." />;
+    return <BoardEmptyState />;
   }
 
   // Finished work sits behind one Hidden control at the end of the board,
@@ -342,11 +343,11 @@ export const BoardView = memo(function BoardView({
   if (shownCount === 0) {
     const finished = plans.length;
     return (
-      <EmptyState title="Nothing in progress" hint="Your agents will file new plans here.">
+      <BoardEmptyState title="Nothing in progress">
         <Button variant="outline" size="sm" onClick={() => setUnfolded(FOLDED)}>
           Show {finished} finished {finished === 1 ? "plan" : "plans"}
         </Button>
-      </EmptyState>
+      </BoardEmptyState>
     );
   }
   const pieces: ReactNode[] = columns

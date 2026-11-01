@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 /** The gap between one item's entrance and the next. */
 export const STAGGER_STEP_MS = 40;
@@ -34,4 +34,27 @@ export function entrance(index: number, mountedWith: boolean): Entrance {
 export function useMountedKeys(keys: Iterable<string>): ReadonlySet<string> {
   const [mounted] = useState(() => new Set(keys));
   return mounted;
+}
+
+/* A scene only moves while someone can see it: a hidden or unfocused
+ * window pauses it, which keeps the idle budget. */
+export function useWindowActive(): boolean {
+  const [active, setActive] = useState(() => windowActive());
+  useEffect(() => {
+    const update = () => setActive(windowActive());
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
+    window.addEventListener("blur", update);
+    return () => {
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
+      window.removeEventListener("blur", update);
+    };
+  }, []);
+  return active;
+}
+
+function windowActive(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.visibilityState === "visible" && document.hasFocus();
 }
