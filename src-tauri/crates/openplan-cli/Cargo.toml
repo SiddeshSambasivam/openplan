@@ -1,6 +1,6 @@
 [package]
 name = "openplan-cli"
-version = "0.7.2"
+version = "0.7.3"
 license = "Apache-2.0"
 description = "Command line access to the OpenPlan plan base, and the MCP server agents talk to"
 authors = ["Siddesh Sambasivam"]
