@@ -632,11 +632,11 @@ fn check_roles(questions: &[Question], panel: Option<&PersonRolePanel>) -> Resul
             let known: Vec<&str> = Role::KNOWN.iter().map(Role::as_str).collect();
             return Err(format!("{id} asks as {asks}, which is not a role. Use one of these: {}.", known.join(", ")));
         }
-        if let Some(panel) = panel.filter(|panel| !panel.panel.iter().any(|member| &member.role == role)) {
+        if let Some(panel) = panel.filter(|panel| !panel.panel.contains(role)) {
             let members: Vec<String> = panel
                 .panel
                 .iter()
-                .filter_map(|member| roles::persona(&member.role).map(|p| format!("{} ({})", p.name, member.role.as_str())))
+                .filter_map(|member| roles::persona(member).map(|p| format!("{} ({})", p.name, member.as_str())))
                 .collect();
             return Err(format!(
                 "{id} asks as {asks}, who is not on the person's panel. Ask only from {}.",

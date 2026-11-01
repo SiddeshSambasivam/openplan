@@ -46,13 +46,13 @@ describe("RolePicker", () => {
 });
 
 describe("PanelPreview", () => {
-  it("names each reviewer, what they ask about and how deep", () => {
+  it("names each reviewer, their title and what they ask about", () => {
     const html = renderToStaticMarkup(<PanelPreview role="designer" />);
-    expect(html).toContain("Iris · Designer");
+    expect(html).toContain("Iris");
+    expect(html).toContain("Designer");
     expect(html).toContain("Keyboard, screen readers and contrast");
-    expect(html.match(/In depth/g)).toHaveLength(3);
-    expect(html.match(/Plain words/g)).toHaveLength(1);
-    expect(html).toContain("Iris, Noor and Ada go into depth. Theo keeps to plain words.");
+    expect(html).not.toMatch(/In depth|Plain words/);
+    expect(html).toContain("Iris, Noor, Ada and Theo review every plan you write.");
   });
 
   it("asks for a role before one is picked", () => {

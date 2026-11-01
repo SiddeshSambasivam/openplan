@@ -188,9 +188,9 @@ The plan stays in progress, and the app flags it as needing an answer.
    reviewer and `support` the support lead. Ask from the roles the plan
    touches. Do not add a role that has nothing to ask.
 2. When `get_standards` ends with a "Who is answering" section, follow it. Ask
-   only from the panel it names, in the voice it gives each member, and let
-   the owner of each required area ask about it. A question another persona
-   would ask goes to the closest panel member, in plain words.
+   only from the panel it names, and let the owner of each required area ask
+   about it. A question another persona would ask goes to the closest panel
+   member.
 3. Order the questions from easy to hard. The early ones confirm scope. The later
    ones ask the person to explain their reasoning, and a free-text answer is
    welcome there.

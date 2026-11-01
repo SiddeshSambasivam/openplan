@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 /// What the person does, picked in onboarding. A role from a newer build
-/// reads as `Other`, whose panel asks in plain words.
+/// reads as `Other`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PersonRole {
@@ -20,21 +20,6 @@ pub enum PersonRole {
     Other,
 }
 
-/// How a reviewer talks to this person: in the field's own terms, or
-/// without jargon.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Voice {
-    Deep,
-    Plain,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PanelMember {
-    pub role: Role,
-    pub voice: Voice,
-}
-
 /// One card on the role picker and the panel it brings.
 #[derive(Debug, Deserialize)]
 pub struct PersonRolePanel {
@@ -43,7 +28,8 @@ pub struct PersonRolePanel {
     pub hint: String,
     /// Completes "The person is ...".
     pub who: String,
-    pub panel: Vec<PanelMember>,
+    /// The question roles that ask this person, in the order they show.
+    pub panel: Vec<Role>,
     /// The panel member who asks about each required area.
     pub owners: BTreeMap<String, Role>,
 }
@@ -75,20 +61,19 @@ pub fn persona(role: &Role) -> Option<&'static Persona> {
 }
 
 /// What `get_standards` adds for a person who picked a role: who sits on
-/// their panel, how each one talks, and who owns each required area.
+/// their panel, and who owns each required area.
 pub fn who_is_answering(role: PersonRole) -> String {
     let entry = panel_of(role);
     let mut section = format!(
         "**Who is answering.** The person is {}. Ask only from this panel:\n",
         entry.who
     );
-    for member in &entry.panel {
-        section.push_str(&member_line(entry, member));
+    for role in &entry.panel {
+        section.push_str(&member_line(entry, role));
     }
     section.push_str(
-        "\nIn depth means the field's own terms, and a request for the person's reasoning \
-         on the hardest question. Plain words means no jargon, at most two questions a round, \
-         and a recommended option the person can accept without knowing the field.\n",
+        "\nEvery reviewer asks in the field's own terms. \
+         On the hardest question, ask the person to explain their reasoning.\n",
     );
     section
 }
@@ -106,22 +91,16 @@ fn table() -> &'static Table {
     })
 }
 
-/// "- Ada (`accessibility`), in depth, owns edge cases: keyboard, ..."
-fn member_line(entry: &PersonRolePanel, member: &PanelMember) -> String {
-    let persona = persona(&member.role).expect("every panel member has a persona");
-    let voice = match member.voice {
-        Voice::Deep => "in depth",
-        Voice::Plain => "in plain words",
-    };
-    let owned: Vec<&str> = REQUIRED_AREAS
-        .into_iter()
-        .filter(|area| entry.owners.get(*area) == Some(&member.role))
-        .collect();
+/// "- Ada (`accessibility`), owns edge cases: keyboard, ..."
+fn member_line(entry: &PersonRolePanel, role: &Role) -> String {
+    let persona = persona(role).expect("every panel member has a persona");
+    let owned: Vec<&str> =
+        REQUIRED_AREAS.into_iter().filter(|area| entry.owners.get(*area) == Some(role)).collect();
     let owns = if owned.is_empty() { String::new() } else { format!(", owns {}", spoken(&owned)) };
     format!(
-        "- {} (`{}`), {voice}{owns}: {}.\n",
+        "- {} (`{}`){owns}: {}.\n",
         persona.name,
-        member.role.as_str(),
+        role.as_str(),
         lowercase_first(&persona.focus)
     )
 }
@@ -168,7 +147,7 @@ mod tests {
     #[test]
     fn every_panel_has_four_different_reviewers_this_build_knows() {
         for entry in all() {
-            let roles: Vec<&Role> = entry.panel.iter().map(|member| &member.role).collect();
+            let roles: Vec<&Role> = entry.panel.iter().collect();
 
             assert_eq!(roles.len(), 4, "{:?}", entry.id);
             for (at, role) in roles.iter().enumerate() {
@@ -185,7 +164,7 @@ mod tests {
             for area in REQUIRED_AREAS {
                 let owner = entry.owners.get(area).unwrap_or_else(|| panic!("{:?} has no {area} owner", entry.id));
                 assert!(
-                    entry.panel.iter().any(|member| &member.role == owner),
+                    entry.panel.contains(owner),
                     "{:?}: {area} belongs to {owner:?}, who is not on the panel",
                     entry.id
                 );
@@ -194,21 +173,13 @@ mod tests {
     }
 
     #[test]
-    fn the_designer_panel_goes_deep_on_its_own_field() {
+    fn the_designer_panel_is_its_own_field_and_engineering() {
         let designer = panel_of(PersonRole::Designer);
-        let voices: Vec<(&str, Voice)> =
-            designer.panel.iter().map(|member| (member.role.as_str(), member.voice)).collect();
+        let roles: Vec<&str> = designer.panel.iter().map(Role::as_str).collect();
 
-        assert_eq!(
-            voices,
-            [
-                ("design", Voice::Deep),
-                ("research", Voice::Deep),
-                ("accessibility", Voice::Deep),
-                ("engineering", Voice::Plain)
-            ]
-        );
+        assert_eq!(roles, ["design", "research", "accessibility", "engineering"]);
         assert_eq!(designer.owners["edge cases"], Role::Accessibility);
+        assert_eq!(panel_of(PersonRole::Other).panel, [Role::Product, Role::Engineering, Role::Design, Role::Oncall]);
     }
 
     #[test]
@@ -226,13 +197,13 @@ mod tests {
         assert_eq!(
             who_is_answering(PersonRole::Designer),
             "**Who is answering.** The person is a designer. Ask only from this panel:\n\
-             - Iris (`design`), in depth: what people see and do.\n\
-             - Noor (`research`), in depth: what we know about the people using it.\n\
-             - Ada (`accessibility`), in depth, owns edge cases: keyboard, screen readers and contrast.\n\
-             - Theo (`engineering`), in plain words, owns error handling and scale: how it is built and tested.\n\
+             - Iris (`design`): what people see and do.\n\
+             - Noor (`research`): what we know about the people using it.\n\
+             - Ada (`accessibility`), owns edge cases: keyboard, screen readers and contrast.\n\
+             - Theo (`engineering`), owns error handling and scale: how it is built and tested.\n\
              \n\
-             In depth means the field's own terms, and a request for the person's reasoning on the hardest question. \
-             Plain words means no jargon, at most two questions a round, and a recommended option the person can accept without knowing the field.\n"
+             Every reviewer asks in the field's own terms. \
+             On the hardest question, ask the person to explain their reasoning.\n"
         );
     }
 
@@ -244,10 +215,9 @@ mod tests {
 
             assert!(section.contains(&format!("The person is {}.", entry.who)), "{section}");
             assert_eq!(bullets.len(), 4, "{section}");
-            for (member, bullet) in entry.panel.iter().zip(&bullets) {
-                let persona = persona(&member.role).unwrap();
-                let voice = if member.voice == Voice::Deep { "in depth" } else { "in plain words" };
-                assert!(bullet.starts_with(&format!("- {} (`{}`), {voice}", persona.name, member.role.as_str())), "{bullet}");
+            for (role, bullet) in entry.panel.iter().zip(&bullets) {
+                let persona = persona(role).unwrap();
+                assert!(bullet.starts_with(&format!("- {} (`{}`)", persona.name, role.as_str())), "{bullet}");
             }
             for area in REQUIRED_AREAS {
                 assert_eq!(bullets.iter().filter(|bullet| bullet.contains(area)).count(), 1, "{area}: {section}");

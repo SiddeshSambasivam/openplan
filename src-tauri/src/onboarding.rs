@@ -262,7 +262,7 @@ fn seed_demo_at(file: &Path, base: &Base) -> Result<Vec<PathBuf>, String> {
 fn restore_demo_at(file: &Path, base: &Base) -> Result<Vec<PathBuf>, String> {
     let saved = settings::read_settings(file)?.unwrap_or_default();
     let panel: Vec<&str> = match saved.role {
-        Some(role) => roles::panel_of(role).panel.iter().map(|m| m.role.as_str()).collect(),
+        Some(role) => roles::panel_of(role).panel.iter().map(|role| role.as_str()).collect(),
         None => demo::DEFAULT_PANEL.to_vec(),
     };
     let written = demo::seed_demo(base, &panel)?;
