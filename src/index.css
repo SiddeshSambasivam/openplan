@@ -136,7 +136,7 @@
   --persona-lens: oklch(1 0 0 / 35%);
 
   /* onboarding: the welcome's rays and horizon, and the tour's dim overlay */
-  --onboarding-ray-strength: 0.1;
+  --onboarding-ray-strength: 0.32;
   --onboarding-horizon: oklch(0.97 0 0);
   --tour-scrim: oklch(0 0 0 / 45%);
 
@@ -203,7 +203,7 @@
   --persona-shield: oklch(0.88 0.03 265);
   --persona-speech: oklch(0.95 0 0);
 
-  --onboarding-ray-strength: 0.13;
+  --onboarding-ray-strength: 0.3;
   --onboarding-horizon: oklch(0.2 0 0);
   --tour-scrim: oklch(0 0 0 / 60%);
 
@@ -587,8 +587,10 @@
 }
 
 /* The onboarding's soft light from below the horizon, in the theme's own
-   foreground. Each ray sets its angle in `--angle` and sways by `--sway`
-   over `--period`. The fan tilts and the horizon shifts toward the pointer
+   foreground. Each ray sets its angle in `--angle` and its place in the fan
+   in `--i`, which delays its sway so a wave rolls across the fan. Each ray's
+   blur is static, which keeps the frosted look cheap: nothing re-blurs the
+   window as the rays move. The fan tilts and the horizon shifts toward the pointer
    by `--lean-x` and `--lean-y`, which script eases. The blur is static and
    only transform and opacity move. The sway pauses when the window is
    hidden or unfocused, and the entrance always finishes. */
@@ -605,7 +607,7 @@
   }
   to {
     opacity: calc(var(--onboarding-ray-strength) * 0.45);
-    transform: rotate(calc(var(--angle) + var(--sway))) scaleY(1.08);
+    transform: rotate(calc(var(--angle) + 5deg)) scaleY(1.08);
   }
 }
 
@@ -647,19 +649,19 @@
   margin-left: -9vw;
   border-radius: 50%;
   background: linear-gradient(to top, var(--foreground) 0%, transparent 78%);
-  filter: blur(22px);
+  filter: blur(40px);
   opacity: var(--onboarding-ray-strength);
   transform: rotate(var(--angle)) scaleY(0.2);
   transform-origin: 50% 100%;
   animation:
     onboarding-ray-in 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards,
-    onboarding-ray-drift var(--period) ease-in-out 1.6s infinite alternate;
+    onboarding-ray-drift 7s ease-in-out calc(1.6s + var(--i) * 0.45s) infinite alternate;
 }
 
 .onboarding-ray[data-thin] {
-  width: 6vw;
-  margin-left: -3vw;
-  filter: blur(12px);
+  width: 8vw;
+  margin-left: -4vw;
+  filter: blur(28px);
 }
 
 .onboarding-rays[data-paused="true"] .onboarding-ray {

@@ -2,23 +2,23 @@ import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 
 import { follow, isSettled, type Follow } from "@/lib/follow";
 import { cn } from "@/lib/utils";
 
-/** Each ray's angle and how far it sways, in degrees, its sway's period in
- * seconds, and whether it is a thin one. The periods all differ, so
- * the rays drift out of step. */
-const RAYS: [number, number, number, boolean][] = [
-  [-58, 4, 13, false],
-  [-40, -5.5, 11, true],
-  [-24, 3, 17, false],
-  [-9, -4.5, 12, true],
-  [7, 5, 16, true],
-  [22, -3.5, 14, false],
-  [39, 6, 19, true],
-  [56, -4, 15, false],
+/** Each ray's angle in degrees, left to right, and whether it is a thin one.
+ * Every ray sways the same way on the same clock, each a little after the
+ * one before it, so the light rolls across the fan as a wave. */
+const RAYS: [number, boolean][] = [
+  [-58, false],
+  [-40, true],
+  [-24, false],
+  [-9, true],
+  [7, true],
+  [22, false],
+  [39, true],
+  [56, false],
 ];
 
 /**
- * Soft rays from below the horizon, in the theme's own foreground. They
- * sway on every step and lean toward the pointer, only while the window is
+ * Soft rays from below the horizon, in the theme's own foreground. A wave
+ * rolls across them on every step and lean toward the pointer, only while the window is
  * visible and focused, and fade back once the welcome is passed.
  */
 export function OnboardingBackdrop({ dim }: { dim: boolean }) {
@@ -33,14 +33,12 @@ export function OnboardingBackdrop({ dim }: { dim: boolean }) {
       className={cn("onboarding-rays transition-opacity duration-900", dim && "opacity-85")}
     >
       <div className="onboarding-fan">
-        {RAYS.map(([angle, sway, period, thin]) => (
+        {RAYS.map(([angle, thin], i) => (
           <div
             key={angle}
             className="onboarding-ray"
             data-thin={thin ? "" : undefined}
-            style={
-              { "--angle": `${angle}deg`, "--sway": `${sway}deg`, "--period": `${period}s` } as CSSProperties
-            }
+            style={{ "--angle": `${angle}deg`, "--i": i } as CSSProperties}
           />
         ))}
       </div>
