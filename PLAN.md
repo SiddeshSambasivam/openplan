@@ -215,8 +215,8 @@ the app theme. A dev-only "Replay onboarding" button in Settings resets the flag
 2. **Name**.
 3. **Role**: six roles (engineer, designer, product manager, engineering lead,
    founder, something else). The person's role picks a panel of four reviewers
-   from nine personas, each asking in depth or in plain words; the screen shows
-   the panel as it changes. `get_standards` tells agents who sits on the panel.
+   from nine personas, all asking in depth; the screen shows the panel as it
+   changes. `get_standards` tells agents who sits on the panel.
 4. **Which agents do you use?**: Claude Code, Codex and Cursor by logo, detected
    ones picked.
 5. **Setting up your agents**: installs the `openplan` MCP server and the
@@ -231,7 +231,10 @@ the person to comment, send a review or answer, with Next always shown. Leaving
 the step's view pauses it into a "Resume tour" pill. Demo plans carry
 `demo: true`: agents never see them, the app never asks `gh` about them, and
 Build on one opens the next stage. Settings has Role, Agents and "Take the tour",
-which brings back any demo plan the person deleted.
+which brings back any demo plan the person deleted. Finishing the tour shows a
+"You're ready" card over the dimmed board. An empty board loops a session
+bubble, a plan landing in Draft and two reviewers asking, under "Start a session
+with your agent".
 
 Importing existing plans lives in Settings > Import plans (0.3.0): it runs
 discovery each time the section opens, lists each agent's loose plans and folders
@@ -1396,6 +1399,7 @@ Run on a release build, or `pnpm tauri dev` with the dev profile.
 | 2026-10-31 | **GATE 7 waived and Phase 8 (0.6.0, S3 builds and in-app updates) starts** | Sid, 2026-10-31: "Gate waived", after the rule was pointed out. Recorded per §2 Process. GATE 7 QA remains owed |
 | 2026-11-01 | **GATE 8 waived and Phase 9 (onboarding by role, agent setup, in-app tour) starts** | Sid, 2026-11-01: "Gate waived", after the rule was pointed out on Build. Recorded per §2 Process. GATE 7 and GATE 8 QA remain owed |
 | 2026-11-01 | Phase 9 decisions D1 to D20, in full with their options in the filed plan "Ask the person's role during onboarding and let it decide which personas go deep": the role picks a panel of four from nine personas, each in depth or plain words (D1, D15); the role lives in the person's settings and reaches agents through `get_standards` (D2, D3); one `person_roles.json` feeds Rust and TypeScript (D4); six roles (D6); onboarding follows the app theme with the app's lockup (D7, D13); a hint on the Alignment tab for people with no role (D8); agents are picked, then set up with visible steps and Retry (D9, D10); five demo plans, one per stage, marked `demo: true` and hidden from agents (D11, D14); an in-app tour over the real screens instead of slides (D12), with three try-it steps, a Resume pill, and a replay that restores only missing demo plans (D18 to D20); questions outside the panel go to its closest member in plain words, one to three a round (D16, D17) | Sid, through the plan's alignment rounds and review, 2026-10-31 to 2026-11-01 |
+| 2026-11-01 | After trying the build: every panel reviewer asks in depth, so the plain-words voice and its tags are gone (supersedes D1 and D5 in part); the onboarding rays sway on every step and lean toward the pointer; the tour ends on a "You're ready" card over the dimmed board; the empty board shows what a session with an agent leads to; demo cards drop their duplicate Demo folder chip | Sid, 2026-11-01, trying the dev build |
 | 2026-10-31 | The license is Apache 2.0, not MIT | Sid's call. It allows the same use as MIT and adds an explicit patent grant and terms for contributions, which matter once pull requests are accepted. Rejected: GPL-3.0 (forces forks open, deters adoption) and the Functional Source License (not open source) |
 | 2026-10-31 | macOS builds are ad-hoc signed (`bundle.macOS.signingIdentity: "-"`) and not notarized | Sid has no Apple Developer ID. An unsigned download can fail with "is damaged and can't be opened", which only `xattr` gets past; an ad-hoc signed one gets Open Anyway in Privacy & Security. Revisit with a Developer ID, which adds signing and notarization secrets to CI and changes nothing else |
 | 2026-11-01 | The plan bar gives way by its own width (a size container), not the window's: below 896px the labelled actions keep only their icon, tooltip and key; below 1024px the word count and "All PRs merged." go; below 768px reading width and font size go and stay in Settings. The title keeps at least 10rem | At 720 the title shrank to nothing. The window width misleads here: at 900 the expanded navbar leaves the bar narrower than at 720 with the rail. Rejected: an overflow menu, which hides actions people use daily behind a click |
