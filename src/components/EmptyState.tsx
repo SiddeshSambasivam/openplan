@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { useWindowActive } from "@/lib/motion";
 
 /** A place with nothing in it: plans drift into a tray, each on its own
  * clock, so the scene never visibly repeats. The words default to the plan
@@ -87,27 +88,4 @@ function Scene({ paused }: { paused: boolean }) {
       </g>
     </svg>
   );
-}
-
-/* The scene only moves while someone can see it: a hidden or unfocused
- * window pauses it, which keeps the idle budget. */
-function useWindowActive(): boolean {
-  const [active, setActive] = useState(() => windowActive());
-  useEffect(() => {
-    const update = () => setActive(windowActive());
-    document.addEventListener("visibilitychange", update);
-    window.addEventListener("focus", update);
-    window.addEventListener("blur", update);
-    return () => {
-      document.removeEventListener("visibilitychange", update);
-      window.removeEventListener("focus", update);
-      window.removeEventListener("blur", update);
-    };
-  }, []);
-  return active;
-}
-
-function windowActive(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.visibilityState === "visible" && document.hasFocus();
 }
