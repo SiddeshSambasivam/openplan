@@ -121,6 +121,6 @@ happened.
 | Storage and history | Markdown and JSON files, [git2](https://github.com/rust-lang/git2-rs) (libgit2, bundled) |
 | Agent protocol | [Model Context Protocol](https://modelcontextprotocol.io) over stdio |
 | File watching | [notify](https://github.com/notify-rs/notify) |
-| Updates | The Tauri updater, reading a signed `latest.json` from S3 behind CloudFront |
+| Updates | The Tauri updater, reading its platform's signed manifest, `updates/<os>-<arch>.json`, from S3 behind CloudFront |
 | Tests | [Vitest](https://vitest.dev), `cargo test` |
 | Package manager | [pnpm](https://pnpm.io) |

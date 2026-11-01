@@ -41,7 +41,7 @@ pnpm tauri build
 `read -s` takes the key's password without echoing it or saving it to shell history.
 Bundles land in `src-tauri/target/release/bundle/`:
 `.app` and `.dmg` on macOS, `.msi` and `.exe` on Windows, `.deb`, `.rpm` and `.AppImage`
-on Linux.
+on Linux. CI builds only the ones it ships: no `.msi` on Windows.
 
 ## Release
 
@@ -50,9 +50,15 @@ on Linux.
 2. Push an annotated tag, `v<version>`. Its message becomes the release notes the app
    shows.
 
-CI builds all three platforms. Once every build passes, it uploads them to S3 and then
-`latest.json`, which every installed copy checks. It refuses a tag that differs from
-the app's version. PLAN.md records the hosting setup.
+CI builds four platforms in parallel: macOS on Apple silicon, macOS on Intel, Linux and
+Windows. Each build uploads its bundles to S3 and then its own manifest,
+`updates/<os>-<arch>.json`, so that platform's copies can update as soon as it is done.
+Once all four pass, CI writes `latest.json`, which copies on 0.7.2 and older check. It
+refuses a tag that differs from the app's version. PLAN.md records the hosting setup.
+
+Each push to `main` that touches `src-tauri/`, `package.json`, `pnpm-lock.yaml` or the
+workflow compiles the app for all four platforms without bundling, to save the Rust
+cache that the next tag's builds start from.
 
 macOS builds are ad-hoc signed and not notarized, so the first launch of a download
 needs Open Anyway in System Settings, under Privacy & Security.
