@@ -16,7 +16,7 @@ import { Fragment, useContext, useState } from "react";
 import { ClaudeCodeIcon, CodexIcon, CursorIcon } from "./AgentIcons";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { shortDate } from "@/lib/board";
+import { folderChips, shortDate } from "@/lib/board";
 import type { CardDisplay } from "@/lib/cardDisplay";
 import { SOURCE_LABELS, type PlanSummary, type Status } from "@/lib/planBase";
 import { PR_STATE_NOTE, PrReadsAvailable } from "@/lib/prState";
@@ -124,7 +124,7 @@ export function PlanRowFacts({
       )}
       {display.folders && (
         <span className="hidden w-36 shrink-0 md:flex">
-          <FolderBadges folders={plan.folders} max={1} className="flex-nowrap" />
+          <FolderBadges folders={folderChips(plan)} max={1} className="flex-nowrap" />
         </span>
       )}
       {display.sessions && <LiveMark sessions={sessions} />}

@@ -1,3 +1,4 @@
+import { DEMO_FOLDER } from "./onboarding";
 import { documentLabel } from "./planTree";
 import { STATUS_FLOW, STATUS_ORDER, type PlanSummary, type Status } from "./planBase";
 import type { PlanProgress } from "./work";
@@ -27,6 +28,12 @@ export function demoBuildPlan(plans: PlanSummary[]): PlanSummary | undefined {
 }
 
 const DEMO_BUILDING = "demo-sync-notes-across-devices";
+
+/** The folders a card or row shows. A demo plan's Demo tag already says
+ * what its Demo folder would. */
+export function folderChips(plan: PlanSummary): string[] {
+  return plan.demo ? plan.folders.filter((folder) => folder !== DEMO_FOLDER) : plan.folders;
+}
 
 /** Newest first; a plan with no date sorts by title at the end. */
 export function sortPlans(plans: PlanSummary[]): PlanSummary[] {

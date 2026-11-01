@@ -3,6 +3,7 @@ import {
   boardColumns,
   demoBuildPlan,
   FOLDED,
+  folderChips,
   forYou,
   pageTitle,
   relativeTime,
@@ -289,6 +290,18 @@ describe("steppedPlan", () => {
     expect(steppedPlan(order, null, 1)?.id).toBe("a");
     expect(steppedPlan(order, "/elsewhere.md", -1)?.id).toBe("c");
     expect(steppedPlan([], null, 1)).toBeNull();
+  });
+});
+
+describe("folderChips", () => {
+  it("leaves the Demo folder off a demo plan, which already carries a Demo tag", () => {
+    const demo = plan({ id: "demo-faster-search", demo: true, folders: ["Demo", "Search"] });
+
+    expect(folderChips(demo)).toEqual(["Search"]);
+  });
+
+  it("keeps a Demo folder on a plan of the person's own", () => {
+    expect(folderChips(plan({ id: "mine", folders: ["Demo", "Search"] }))).toEqual(["Demo", "Search"]);
   });
 });
 

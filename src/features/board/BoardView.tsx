@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import {
   boardColumns,
   FOLDED,
+  folderChips,
   shortDate,
   type ReviewSummary,
   type StatusGroup,
@@ -115,7 +116,7 @@ function Card({
             {plan.title}
           </span>
           {display.repos && <RepoLine repos={work?.repos ?? []} className="text-xs" />}
-          {display.folders && <FolderBadges folders={plan.folders} />}
+          {display.folders && <FolderBadges folders={folderChips(plan)} />}
           {/* Wraps rather than clips once a narrow column runs out of room. */}
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             {display.sessions && <LiveMark sessions={sessions} />}
