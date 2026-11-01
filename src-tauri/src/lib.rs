@@ -1,3 +1,4 @@
+mod lifecycle;
 mod onboarding;
 mod plans;
 mod pull_requests;
@@ -297,8 +298,11 @@ pub fn run() {
             plans::setup(app, base.as_ref().ok().cloned());
             sessions::setup(app, base.as_ref().ok().cloned());
             app.manage(plans::BaseState::new(base));
+            #[cfg(target_os = "macos")]
+            app.set_menu(lifecycle::menu(app.handle())?)?;
             Ok(())
         })
+        .on_window_event(lifecycle::on_window_event)
         .invoke_handler(tauri::generate_handler![
             onboarding::app_settings,
             onboarding::complete_onboarding,
@@ -362,9 +366,5 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|_app, event| {
-            if let tauri::RunEvent::Exit = event {
-                sessions::teardown();
-            }
-        });
+        .run(lifecycle::on_run_event);
 }

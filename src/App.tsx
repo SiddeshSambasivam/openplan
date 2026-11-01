@@ -25,6 +25,7 @@ import { Onboarding } from "./features/onboarding/Onboarding";
 import { DEMO_FOLDER, type OnboardingResult } from "./lib/onboarding";
 import { Tour } from "./features/tour/Tour";
 import { demoStages, restoreDemo, type TourLocation, type TourStep } from "./lib/tour";
+import { saveThenQuit } from "./lib/quit";
 import { CommentComposer } from "./features/comments/CommentComposer";
 import { CommentsLayer, type AnchorState } from "./features/comments/CommentsLayer";
 import { CommentsPanel } from "./features/comments/CommentsPanel";
@@ -1404,20 +1405,17 @@ export default function App() {
     };
   }, [refreshOnFocus, flushSave]);
 
-  /* ---------- save on window close (Tauri) ---------- */
+  /* ---------- save before quitting (Tauri) ---------- */
 
+  // The app holds a quit until the page has written its edits.
   useEffect(() => {
     if (!isTauri) return;
     let unlisten: (() => void) | undefined;
     let cancelled = false;
     void (async () => {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      const un = await getCurrentWindow().onCloseRequested(async (event) => {
-        if (!dirtyRef.current) return;
-        event.preventDefault();
-        await flushSave();
-        void getCurrentWindow().destroy();
-      });
+      const { listen } = await import("@tauri-apps/api/event");
+      const { exit } = await import("@tauri-apps/plugin-process");
+      const un = await listen("quit-requested", () => void saveThenQuit(flushSave, () => exit(0)));
       if (cancelled) un();
       else unlisten = un;
     })();
