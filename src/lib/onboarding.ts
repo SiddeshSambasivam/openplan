@@ -1,3 +1,4 @@
+import { setOpenAtLogin } from "./openAtLogin";
 import { PERSON_ROLES, type PersonRoleId } from "./personRoles";
 
 export const ONBOARDING_STEPS = ["welcome", "name", "role", "agents", "setup", "finish"] as const;
@@ -187,14 +188,17 @@ export async function installTools(
 }
 
 /** Saves who the person is and writes the demo plans. A demo that cannot
- * be written still opens the board, on every plan and with no tour. */
+ * be written still opens the board, on every plan and with no tour. Opening
+ * at login that fails is left for Settings, where its switch shows it off. */
 export async function finishOnboarding(
   call: Invoke,
   name: string,
   role: PersonRoleId | null,
+  openAtLogin: boolean,
 ): Promise<OnboardingResult> {
   const kept = name.trim() || null;
   await call("complete_onboarding", { name: kept, role });
+  if (openAtLogin) await setOpenAtLogin(true).catch(() => false);
   const seeded = await call("seed_demo").then(
     () => true,
     () => false,

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { enable } from "@tauri-apps/plugin-autostart";
 import {
   canContinue,
   DEMO_FOLDER,
@@ -18,6 +19,12 @@ import {
   type OnboardingEvent,
   type OnboardingState,
 } from "./onboarding";
+
+vi.mock("@tauri-apps/plugin-autostart", () => ({
+  enable: vi.fn(async () => {}),
+  disable: vi.fn(async () => {}),
+  isEnabled: vi.fn(async () => true),
+}));
 
 const AGENTS = [
   { id: "claude-code", name: "Claude Code", installed: true },
@@ -248,7 +255,7 @@ describe("finishOnboarding", () => {
       return [];
     };
 
-    const result = await finishOnboarding(call, " Sid ", "designer");
+    const result = await finishOnboarding(call, " Sid ", "designer", false);
 
     expect(calls).toEqual([
       ["complete_onboarding", { name: "Sid", role: "designer" }],
@@ -265,7 +272,7 @@ describe("finishOnboarding", () => {
       return [];
     };
 
-    const result = await finishOnboarding(call, "  ", null);
+    const result = await finishOnboarding(call, "  ", null, false);
 
     expect(calls[0]).toEqual(["complete_onboarding", { name: null, role: null }]);
     expect(result).toMatchObject({ name: null, role: null });
@@ -277,8 +284,26 @@ describe("finishOnboarding", () => {
       return null;
     };
 
-    const result = await finishOnboarding(call, "Sid", null);
+    const result = await finishOnboarding(call, "Sid", null, false);
 
     expect(result).toMatchObject({ folder: null, startTour: false });
+  });
+
+  it("sets the app to open at login only when the switch is on", async () => {
+    const call = async () => null;
+
+    await finishOnboarding(call, "Sid", null, false);
+    expect(enable).not.toHaveBeenCalled();
+
+    await finishOnboarding(call, "Sid", null, true);
+    expect(enable).toHaveBeenCalledOnce();
+  });
+
+  it("still opens the board when the app cannot be set to open at login", async () => {
+    vi.mocked(enable).mockRejectedValueOnce("Couldn't add the login item.");
+
+    const result = await finishOnboarding(async () => null, "Sid", null, true);
+
+    expect(result).toMatchObject({ name: "Sid" });
   });
 });

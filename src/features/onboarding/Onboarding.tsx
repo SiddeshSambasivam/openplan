@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import {
   canContinue,
   detectAgents,
@@ -49,6 +50,7 @@ export function Onboarding({ onDone, windowControls }: OnboardingProps) {
   const [detected, setDetected] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [openAtLogin, setOpenAtLogin] = useState(false);
   const { shown, leaving } = useLeavingStep(state.step);
 
   // Detection starts on the welcome, so the cards are ready by the time
@@ -67,7 +69,7 @@ export function Onboarding({ onDone, windowControls }: OnboardingProps) {
     setFinishing(true);
     setSaveError(false);
     try {
-      onDone(await finishOnboarding(invoke, state.name, state.role));
+      onDone(await finishOnboarding(invoke, state.name, state.role, openAtLogin));
     } catch {
       setSaveError(true);
       setFinishing(false);
@@ -275,6 +277,24 @@ export function Onboarding({ onDone, windowControls }: OnboardingProps) {
               <MainButton onClick={next} disabled={finishing} index={2}>
                 Open my board
               </MainButton>
+              <label
+                className={cn("mt-6 flex cursor-pointer items-start gap-3 text-left short:mt-3", RISE)}
+                style={rise(3)}
+              >
+                {/* Enter opens the board here, so it must not also flip the switch. */}
+                <Switch
+                  checked={openAtLogin}
+                  onCheckedChange={setOpenAtLogin}
+                  onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block text-sm">Open OpenPlan when you log in</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Keeps your agents connected after you close the window.
+                  </span>
+                </span>
+              </label>
               {saveError && (
                 <p className="mt-3 text-xs text-destructive">Couldn't save your settings. Try again.</p>
               )}

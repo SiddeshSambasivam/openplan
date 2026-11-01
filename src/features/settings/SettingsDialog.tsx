@@ -40,6 +40,7 @@ import { TooltipButton } from "@/components/TooltipButton";
 import { cn } from "@/lib/utils";
 import type { Identity } from "@/lib/comments";
 import { onAgentSettingsRequest, onRoleSettingsRequest } from "@/lib/settingsRequests";
+import { opensAtLogin, setOpenAtLogin } from "@/lib/openAtLogin";
 import { AgentSettings } from "./AgentSettings";
 import { ProfileSettings } from "./ProfileSettings";
 
@@ -88,6 +89,30 @@ export function VersionRow({ version }: { version: string | null }) {
         <Badge variant="outline">Beta</Badge>
         <span className="text-sm text-muted-foreground tabular-nums">{version ?? "…"}</span>
       </span>
+    </Row>
+  );
+}
+
+/** General's switch for opening at login. Disabled until the system has
+ * said whether it is on. */
+export function OpenAtLoginRow({
+  on,
+  onChange,
+}: {
+  on: boolean | null;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <Row
+      label="Open OpenPlan when you log in"
+      hint="Keeps your agents connected after you close the window."
+    >
+      <Switch
+        checked={on ?? false}
+        disabled={on == null}
+        onCheckedChange={onChange}
+        aria-label="Open OpenPlan when you log in"
+      />
     </Row>
   );
 }
@@ -241,6 +266,7 @@ export function SettingsDialog({
   const [authoring, setAuthoringMode] = useState<Authoring>("markdown");
   // Set by a request for the Role row, until the person leaves Profile.
   const [revealRole, setRevealRole] = useState(false);
+  const [openAtLogin, changeOpenAtLogin] = useOpenAtLogin(open);
 
   useEffect(
     () =>
@@ -422,6 +448,13 @@ export function SettingsDialog({
                     />
                   </Row>
                 </div>
+
+                {isTauri && (
+                  <>
+                    <h2 className="pt-5 pb-1 text-sm font-semibold">Startup</h2>
+                    <OpenAtLoginRow on={openAtLogin} onChange={changeOpenAtLogin} />
+                  </>
+                )}
 
                 <TourRow onTakeTour={onTakeTour} />
               </>
@@ -623,4 +656,19 @@ function UpdateAction({
 
 function archiveUnit(days: number): string {
   return days === 0 ? "Never" : days === 1 ? "day" : "days";
+}
+
+/** Read again each time Settings opens, since System Settings can change
+ * it too. The switch moves at once and settles on what the system reports. */
+function useOpenAtLogin(open: boolean): [boolean | null, (on: boolean) => void] {
+  const [on, setOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!open || !isTauri) return;
+    void opensAtLogin().then(setOn, () => {});
+  }, [open]);
+  const change = (next: boolean) => {
+    setOn(next);
+    void setOpenAtLogin(next).catch(opensAtLogin).then(setOn, () => {});
+  };
+  return [on, change];
 }
