@@ -10,10 +10,10 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/work";
 
 /**
- * The moment after the tour's last step: the tour's dimming fades out
- * behind a lockup, and the person's reviewers come in one by one and hop.
- * Get started and Enter, or Esc and a click outside, play it out and then
- * close the tour. It moves on animation events only.
+ * The moment after the tour's last step: a lockup over the dimmed board,
+ * and the person's reviewers come in one by one and hop. Get started and
+ * Enter, or Esc and a click outside, fade it and the dimming out together
+ * and then close the tour. It moves on animation events only.
  */
 export function TourFinish({ dispatch }: { dispatch: (action: TourAction) => void }) {
   const [leaving, setLeaving] = useState<TourAction | null>(null);
@@ -45,9 +45,14 @@ export function TourFinish({ dispatch }: { dispatch: (action: TourAction) => voi
       className={cn("fixed inset-0 z-50 grid place-items-center p-4", leaving && "pointer-events-none")}
       onPointerDown={(event) => event.target === event.currentTarget && leave({ type: "skip" })}
     >
+      {/* Picks up the tour's dimming at the strength it ends on, so the board
+          never flashes bright between the last step and this moment. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 animate-out bg-(--tour-scrim) fade-out-0 duration-700 ease-out fill-mode-forwards"
+        className={cn(
+          "pointer-events-none absolute inset-0 bg-(--tour-scrim)",
+          leaving && "animate-out fade-out-0 duration-300 ease-in fill-mode-forwards",
+        )}
       />
       <div
         role="dialog"
