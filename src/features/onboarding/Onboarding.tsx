@@ -193,7 +193,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
               <div className={RISE} style={rise(2)}>
                 <RolePicker value={state.role} onChange={(role) => send({ type: "pickRole", role })} />
               </div>
-              <div className={cn("mt-4 short:mt-2.5", RISE)} style={rise(3)}>
+              <div className={cn("mt-8 short:mt-3", RISE)} style={rise(3)}>
                 <PanelPreview role={state.role} />
               </div>
               <Actions index={4}>
@@ -320,7 +320,7 @@ function Title({ children, sub }: { children: ReactNode; sub: string }) {
 
 function Actions({ children, index }: { children: ReactNode; index: number }) {
   return (
-    <div className={cn("mt-6 flex items-center gap-2 short:mt-3", RISE)} style={rise(index)}>
+    <div className={cn("mt-8 flex items-center gap-2 short:mt-4", RISE)} style={rise(index)}>
       {children}
     </div>
   );

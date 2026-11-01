@@ -33,7 +33,7 @@ export function RolePicker({
       aria-label="Your role"
       value={value ?? ""}
       onValueChange={(next) => onChange(next as PersonRoleId)}
-      className="grid-cols-2 gap-2 sm:grid-cols-3"
+      className={cn("grid-cols-2 sm:grid-cols-3", compact ? "gap-2" : "gap-3 short:gap-2")}
     >
       {PERSON_ROLES.map((role, index) => {
         const Icon = ROLE_ICONS[role.id];
