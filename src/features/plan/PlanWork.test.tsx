@@ -1,7 +1,17 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DEFAULT_PANEL, railRoles, type Decision, type Question, type Role, type Todo, type TodoState, type WorkRecord } from "@/lib/work";
+import {
+  DEFAULT_PANEL,
+  railRoles,
+  type Decision,
+  type Question,
+  type Role,
+  type Todo,
+  type TodoState,
+  type Understanding,
+  type WorkRecord,
+} from "@/lib/work";
 import { alignmentScore } from "@/lib/alignmentScore";
 import { PeopleRail } from "./AlignmentQuestions";
 import { AlignmentMessage } from "./AlignmentMessage";
@@ -41,10 +51,13 @@ function panel(work: WorkRecord | null, minimized = false): string {
   );
 }
 
-function alignmentTab(work: WorkRecord | null, alignmentTarget = 80): string {
+function alignmentTab(work: WorkRecord | null, alignmentTarget = 80, planType: string | null = null): string {
   return renderToStaticMarkup(
     <TooltipProvider>
-      <AlignmentTab record={work} plan={{ path: "/base/p.md", id: "p", dark: false, media: false, alignmentTarget }} />
+      <AlignmentTab
+        record={work}
+        plan={{ path: "/base/p.md", id: "p", dark: false, media: false, alignmentTarget, planType }}
+      />
     </TooltipProvider>,
   );
 }
@@ -336,7 +349,7 @@ describe("AlignmentTab", () => {
     const html = alignmentTab(record({ alignment: { askedAt: "2026-10-28T09:00:00Z", questions } }));
     const details = renderToStaticMarkup(
       <TooltipProvider>
-        <ScoreDetails score={alignmentScore(questions, {})} />
+        <ScoreDetails score={alignmentScore(questions, [], { answers: {}, understanding: {} }, null)} />
       </TooltipProvider>,
     );
 
@@ -345,11 +358,40 @@ describe("AlignmentTab", () => {
     expect(html).toContain("Below your 80% target");
     expect(alignmentTab(record({ alignment: { askedAt: "2026-10-28T09:00:00Z", questions } }), 30)).not.toContain("target");
     expect(html.indexOf("Alignment score")).toBeLessThan(html.indexOf("Where does it sit?"));
+    expect(details).toContain("Counts answered areas until the agent states its understanding.");
     expect(details).toContain("1 of 3 areas settled · 27 of 80");
     expect(details).toContain("1 answer explains why · 5 of 20");
     expect(details).toContain("Not asked yet: edge cases");
     expect(details).toContain("Not asked yet: error handling");
     expect(details).not.toContain("Not asked yet: scale");
+  });
+
+  it("scores the areas confirmed once the agent states its understanding", () => {
+    const understanding: Understanding[] = ["entities", "states", "scale"].map((area) => ({
+      area,
+      statement: `About ${area}.`,
+      by: "claude-code",
+      confirmed: { by: "Sid", at: "2026-11-04T09:00:00Z" },
+    }));
+    understanding.push({ area: "edge cases", statement: "Two tabs save at once.", by: "claude-code" });
+    const work = record({ alignment: { askedAt: "2026-11-04T09:00:00Z", questions: [], understanding } });
+
+    const html = alignmentTab(work, 80, "feature");
+    const details = renderToStaticMarkup(
+      <TooltipProvider>
+        <ScoreDetails score={alignmentScore([], understanding, { answers: {}, understanding: {} }, "feature")} />
+      </TooltipProvider>,
+    );
+
+    expect(html).toContain("Alignment score 60 out of 100");
+    expect(html).toContain("3 of 5 areas confirmed");
+    expect(html).toContain("What the agent understands");
+    expect(html).toContain("Two tabs save at once.");
+    expect(html).not.toContain("No alignment yet.");
+    expect(details).toContain("Counts the areas you confirmed.");
+    expect(details).toContain("To confirm: edge cases");
+    expect(details).toContain("Not stated: error handling");
+    expect(alignmentTab(work, 80, "bug")).toContain("1 of 3 areas confirmed");
   });
 
   it("shows the note written beside a picked option under it", () => {

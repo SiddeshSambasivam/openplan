@@ -221,7 +221,7 @@ export function Viewer({
       {alignment ? (
         <AlignmentTab
           record={record}
-          plan={{ path: plan.path, id: plan.id, dark, media, alignmentTarget }}
+          plan={{ path: plan.path, id: plan.id, dark, media, alignmentTarget, planType: plan.type }}
         />
       ) : html ? (
         <HtmlDoc content={content} dark={dark} />

@@ -758,7 +758,7 @@ export default function App() {
     [requestAttention],
   );
   const workRecord = useWorkRecord(activePlan?.path ?? null, showNewQuestions);
-  const aligned = canBuild(workRecord, preferences.alignmentTarget);
+  const aligned = canBuild(workRecord, preferences.alignmentTarget, activePlan?.type ?? null);
   const offerCompletion =
     activePlan != null && offersCompletion(activePlan.status, workRecord?.prs);
   const prState = usePrStateRefresh({
@@ -1921,7 +1921,7 @@ export default function App() {
           buildTooltip={
             activePlan?.demo && aligned
               ? "Shows the next stage. Agents never build a demo plan."
-              : buildTooltip(workRecord, preferences.alignmentTarget)
+              : buildTooltip(workRecord, preferences.alignmentTarget, activePlan?.type ?? null)
           }
           folders={knownFolders}
           folder={folder}

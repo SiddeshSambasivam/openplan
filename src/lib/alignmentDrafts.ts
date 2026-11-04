@@ -1,5 +1,13 @@
 import { STORAGE_PREFIX } from "./storage";
-import { answerFromDraft, questionsByRound, type Answer, type AnswerDraft, type Question } from "./work";
+import {
+  answerFromDraft,
+  questionsByRound,
+  type Answer,
+  type AnswerDraft,
+  type Question,
+  type Understanding,
+  type UnderstandingDraft,
+} from "./work";
 
 /** A question's pick and note so far. Either one is an answer, which waits
  * here until the person sends it. */
@@ -7,32 +15,63 @@ export type ReplyDraft = AnswerDraft;
 
 export type ReplyDrafts = Record<string, ReplyDraft>;
 
+/** Confirmations and corrections not sent yet, by area. */
+export type UnderstandingDrafts = Record<string, UnderstandingDraft>;
+
+/** Everything the person has drafted on a plan's Alignment tab. It all goes
+ * with one Send. */
+export interface AlignmentDrafts {
+  replies: ReplyDrafts;
+  understanding: UnderstandingDrafts;
+}
+
 /** A plan's drafts as last saved, or none when storage has nothing it can
- * read. Storage is looked up inside the guard, since a page without it
- * throws on the name alone. */
-export function loadReplyDrafts(planId: string, storage?: Storage): ReplyDrafts {
-  const drafts: ReplyDrafts = {};
+ * read. Drafts saved before confirmations are replies alone. Storage is
+ * looked up inside the guard, since a page without it throws on the name
+ * alone. */
+export function loadAlignmentDrafts(planId: string, storage?: Storage): AlignmentDrafts {
+  const drafts: AlignmentDrafts = { replies: {}, understanding: {} };
   try {
     const stored: unknown = JSON.parse((storage ?? localStorage).getItem(storeKey(planId)) ?? "{}");
     if (typeof stored !== "object" || stored === null) return drafts;
-    for (const [id, draft] of Object.entries(stored)) {
-      if (!isReplyDraft(draft)) continue;
-      drafts[id] = draft.option === undefined ? { text: draft.text } : { option: draft.option, text: draft.text };
-    }
+    const { replies, understanding } = stored as Record<string, unknown>;
+    const isCurrent = typeof replies === "object" && replies !== null;
+    drafts.replies = readReplies(isCurrent ? replies : stored);
+    if (isCurrent) drafts.understanding = readUnderstanding(understanding);
   } catch {
     // best-effort: unreadable or blocked storage starts with no drafts
   }
   return drafts;
 }
 
-export function saveReplyDrafts(planId: string, drafts: ReplyDrafts, storage?: Storage): void {
+export function saveAlignmentDrafts(planId: string, drafts: AlignmentDrafts, storage?: Storage): void {
   try {
     const store = storage ?? localStorage;
-    if (Object.keys(drafts).length === 0) store.removeItem(storeKey(planId));
+    const empty = Object.keys(drafts.replies).length + Object.keys(drafts.understanding).length === 0;
+    if (empty) store.removeItem(storeKey(planId));
     else store.setItem(storeKey(planId), JSON.stringify(drafts));
   } catch {
     // best-effort
   }
+}
+
+/** The confirmations and written corrections ready to send, on areas the
+ * agent has stated and the person has not confirmed already. */
+export function draftedUnderstanding(
+  understanding: Understanding[],
+  drafts: UnderstandingDrafts,
+): { confirm: string[]; correct: { area: string; text: string }[] } {
+  const sending: ReturnType<typeof draftedUnderstanding> = { confirm: [], correct: [] };
+  for (const stated of understanding) {
+    const draft = drafts[stated.area];
+    if (!draft) continue;
+    if ("confirm" in draft) {
+      if (!stated.confirmed) sending.confirm.push(stated.area);
+    } else if (draft.correct.trim()) {
+      sending.correct.push({ area: stated.area, text: draft.correct.trim() });
+    }
+  }
+  return sending;
 }
 
 /** The answers ready to send: a pick or words, on a question not answered
@@ -119,6 +158,27 @@ function isWaiting(question: Question, drafts: ReplyDrafts): boolean {
 
 function storeKey(planId: string): string {
   return `${STORAGE_PREFIX}alignment-drafts:${planId}`;
+}
+
+function readReplies(stored: object): ReplyDrafts {
+  const replies: ReplyDrafts = {};
+  for (const [id, draft] of Object.entries(stored)) {
+    if (!isReplyDraft(draft)) continue;
+    replies[id] = draft.option === undefined ? { text: draft.text } : { option: draft.option, text: draft.text };
+  }
+  return replies;
+}
+
+function readUnderstanding(stored: unknown): UnderstandingDrafts {
+  const understanding: UnderstandingDrafts = {};
+  if (typeof stored !== "object" || stored === null) return understanding;
+  for (const [area, draft] of Object.entries(stored)) {
+    if (typeof draft !== "object" || draft === null) continue;
+    const { confirm, correct } = draft as Record<string, unknown>;
+    if (confirm === true) understanding[area] = { confirm: true };
+    else if (typeof correct === "string") understanding[area] = { correct };
+  }
+  return understanding;
 }
 
 function isReplyDraft(value: unknown): value is ReplyDraft {

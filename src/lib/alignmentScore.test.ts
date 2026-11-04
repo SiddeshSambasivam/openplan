@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { alignmentScore, areaKey, belowTarget, buildTooltip, canBuild } from "./alignmentScore";
-import type { Answer, Question, WorkRecord } from "./work";
+import { alignmentScore, areaKey, belowTarget, buildTooltip, canBuild, requiredAreas } from "./alignmentScore";
+import type { Answer, Question, Understanding, UnderstandingDraft, WorkRecord } from "./work";
 
 const question = (id: string, aspect: string, extra: Partial<Question> = {}): Question => ({
   id,
@@ -18,6 +18,10 @@ const question = (id: string, aspect: string, extra: Partial<Question> = {}): Qu
 const pick: Answer = { kind: "option", options: ["a"] };
 const reasoned: Answer = { kind: "option", options: ["a"], note: "Fewer moving parts." };
 
+/** The score of answers alone, as on a record with no understanding statements. */
+const scoreOf = (questions: Question[], answers: Record<string, Answer> = {}) =>
+  alignmentScore(questions, [], { answers, understanding: {} }, null);
+
 describe("areaKey", () => {
   it("matches an aspect whatever its case and spacing", () => {
     expect(areaKey("Error Handling")).toBe(areaKey("error handling"));
@@ -27,7 +31,7 @@ describe("areaKey", () => {
 
 describe("alignmentScore", () => {
   it("scores nothing before any question is asked", () => {
-    const score = alignmentScore([], {});
+    const score = scoreOf([], {});
 
     expect(score).toMatchObject({ total: 0, coverage: 0, reasoning: 0, areas: [] });
     expect(score.notAsked).toEqual(["edge cases", "error handling", "scale"]);
@@ -45,22 +49,22 @@ describe("alignmentScore", () => {
     ];
 
     it("counts the required areas from the start, asked or not", () => {
-      const score = alignmentScore(firstRound(pick), {});
+      const score = scoreOf(firstRound(pick), {});
 
       expect(score.counted).toBe(6);
       expect(score.total).toBe(40);
     });
 
     it("holds when a new round is posted", () => {
-      expect(alignmentScore([...firstRound(pick), ...secondRound()], {}).total).toBe(40);
+      expect(scoreOf([...firstRound(pick), ...secondRound()], {}).total).toBe(40);
     });
 
     it("rises as the new round is answered", () => {
-      expect(alignmentScore([...firstRound(pick), ...secondRound(pick)], {}).total).toBe(67);
+      expect(scoreOf([...firstRound(pick), ...secondRound(pick)], {}).total).toBe(67);
     });
 
     it("reaches full coverage once scale is settled too", () => {
-      const score = alignmentScore(
+      const score = scoreOf(
         [...firstRound(pick), ...secondRound(pick), question("q6", "scale", { answer: pick })],
         {},
       );
@@ -70,7 +74,7 @@ describe("alignmentScore", () => {
     });
 
     it("gives 5 for each answer that says why, up to 20", () => {
-      const score = alignmentScore(
+      const score = scoreOf(
         [
           ...firstRound(reasoned),
           ...secondRound(pick),
@@ -104,7 +108,7 @@ describe("alignmentScore", () => {
     let last = 0;
     for (const [id, aspect, answer] of steps) {
       asked.set(id, question(id, aspect, { answer }));
-      const { total } = alignmentScore([...asked.values()], {});
+      const { total } = scoreOf([...asked.values()], {});
       expect(total).toBeGreaterThanOrEqual(last);
       last = total;
     }
@@ -112,7 +116,7 @@ describe("alignmentScore", () => {
   });
 
   it("leaves an unanswered question out unless its area is required", () => {
-    const score = alignmentScore(
+    const score = scoreOf(
       [question("q1", "scope", { answer: pick }), question("q2", "ux"), question("q3", "rollout")],
       {},
     );
@@ -123,7 +127,7 @@ describe("alignmentScore", () => {
   });
 
   it("counts one area per aspect and settles it with one answered question", () => {
-    const score = alignmentScore(
+    const score = scoreOf(
       [
         question("q1", "Error Handling", { role: "oncall" }),
         question("q2", "error handling", { role: "engineering", answer: pick }),
@@ -140,7 +144,7 @@ describe("alignmentScore", () => {
   });
 
   it("counts a draft reply the same as a sent answer", () => {
-    const score = alignmentScore([question("q1", "scale"), question("q2", "ux")], {
+    const score = scoreOf([question("q1", "scale"), question("q2", "ux")], {
       q1: reasoned,
     });
 
@@ -149,7 +153,7 @@ describe("alignmentScore", () => {
   });
 
   it("counts a written answer as reasoned and a pick the agent made as not", () => {
-    const score = alignmentScore(
+    const score = scoreOf(
       [
         question("q1", "scope", { answer: { kind: "text", text: "Only new plans." } }),
         question("q2", "scale", { answer: { kind: "agent" } }),
@@ -163,14 +167,14 @@ describe("alignmentScore", () => {
   });
 
   it("lists the required areas no question covers, which hold coverage down", () => {
-    const score = alignmentScore([question("q1", "Edge  Cases", { answer: reasoned })], {});
+    const score = scoreOf([question("q1", "Edge  Cases", { answer: reasoned })], {});
 
     expect(score.notAsked).toEqual(["error handling", "scale"]);
     expect(score.coverage).toBe(27);
   });
 
   it("adds up its parts, so the lines under the ring match the ring", () => {
-    const score = alignmentScore(
+    const score = scoreOf(
       [
         question("q1", "edge cases", { answer: reasoned }),
         question("q2", "error handling", { answer: pick }),
@@ -186,13 +190,116 @@ describe("alignmentScore", () => {
   });
 });
 
-const record = (questions: Question[]): WorkRecord => ({
+const stated = (area: string, extra: Partial<Understanding> = {}): Understanding => ({
+  area,
+  statement: `About ${area}.`,
+  by: "claude-code",
+  ...extra,
+});
+const confirmed = (area: string) => stated(area, { confirmed: { by: "Sid", at: "2026-11-04T09:00:00Z" } });
+const corrected = (area: string, text: string) =>
+  stated(area, { correction: { text, by: "Sid", at: "2026-11-04T09:00:00Z" } });
+
+const FEATURE = ["entities", "states", "edge cases", "error handling", "scale"];
+
+describe("requiredAreas", () => {
+  it("asks a feature plan for entities and states too, and every other plan for three", () => {
+    expect(requiredAreas("feature")).toEqual(FEATURE);
+    expect(requiredAreas("bug")).toEqual(["edge cases", "error handling", "scale"]);
+    expect(requiredAreas(null)).toEqual(["edge cases", "error handling", "scale"]);
+  });
+});
+
+describe("alignmentScore by understanding", () => {
+  const understood = (
+    understanding: Understanding[],
+    drafts: Record<string, UnderstandingDraft> = {},
+    planType: string | null = "feature",
+    questions: Question[] = [],
+  ) => alignmentScore(questions, understanding, { answers: {}, understanding: drafts }, planType);
+
+  it("counts answers until the first statement arrives", () => {
+    expect(scoreOf([question("q1", "scale", { answer: pick })]).rule).toBe("answers");
+    expect(understood([stated("scale")]).rule).toBe("understanding");
+  });
+
+  it("is the share of required areas the person confirmed", () => {
+    const score = understood([confirmed("entities"), confirmed("states"), confirmed("scale"), stated("edge cases")]);
+
+    expect(score.total).toBe(60);
+    expect(score.confirmed).toBe(3);
+    expect(score.required).toEqual(FEATURE);
+    expect(score.areas.slice(0, 5).map((area) => [area.name, area.understanding?.state])).toEqual([
+      ["entities", "confirmed"],
+      ["states", "confirmed"],
+      ["edge cases", "stated"],
+      ["error handling", "not stated"],
+      ["scale", "confirmed"],
+    ]);
+    expect(score.notAsked).toEqual([]);
+  });
+
+  it("asks a bug plan for three areas", () => {
+    const score = understood([confirmed("edge cases"), confirmed("scale")], {}, "bug");
+
+    expect(score.total).toBe(67);
+    expect(score.areas.map((area) => area.name)).toEqual(["edge cases", "error handling", "scale"]);
+  });
+
+  it("keeps the answer points for the details without adding them", () => {
+    const questions = [question("q1", "edge cases", { answer: reasoned }), question("q2", "scope", { answer: reasoned })];
+
+    const score = understood([stated("scale")], {}, "bug", questions);
+
+    expect(score.reasoning).toBe(10);
+    expect(score.coverage).toBeGreaterThan(0);
+    expect(score.total).toBe(0);
+    const scope = score.areas.find((area) => area.name === "scope");
+    expect(scope?.settled).toBe(true);
+    expect(scope?.understanding).toBeUndefined();
+  });
+
+  it("counts a drafted confirmation as confirmed and a drafted correction as corrected", () => {
+    const score = understood(
+      [stated("edge cases"), confirmed("error handling"), stated("scale")],
+      { "edge cases": { confirm: true }, "error handling": { correct: "Retries stop after three." }, scale: { correct: " " } },
+      "bug",
+    );
+
+    expect(score.areas.map((area) => area.understanding)).toEqual([
+      { state: "confirmed", statement: "About edge cases." },
+      { state: "corrected", statement: "About error handling.", correction: "Retries stop after three." },
+      { state: "stated", statement: "About scale." },
+    ]);
+    expect(score.total).toBe(33);
+  });
+
+  it("shows a correction on the record until the agent restates the area", () => {
+    const score = understood([corrected("scale", "Thousands.")], {}, "bug");
+
+    expect(score.areas[2].understanding).toEqual({
+      state: "corrected",
+      statement: "About scale.",
+      correction: "Thousands.",
+      by: "Sid",
+    });
+  });
+
+  it("lists a stated area outside the required ones without counting it", () => {
+    const score = understood([confirmed("edge cases"), confirmed("rollout")], {}, "bug");
+
+    expect(score.areas.map((area) => area.name)).toEqual(["edge cases", "error handling", "scale", "rollout"]);
+    expect(score.total).toBe(33);
+  });
+});
+
+const record = (questions: Question[], understanding?: Understanding[]): WorkRecord => ({
   version: 1,
   repos: [],
   decisions: [],
   todos: [],
   prs: [],
-  alignment: { askedAt: "2026-10-31T09:00:00Z", questions },
+  alignment: { askedAt: "2026-10-31T09:00:00Z", questions, understanding },
 });
 
 const settledPlan = [
@@ -201,55 +308,70 @@ const settledPlan = [
   question("q3", "practices", { answer: pick }),
   question("q4", "error handling", { answer: pick }),
   question("q5", "edge cases", { answer: pick }),
+  question("q6", "scale", { answer: pick }),
 ];
 
+const allConfirmed = (areas: string[]) => areas.map(confirmed);
+
 describe("canBuild", () => {
-  it("waits until the score reaches the target", () => {
-    expect(canBuild(record(settledPlan), 80)).toBe(false);
-    expect(canBuild(record(settledPlan), 67)).toBe(true);
-    expect(canBuild(record([...settledPlan, question("q6", "scale", { answer: pick })]), 80)).toBe(true);
+  it("waits for every required area to be confirmed once there is any alignment", () => {
+    expect(canBuild(record(settledPlan), 80, "bug")).toBe(false);
+    expect(canBuild(record(settledPlan, allConfirmed(["edge cases", "error handling"])), 80, "bug")).toBe(false);
+    expect(canBuild(record(settledPlan, allConfirmed(["edge cases", "error handling", "scale"])), 80, "bug")).toBe(
+      true,
+    );
+    expect(canBuild(record([], allConfirmed(["edge cases", "error handling", "scale"])), 80, "feature")).toBe(false);
+    expect(canBuild(record([], allConfirmed(FEATURE)), 100, "feature")).toBe(true);
   });
 
-  it("stays off below a target before any question, and on with no target", () => {
-    expect(canBuild(record([]), 80)).toBe(false);
-    expect(canBuild(null, 80)).toBe(false);
-    expect(canBuild(null, 0)).toBe(true);
-    expect(canBuild(record([question("q1", "scope")]), 0)).toBe(true);
+  it("stays off below a target before any alignment, and on with no target", () => {
+    expect(canBuild(record([]), 80, null)).toBe(false);
+    expect(canBuild(null, 80, null)).toBe(false);
+    expect(canBuild(null, 0, null)).toBe(true);
+    expect(canBuild(record([question("q1", "scope")]), 0, null)).toBe(true);
   });
 });
 
 describe("buildTooltip", () => {
-  it("says how far the score is from the target while Build waits", () => {
-    expect(buildTooltip(record(settledPlan), 80)).toBe(
-      "Align with the agent first. Alignment is 67%, and Build opens at 80%. The agent still has to ask about scale.",
+  it("keeps the target sentence while only answers count, and asks for the statements", () => {
+    expect(buildTooltip(record(settledPlan), 90, "bug")).toBe(
+      "Align with the agent first. Alignment is 80%, and Build opens at 90%. The agent still has to state its understanding of edge cases, error handling and scale.",
     );
-    expect(buildTooltip(record([...settledPlan, question("q6", "scale")]), 90)).toBe(
-      "Align with the agent first. Alignment is 67%, and Build opens at 90%.",
+    expect(buildTooltip(record(settledPlan), 80, "bug")).toBe(
+      "Align with the agent first. The agent still has to state its understanding of edge cases, error handling and scale.",
+    );
+    expect(buildTooltip(null, 80, "feature")).toBe(
+      "Align with the agent first. Alignment is 0%, and Build opens at 80%. The agent still has to state its understanding of entities, states, edge cases, error handling and scale.",
     );
   });
 
-  it("names every required area nobody has asked about yet", () => {
-    expect(buildTooltip(record([]), 80)).toBe(
-      "Align with the agent first. Alignment is 0%, and Build opens at 80%. The agent still has to ask about edge cases, error handling and scale.",
+  it("names what is missing once the agent states its understanding", () => {
+    const partly = allConfirmed(["edge cases", "error handling", "scale"]);
+    expect(buildTooltip(record([], partly), 80, "feature")).toBe(
+      "Align with the agent first. The agent still has to state its understanding of entities and states.",
     );
-    expect(buildTooltip(null, 80)).toBe(
-      "Align with the agent first. Alignment is 0%, and Build opens at 80%. The agent still has to ask about edge cases, error handling and scale.",
+    expect(buildTooltip(record([], [...allConfirmed(["edge cases", "error handling"]), stated("scale")]), 80, "bug")).toBe(
+      "Confirm the agent's understanding of scale first.",
     );
+    expect(
+      buildTooltip(record([], [...allConfirmed(["edge cases", "error handling"]), corrected("scale", "More.")]), 80, "bug"),
+    ).toBe("Align with the agent first. The agent still has to restate scale.");
   });
 
   it("names the open areas once Build is allowed", () => {
-    expect(buildTooltip(record([...settledPlan, question("q6", "scale"), question("q7", "ux")]), 60)).toBe(
-      "Starts the work. The agent asks about scale and ux first.",
+    const done = allConfirmed(["edge cases", "error handling", "scale"]);
+    expect(buildTooltip(record([...settledPlan, question("q7", "ux")], done), 80, "bug")).toBe(
+      "Starts the work. The agent asks about ux first.",
     );
-    expect(buildTooltip(record([question("q1", "scope")]), 0)).toBe(
+    expect(buildTooltip(record([question("q1", "scope")]), 0, null)).toBe(
       "Starts the work. The agent asks about scope first.",
     );
   });
 
   it("says nothing more once nothing is open", () => {
-    expect(buildTooltip(record(settledPlan), 60)).toBeUndefined();
-    expect(buildTooltip(record([]), 0)).toBeUndefined();
-    expect(buildTooltip(null, 0)).toBeUndefined();
+    expect(buildTooltip(record(settledPlan, allConfirmed(["edge cases", "error handling", "scale"])), 80, "bug")).toBeUndefined();
+    expect(buildTooltip(record([]), 0, null)).toBeUndefined();
+    expect(buildTooltip(null, 0, null)).toBeUndefined();
   });
 });
 
