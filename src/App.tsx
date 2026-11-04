@@ -384,8 +384,11 @@ export default function App() {
 
   // The tour is mounted only while it runs. Starting it first writes back
   // any demo plan the person deleted, so a replay has every stage to show.
+  // It shows the demo folder, and ending it goes back to the folder before.
   const [tourRunning, setTourRunning] = useState(false);
+  const folderBeforeTour = useRef<FolderFilter>(null);
   const takeTour = useCallback(() => {
+    folderBeforeTour.current = chosenFolder;
     setSettingsOpen(false);
     void (async () => {
       if (isTauri) {
@@ -395,7 +398,7 @@ export default function App() {
       refreshPlans();
       setTourRunning(true);
     })();
-  }, [refreshPlans]);
+  }, [refreshPlans, chosenFolder]);
   const finishOnboarding = useCallback(
     ({ folder, startTour }: OnboardingResult) => {
       setNeedsOnboarding(false);
@@ -403,6 +406,8 @@ export default function App() {
       readIdentity();
       setChosenFolder(folder);
       setMainView("board");
+      // This render's takeTour still holds the folder from before
+      // onboarding, which is where the tour goes back to.
       if (startTour) takeTour();
       else refreshPlans();
     },
@@ -1580,15 +1585,15 @@ export default function App() {
     [saveFolders, savedFolders],
   );
   const knownFolders = sections.folders;
-  // A folder the last plan left is no filter at all, so the views fall back
-  // to every plan rather than showing an empty board.
+  // A folder the last plan left is no longer a place, so the views fall
+  // back to the plans in no folder.
   const folder = knownFolders.includes(chosenFolder ?? "") ? chosenFolder : null;
   const shownPlans = useMemo(() => filterByFolder(plans, folder), [plans, folder]);
 
   const forYouCount = useMemo(() => {
-    const waiting = forYou(shownPlans, summaries, workProgress);
+    const waiting = forYou(plans, summaries, workProgress);
     return waiting.questions.length + waiting.review.length + waiting.answered.length;
-  }, [shownPlans, summaries, workProgress]);
+  }, [plans, summaries, workProgress]);
 
   const title = useMemo(() => {
     if (!activeDoc) return null;
@@ -1663,7 +1668,10 @@ export default function App() {
     },
     [mainView, plans, activePlan, selectPlan, showView],
   );
-  const endTour = useCallback(() => setTourRunning(false), []);
+  const endTour = useCallback(() => {
+    setTourRunning(false);
+    setChosenFolder(folderBeforeTour.current);
+  }, []);
 
   /** A folder row filters the board and shows it. */
   const chooseFolder = useCallback(
@@ -1704,21 +1712,23 @@ export default function App() {
 
   const onPlan = mainView === "plan";
   // `[` and `]` step through the plans in the order of the view the person
-  // came from, since the plan page has no order of its own.
+  // came from, since the plan page has no order of its own. For you looks
+  // past the folder, the board and the list stay in it.
   const listViewRef = useRef<Exclude<MainView, "plan">>("board");
   if (mainView !== "plan") listViewRef.current = mainView;
+  const steppedPlans = listViewRef.current === "for-you" ? plans : shownPlans;
   // Stable, for the memoized navbar's search button.
   const openPalette = useCallback(() => paletteRef.current?.open(), []);
   const stepPlan = useCallback(
     (step: 1 | -1) => {
-      const order = viewOrder(listViewRef.current, shownPlans, summaries, workProgress);
+      const order = viewOrder(listViewRef.current, steppedPlans, summaries, workProgress);
       const next = steppedPlan(order, activePlanPath, step);
       if (!next) return;
       // Stepping walks the view's order, so back still returns to the view.
       if (mainView === "plan") openFilePaths([next.path]);
       else selectPlan(next);
     },
-    [shownPlans, summaries, workProgress, activePlanPath, mainView, openFilePaths, selectPlan],
+    [steppedPlans, summaries, workProgress, activePlanPath, mainView, openFilePaths, selectPlan],
   );
   const lastPlan = sections.recent[0];
   const stepNavbar = (step: 1 | -1) => {
@@ -1790,8 +1800,8 @@ export default function App() {
         : undefined,
     previousNavItem: () => stepNavbar(-1),
     nextNavItem: () => stepNavbar(1),
-    previousPlan: shownPlans.length > 0 ? () => stepPlan(-1) : undefined,
-    nextPlan: shownPlans.length > 0 ? () => stepPlan(1) : undefined,
+    previousPlan: steppedPlans.length > 0 ? () => stepPlan(-1) : undefined,
+    nextPlan: steppedPlans.length > 0 ? () => stepPlan(1) : undefined,
     edit: onPlan && (view === "edit" || canEnterEdit) ? toggleEdit : undefined,
     save: onPlan && view === "edit" ? () => void flushSave() : undefined,
     find: onPlan && showOutline ? openFind : undefined,
@@ -1851,7 +1861,6 @@ export default function App() {
               minimized={!navbarExpanded}
               onToggle={toggleSidebar}
               onOpenPalette={openPalette}
-              planCount={plans.length}
               folders={knownFolders}
               folder={folder}
               onSelectFolder={chooseFolder}
@@ -1970,6 +1979,7 @@ export default function App() {
           >
             <BoardView
               plans={shownPlans}
+              folder={folder}
               summaries={summaries}
               sessions={sessions}
               progress={workProgress}
@@ -2016,7 +2026,7 @@ export default function App() {
             className="motion-view min-h-0 flex-1"
           >
             <ForYouView
-              plans={shownPlans}
+              plans={plans}
               summaries={summaries}
               sessions={sessions}
               progress={workProgress}

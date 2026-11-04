@@ -8,7 +8,7 @@ const planB: Origin = { kind: "page", path: "/base/b.md", title: "Plan B" };
 describe("originLabel", () => {
   it("names each view the way the navbar does", () => {
     expect(originLabel(board)).toBe("Board");
-    expect(originLabel({ kind: "view", view: "list", scroll: [] })).toBe("All plans");
+    expect(originLabel({ kind: "view", view: "list", scroll: [] })).toBe("List");
     expect(originLabel({ kind: "view", view: "for-you", scroll: [] })).toBe("For you");
   });
 

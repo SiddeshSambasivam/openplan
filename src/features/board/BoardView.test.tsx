@@ -30,6 +30,7 @@ function board(
   plans: PlanSummary[],
   display: CardDisplay = CARD_DISPLAY_DEFAULTS,
   progress: Map<string, PlanProgress> = new Map(),
+  folder: string | null = null,
 ) {
   return renderToStaticMarkup(
     <TooltipProvider>
@@ -39,6 +40,7 @@ function board(
         sessions={new Map()}
         progress={progress}
         display={display}
+        folder={folder}
         folders={[]}
         onFoldersChange={() => {}}
         onOpen={() => {}}
@@ -78,6 +80,18 @@ describe("BoardView hidden columns", () => {
     expect(html).toContain("Nothing in progress");
     expect(html).toContain("Show 2 finished plans");
     expect(html).not.toContain("Plan b");
+  });
+
+  it("names the chosen folder when it holds no plans", () => {
+    const html = board([], CARD_DISPLAY_DEFAULTS, new Map(), "Demo");
+    expect(html).toContain("No plans in Demo");
+    expect(html).not.toContain("Start a session with your agent");
+  });
+
+  it("names the chosen folder when every plan in it is finished", () => {
+    const html = board([plan("b", "archived")], CARD_DISPLAY_DEFAULTS, new Map(), "Demo");
+    expect(html).toContain("Nothing in progress in Demo");
+    expect(html).toContain("Show 1 finished plan");
   });
 
   it("keeps a lifted card inside the column's clip", () => {

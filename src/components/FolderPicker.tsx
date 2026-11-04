@@ -119,6 +119,9 @@ export function FolderPicker({
             </p>
           )}
         </div>
+        <p className="mt-1 border-t border-border px-2 pt-1.5 pb-1 text-xs text-muted-foreground">
+          A plan in a folder shows only when that folder is chosen.
+        </p>
       </PopoverContent>
     </Popover>
   );

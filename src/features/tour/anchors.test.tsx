@@ -65,6 +65,7 @@ function board(): string {
   return html(
     <BoardView
       plans={[draft]}
+      folder={null}
       summaries={[]}
       sessions={new Map()}
       progress={new Map()}
@@ -83,7 +84,6 @@ function sidebar(minimized: boolean): string {
       minimized={minimized}
       onToggle={noop}
       onOpenPalette={noop}
-      planCount={1}
       folders={["Demo"]}
       folder="Demo"
       onSelectFolder={noop}

@@ -5,7 +5,7 @@ export type ListView = Exclude<MainView, "plan">;
 
 export const VIEW_LABELS: Record<ListView, string> = {
   board: "Board",
-  list: "All plans",
+  list: "List",
   "for-you": "For you",
 };
 

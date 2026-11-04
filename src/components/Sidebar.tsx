@@ -1,10 +1,10 @@
 import {
   ChevronDown,
   ChevronLeft,
+  CircleDashed,
   Columns3,
   Folder,
   FolderOpen,
-  Folders,
   Inbox,
   List,
   MoreHorizontal,
@@ -50,8 +50,6 @@ interface SidebarProps {
   onToggle: () => void;
   /** The search row opens the command palette. */
   onOpenPalette: () => void;
-  /** How many plans the base holds, shown beside All plans. */
-  planCount: number;
   /** Every folder in the base, sorted by name. */
   folders: string[];
   folder: FolderFilter;
@@ -84,7 +82,6 @@ export const Sidebar = memo(function Sidebar({
   minimized,
   onToggle,
   onOpenPalette,
-  planCount,
   folders,
   folder,
   onSelectFolder,
@@ -133,7 +130,7 @@ export const Sidebar = memo(function Sidebar({
 
   const folderRow = (name: FolderFilter, label: string) => {
     const chosen = folder === name;
-    const Icon = name == null ? Folders : chosen ? FolderOpen : Folder;
+    const Icon = name == null ? CircleDashed : chosen ? FolderOpen : Folder;
     return (
       <div
         key={label}
@@ -205,7 +202,7 @@ export const Sidebar = memo(function Sidebar({
 
         <Section id="views" label="Views" minimized={minimized} collapsed={collapsed} onToggle={toggle}>
           {viewRow("board", "board", <Columns3 className={ICON} />, "Board")}
-          {viewRow("list", "list", <List className={ICON} />, "All plans", planCount)}
+          {viewRow("list", "list", <List className={ICON} />, "List")}
           {viewRow("for-you", "forYou", <Inbox className={ICON} />, "For you", forYouCount)}
         </Section>
 
@@ -235,7 +232,7 @@ export const Sidebar = memo(function Sidebar({
               onDone={() => setCreating(false)}
             />
           )}
-          {folderRow(null, "All plans")}
+          {folderRow(null, "No folder")}
           {folders.map((name) => folderRow(name, name))}
         </Section>
 
