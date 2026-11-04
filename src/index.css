@@ -1402,6 +1402,26 @@
   border-bottom: 0;
 }
 
+/* An alignment question's context: body type, and the prose rhythm
+   tightened to fit a message bubble. */
+.alignment-context.markdown-body {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-foreground);
+}
+.alignment-context > :first-child {
+  margin-top: 0;
+}
+.alignment-context > :last-child {
+  margin-bottom: 0;
+}
+.alignment-context :where(p, ul, ol) {
+  margin-block: 0.5em;
+}
+.alignment-context :where(li) {
+  margin-block: 0.125em;
+}
+
 /* An alignment question's illustration: small type, and a table that
    spans the box with rules between rows only. */
 .alignment-illustration.markdown-body {

@@ -230,6 +230,44 @@ describe("AlignmentTab", () => {
     expect(html).not.toContain(">Reply</button>");
   });
 
+  it("renders a question's context as Markdown, and plain context as one paragraph", () => {
+    const context = (text: string) => {
+      const html = renderToStaticMarkup(
+        <AlignmentMessage
+          question={{
+            id: "q1",
+            aspect: "scope",
+            question: "Which plans get it?",
+            context: text,
+            options: [],
+            mustAnswer: false,
+          }}
+          draft={undefined}
+          answer={undefined}
+          active={false}
+          sent={false}
+          onActivate={() => {}}
+          onPick={() => {}}
+          onWriteOwn={() => {}}
+          onChange={() => {}}
+          view={{ dark: false, media: false }}
+        />,
+      );
+      return html.match(/<article class="[^"]*alignment-context[^"]*">([\s\S]*?)<\/article>/)?.[1] ?? "";
+    };
+
+    const shaped = context(
+      "**Board.tsx** reads 40 plans on open.\n\nThis plan adds a cache.\n\n- In memory\n- On disk",
+    );
+    expect(shaped.match(/<p[ >]/g)).toHaveLength(2);
+    expect(shaped).toContain("<strong");
+    expect(shaped.match(/<li[ >]/g)).toHaveLength(2);
+
+    const plain = context("The board reads every plan file each time it opens.");
+    expect(plain.match(/<p[ >]/g)).toHaveLength(1);
+    expect(plain).toContain("The board reads every plan file each time it opens.");
+  });
+
   it("reads oldest round first, and says who had nothing to ask in the latest round", () => {
     const html = alignmentTab(
       record({

@@ -196,15 +196,19 @@ The plan stays in progress, and the app flags it as needing an answer.
    welcome there.
 4. Ask about error handling, edge cases and behaviour at scale on every plan.
    These are the required areas, and each one needs an answer.
-5. Write each question as one direct sentence, and give it a `context` of two to
-   four sentences. The context says why the question matters for this plan and
-   what you found in the code or the plan that raised it. Name the files,
-   functions and numbers you found.
+5. Write each question as one direct sentence, and give it a `context` in
+   Markdown. Write the context in this order:
+   1. What you found. One or two sentences that name the files, functions and
+      numbers you read.
+   2. Why that matters for this plan. One or two sentences.
+   3. The option you recommend and why, as the last sentence.
+
+   Keep it to two to six sentences in all. Short paragraphs, one list and bold
+   file names are fine.
 6. Offer at least two real options. Give every option a `consequence`, what
    happens if the person picks it, and a `tradeoff`, what it costs or gives up
    and when it is the right pick. One sentence each.
-7. Set `recommended` to one option, and end the `context` with one sentence on
-   why you recommend it.
+7. Set `recommended` to the option the `context` recommends.
 8. The person picks every answer. Never add an option that hands the choice back
    to you. The app adds "Write my own" to every question with options, so do not
    add a free-text option yourself.
@@ -219,7 +223,7 @@ from a feature plan that adds a cache:
 {
   "id": "q4", "role": "engineering", "aspect": "performance",
   "question": "Where does the plan cache live?",
-  "context": "`list_plans` in `library.rs` reads every plan file each time the board opens. The base has 412 plans, and the board takes 900 ms to open. I recommend memory because launch already reads the base once.",
+  "context": "`list_plans` in **library.rs** reads every plan file each time the board opens. The base has 412 plans, and the board takes 900 ms to open.\n\nThis plan adds the cache, so where it lives decides how fast the board opens after launch.\n\nI recommend memory because launch already reads the base once.",
   "illustration": "| | board opens in |\n|---|---|\n| today | 900 ms |\n| in memory | under 50 ms after launch |\n| on disk | under 50 ms always |",
   "options": [
     { "id": "a", "label": "In memory, filled on launch",

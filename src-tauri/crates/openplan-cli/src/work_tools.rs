@@ -157,7 +157,7 @@ fn questions_schema(answered: bool) -> Value {
                 "description": "Who asks it: product is the product owner, engineering the tech lead, design the designer, oncall the on-call engineer, the person paged when it breaks, research the researcher, accessibility the accessibility reviewer, data the data analyst, security the security reviewer, and support the support lead. When get_standards has a Who is answering section, ask only from the panel it names."
             },
             "question": { "type": "string" },
-            "context": { "type": "string", "description": "Two to four sentences on why this question matters for this plan and what you found in the code or the plan that raised it. Name the files where they apply." },
+            "context": { "type": "string", "description": "Markdown, two to six sentences: what you found, naming the files, functions and numbers, then why it matters for this plan, then the option you recommend and why as the last sentence." },
             "illustration": { "type": "string", "description": "Markdown shown with the question: a mermaid diagram, a worked example, or a before and after" },
             "options": {
                 "type": "array",
@@ -809,7 +809,8 @@ mod tests {
         let tool = tools().into_iter().find(|t| t["name"] == "record_alignment").unwrap();
         let question = &schema_of("record_alignment")["properties"]["questions"]["items"];
 
-        assert!(question["properties"]["context"]["description"].is_string());
+        let context = question["properties"]["context"]["description"].as_str().unwrap();
+        assert!(context.contains("Markdown") && context.contains("recommend"), "{context}");
         assert!(question["properties"]["options"]["items"]["properties"]["tradeoff"]["description"].is_string());
         let description = tool["description"].as_str().unwrap();
         assert!(description.contains("context") && description.contains("tradeoff"), "{description}");
