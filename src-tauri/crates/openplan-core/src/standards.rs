@@ -315,17 +315,21 @@ mod tests {
             "\"role\":",
             "\"illustration\":",
             "`oncall`",
-            "error handling, edge cases and behaviour at scale",
             "`context`",
             "`consequence`",
             "`tradeoff`",
             "`recommended`",
             "the score reaches 100",
-            "80 by default",
-            "The required areas are edge cases, error handling and scale.",
-            "Make the settled answer the recommended option.",
+            "A feature plan's required areas are entities, states, edge cases, error handling and scale.",
+            "Every other plan's required areas are edge cases, error handling and scale.",
+            "the share of required areas the person confirmed",
+            "`understanding`",
+            "two to four sentences each",
+            "what would break if you were wrong",
+            "State every required area in round one.",
+            "in the next round, alongside that round's questions",
+            "under 15 minutes",
             "ask the person to say why",
-            "reasons carry the last 20 points",
             "Never pad a round",
             "\"Write my own\"",
         ] {
@@ -338,10 +342,26 @@ mod tests {
             "at most 12",
             "never gates",
             "count for nothing",
+            "80 points",
+            "the last 20",
         ] {
             assert!(!alignment.contains(gone), "the Alignment section still says {gone}");
         }
         assert_eq!(writing_faults(&alignment), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_feature_plan_draws_its_entities_and_states_before_the_first_round() {
+        let contains = section("## What a plan contains").join("\n");
+        for said in ["**Entities.**", "erDiagram", "**States.**", "stateDiagram-v2", "edge cases hide in the transitions"] {
+            assert!(contains.contains(said), "What a plan contains is missing {said}");
+        }
+        let bank = section("## Question bank").join("\n");
+        let feature = bank.split("### ").find(|table| table.starts_with("`feature`")).unwrap();
+        for aspect in ["entities", "states"] {
+            assert!(feature.contains(&format!("| engineering | {aspect} |")), "no {aspect} row in the feature bank");
+        }
+        assert_eq!(writing_faults(&contains), Vec::<String>::new());
     }
 
     #[test]
