@@ -2,6 +2,7 @@
 //! agents talk to. It links the same crate the app does, so what an agent
 //! writes and what the app reads cannot drift.
 
+mod link;
 pub mod mcp;
 #[cfg(unix)]
 mod wake;
