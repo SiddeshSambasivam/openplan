@@ -182,7 +182,7 @@ Google Drive API integration (a synced folder covers cloud in v1), mobile.
 | FR-19 | **Authoring modes** (0.2.0): a setting, markdown or HTML, that `get_standards` and the `create_plan` description follow automatically. Markdown is token-efficient; HTML gives rich, reviewable pages. Both are plans under the same contract, comments included. |
 | FR-20 | **Alignment** (0.3.0): a stage between draft and in-progress. The person finishes reviewing by setting Alignment; the agent asks its questions in the harness, with a recommended option and a "Let the agent decide" option on each, and records questions and answers through `record_alignment`. `set_status` refuses in-progress until every question is answered and at least one todo exists. Mandatory for every plan type. |
 | FR-21 | **Work record** (0.3.0): `.<name>.oplan-work.json` beside the plan holds repos (with branches, or a plain folder when there is no repo), the alignment, decisions, todos and PRs. Agents write it through `add_todos`, `update_todo`, `add_decisions`, `record_pr`, `set_repos`. The plan page renders todos live with who moved each one and when; `pr_body` returns the reviewer's version of the plan for the PR description. Projects (FR-18) are removed. |
-| FR-22 | **Folders and archive** (0.3.0): a plan carries zero or more folders in frontmatter, set by the person; the board filters by them and shows every plan by default. Archived is a status, set by the person or by the app N days after completed (setting, default 7, checked on launch and board show, never on a timer). Harness delivery adds a Stop and a UserPromptSubmit hook for Claude Code and Cursor, and the app says after Send whether the session heard or will hear on its next keystroke. |
+| FR-22 | **Folders and archive** (0.3.0): a plan carries zero or more folders in frontmatter, set by the person. A folder is a place: the board and the list show the plans in the chosen folder, or the plans in no folder when none is chosen, while For you and Search look everywhere. Archived is a status, set by the person or by the app N days after completed (setting, default 7, checked on launch and board show, never on a timer). Harness delivery adds a Stop and a UserPromptSubmit hook for Claude Code and Cursor, and the app says after Send whether the session heard or will hear on its next keystroke. |
 | FR-23 | **Rich pages and interaction** (0.3.0): LaTeX, video files inside the plan set, and `html` fences in a sandboxed frame with scripts and no network, behind a media setting served through `get_standards`. Every action has a shortcut from one registry and a tooltip showing the key. |
 | FR-15 | **Search, global and local**: local find-in-document (exists — keep) plus **global search across all plans in the base** (title + content, results grouped by plan, jump-to-match). On-demand scan in Rust when invoked — **no persistent index, no background indexing** (NFR-8); the base is small enough that a cold scan is instant. |
 
@@ -1183,6 +1183,18 @@ recorded GATE 8 waiver (§9).
       full screen, in both themes; a designer plan's questions come from Iris, Noor,
       Ada and Theo; idle CPU ~0% after the tour)
 
+#### GATE 9 findings, round 1 (Sid, 2026-11-04)
+Specification and decisions D1 to D5: the filed plan "Reconnect sessions after an
+app restart and make folders places on the board".
+- [x] R9.1 The `openplan mcp` process keeps a session link that reconnects when the
+      app writes `app.json` again, re-takes its plans, and is checked on every tool
+      call; the CLI crate gains the `notify` watcher the app already uses **(T)**
+- [x] R9.2 A folder is a place: the board and the list show the chosen folder, or
+      the plans in no folder; For you and Search look everywhere; the rows read
+      "No folder" and "List"; the folder picker says a filed plan shows only in its
+      folder; the empty states name the folder; the tour restores the folder it
+      replaced **(T)**
+
 #### GATE 9 QA script
 Run on a release build, or `pnpm tauri dev` with the dev profile.
 1. Settings > General > Replay onboarding, relaunch. Walk all six screens with keys
@@ -1207,6 +1219,14 @@ Run on a release build, or `pnpm tauri dev` with the dev profile.
    the right people ask."; its button opens the Role row.
 10. Idle cost (NFR-8): tour closed, app idle for a minute, CPU near 0% in Activity
     Monitor.
+11. Restart (R9.1). With a Claude Code session on a plan, Cmd+Q the app and start
+    it again. Within a few seconds the plan's card shows the session again. Send a
+    review: the top bar reads "Delivered to 1 session." and the session hears it.
+12. Folders (R9.2). Move a plan into a folder from its card: it leaves the board,
+    and the picker said it would. Pick the folder: it is there. Archive every plan
+    in the folder: the board reads "Nothing in progress in <folder>". Pick "No
+    folder": the unfiled plans are back. For you lists a filed plan's questions
+    whatever folder is chosen. After the tour ends the board is on "No folder".
 
 ---
 
@@ -1417,6 +1437,9 @@ Run on a release build, or `pnpm tauri dev` with the dev profile.
 | 2026-11-01 | The plan bar gives way by its own width (a size container), not the window's: below 896px the labelled actions keep only their icon, tooltip and key; below 1024px the word count and "All PRs merged." go; below 768px reading width and font size go and stay in Settings. The title keeps at least 10rem | At 720 the title shrank to nothing. The window width misleads here: at 900 the expanded navbar leaves the bar narrower than at 720 with the rail. Rejected: an overflow menu, which hides actions people use daily behind a click |
 | 2026-11-01 | The tour's Resume pill sits at the lower left of the main area, clear of the navbar, and rises above the Alignment reply box | At the lower right it covered Send. Lists and board columns already leave room at their end for floating bars; the Alignment thread got the same room. It sits under a navbar that floats open |
 | 2026-11-01 | A tour card a little short of room on every side sits on the roomiest side over the anchor's edge, and lies inside the anchor only when it would cover more than an eighth of itself | At 720x480 the Answer a question card lay inside the question and covered the options it asks the person to pick |
+| 2026-11-04 | A folder is a place, not a tag: the board and the list show the plans in the chosen folder, or the plans in no folder when none is chosen; For you and Search look everywhere; the null folder row reads "No folder" and the list view "List" with no count; the folder picker says a plan in a folder shows only when that folder is chosen (supersedes the FR-22 "shows every plan by default" rule) | Sid, 2026-11-04 (R9.2): "If it was moved to a folder, it should not show in all plans." For you is an inbox, so a question on a filed plan must not hide behind a folder choice. Both "All plans" labels would have shown fewer plans than there are |
+| 2026-11-04 | Ending the tour restores the folder the person had before it, and both board empty states name the chosen folder | Onboarding set the board to Demo, the choice was saved across launches, and once every Demo plan was archived the board read "Nothing in progress" with no word about the filter while Recent listed a plan in progress. The Demo filter is part of the tour, not a choice the person made |
+| 2026-11-04 | The `openplan mcp` process keeps a session link that comes and goes with the app: it watches `app.json` with `notify` and reconnects when the app writes it, re-takes its plans, and checks the link on every tool call. `notify` joins the CLI crate at the version the app crate already uses | The process joined the app once at `initialize`, so after a restart the new port went unread and Send found nobody (9 processes alive, 1 connected on Sid's machine). Rejected: a retry loop with a sleep, which is the polling NFR-8 forbids, and registering from the app, which cannot reach stdio processes |
 
 ---
 
