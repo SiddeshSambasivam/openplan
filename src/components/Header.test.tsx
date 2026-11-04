@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { titleEditKey } from "@/lib/titleEdit";
 import { Header } from "./Header";
 
 const noop = () => {};
@@ -139,5 +140,28 @@ describe("Header", () => {
   it("reaches over the rail by the layout's pull", () => {
     expect(bar({ layout: { pull: 48, lead: 114 } })).toContain("margin-left:-48px");
     expect(bar({ layout: { pull: 48, lead: 114 } })).toContain("width:114px");
+  });
+
+  it("offers to rename the plan from its title", () => {
+    const html = bar({ mainView: "plan", title: "Plan a", plan: planA, onRenameTitle: noop });
+
+    expect(html).toMatch(/<h1[^>]*><button[^>]*title="Click to rename"[^>]*>/);
+    expect(html).toContain("Plan a");
+  });
+
+  it("keeps the title plain where it cannot be renamed", () => {
+    const html = bar({ mainView: "plan", title: "Plan a", plan: planA });
+
+    expect(html).toContain("Plan a");
+    expect(html).not.toContain("Click to rename");
+  });
+
+  it("saves the trimmed title on Enter", () => {
+    expect(titleEditKey("Enter", "  Fresh name ")).toEqual({ save: "Fresh name" });
+  });
+
+  it("restores the title on Escape without saving", () => {
+    expect(titleEditKey("Escape", "Fresh name")).toBe("cancel");
+    expect(titleEditKey("a", "Fresh name")).toBeNull();
   });
 });

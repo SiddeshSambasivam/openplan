@@ -12,13 +12,14 @@ import {
   SquarePen,
   TableOfContents,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { FontSize } from "../lib/fontSize";
 import type { DocFile, MainView, ViewMode } from "../lib/types";
 import type { ContentWidth } from "../lib/width";
 import type { FolderFilter } from "../lib/folders";
 import { VIEW_LABELS, type ListView } from "../lib/origin";
 import type { PlanSummary, Status } from "../lib/planBase";
+import { titleEditKey } from "../lib/titleEdit";
 import { COMPLETION_PROMPT, progressText, type TodoCount } from "../lib/work";
 import { navbarToggleLabel } from "../lib/navbar";
 import { cn } from "../lib/utils";
@@ -35,6 +36,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 
 /* Below this width of the bar, the labelled actions keep their icon and
    their tooltip, so the title keeps its room. */
@@ -49,6 +51,8 @@ interface HeaderProps {
   mainView: MainView;
   /** The name of what is open. Null away from the plan page. */
   title: string | null;
+  /** Renames the open plan. Absent when the title is not the plan's own. */
+  onRenameTitle?: (title: string) => void;
   /** Where the plan page was entered from, named. Null when there is
    * nowhere to go back to. */
   back: string | null;
@@ -117,6 +121,7 @@ interface HeaderProps {
 export function Header({
   mainView,
   title,
+  onRenameTitle,
   back,
   onBack,
   work,
@@ -204,9 +209,7 @@ export function Header({
         )}
         {onPlan && title != null ? (
           <>
-            <h1 className="min-w-0 flex-1 cursor-default text-sm font-medium text-foreground">
-              <MarqueeText text={title} />
-            </h1>
+            <PlanTitle key={doc?.path} title={title} onRename={onRenameTitle} />
             {dirty && (
               <span
                 className="size-1.5 shrink-0 rounded-full bg-foreground/40"
@@ -492,5 +495,48 @@ function ExpandMark({ shown, onExpand }: { shown: boolean; onExpand: () => void 
         )}
       />
     </TooltipButton>
+  );
+}
+
+/** The open plan's name. With a rename, a click turns it into a field:
+ * Enter saves, and Escape or leaving the field keeps the old name. */
+function PlanTitle({ title, onRename }: { title: string; onRename?: (title: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  if (onRename && draft != null) {
+    return (
+      <Input
+        autoFocus
+        aria-label="Plan name"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={() => setDraft(null)}
+        onKeyDown={(e) => {
+          const edit = titleEditKey(e.key, draft);
+          if (!edit) return;
+          // Otherwise the bar's own Escape leaves the plan too.
+          e.preventDefault();
+          setDraft(null);
+          if (edit !== "cancel") onRename(edit.save);
+        }}
+        className="-ml-1.5 h-7 min-w-0 flex-1 px-1.5 text-sm font-medium md:text-sm"
+      />
+    );
+  }
+  return (
+    <h1 className="min-w-0 flex-1 text-sm font-medium text-foreground">
+      {onRename ? (
+        <button
+          type="button"
+          title="Click to rename"
+          onClick={() => setDraft(title)}
+          className="-ml-1.5 block max-w-full cursor-text rounded-md px-1.5 py-1 text-left hover:bg-accent"
+        >
+          <MarqueeText text={title} />
+        </button>
+      ) : (
+        <MarqueeText text={title} className="cursor-default" />
+      )}
+    </h1>
   );
 }
