@@ -131,7 +131,9 @@ import {
   pendingQuestions,
   showsWorkPanel,
   type PlanProgress,
+  type Question,
 } from "./lib/work";
+import { questionsNoticeText } from "./lib/questionsNotice";
 import { useAttentionRequest } from "./features/plan/useAttentionRequest";
 import { useWorkRecord } from "./features/plan/useWorkRecord";
 import { WORK_PANEL_PX, WorkPanel } from "./features/plan/PlanWork";
@@ -153,6 +155,7 @@ import { ListView } from "./features/board/ListView";
 import { DeletePlansDialog } from "./features/board/DeletePlansDialog";
 import { useUpdates } from "./lib/useUpdates";
 import { UpdateNotice } from "./components/UpdateNotice";
+import { QuestionsNotice } from "./components/QuestionsNotice";
 import { SaveBeforeUpdateDialog } from "./components/SaveBeforeUpdateDialog";
 import { usePlanActions } from "./features/board/PlanActions";
 import { planPathsIn, SelectionArea } from "./features/board/SelectionArea";
@@ -748,16 +751,28 @@ export default function App() {
     };
   }, []);
 
-  // Questions an agent posts while the plan is open bring the person to them.
+  // Questions an agent posts while the plan is open ask for attention and
+  // say so in the top bar. The plan stays on the tab the person is reading.
   const requestAttention = useAttentionRequest();
+  const [questionsNotice, setQuestionsNotice] = useState<{ path: string; text: string } | null>(
+    null,
+  );
   const showNewQuestions = useCallback(
-    (path: string) => {
-      setPlanTabs((tabs) => withTab(tabs, path, "alignment"));
+    (path: string, questions: Question[]) => {
+      const text = questionsNoticeText(questions);
+      setQuestionsNotice(text == null ? null : { path, text });
       requestAttention();
     },
     [requestAttention],
   );
   const workRecord = useWorkRecord(activePlan?.path ?? null, showNewQuestions);
+  // The notice goes once its plan shows the Alignment tab, however it got
+  // there, and whenever another plan opens.
+  const questionsNoticeTab = questionsNotice ? tabFor(planTabs, questionsNotice.path) : null;
+  useEffect(() => {
+    if (questionsNoticeTab === "alignment") setQuestionsNotice(null);
+  }, [questionsNoticeTab]);
+  useEffect(() => setQuestionsNotice(null), [activePlan?.path]);
   const aligned = canBuild(workRecord, preferences.alignmentTarget);
   const offerCompletion =
     activePlan != null && offersCompletion(activePlan.status, workRecord?.prs);
@@ -1939,6 +1954,16 @@ export default function App() {
           folders={knownFolders}
           folder={folder}
           onSelectFolder={setChosenFolder}
+          questionsNotice={
+            questionsNotice &&
+            questionsNotice.path === activePlan?.path &&
+            questionsNoticeTab !== "alignment" && (
+              <QuestionsNotice
+                text={questionsNotice.text}
+                onOpen={() => choosePlanTab("alignment")}
+              />
+            )
+          }
           updateNotice={
             updates.noticeShown && (
               <UpdateNotice

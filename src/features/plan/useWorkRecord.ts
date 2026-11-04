@@ -7,13 +7,13 @@ import { newQuestionIds, readWorkRecord, type Question, type WorkRecord } from "
  * through the MCP server, so it is read again on every base change, the way
  * comments are. Nothing polls.
  *
- * `onNewQuestions` runs when a read finds unanswered questions the last read
- * of the same plan did not have. The first read after opening a plan only
- * sets what counts as known.
+ * `onNewQuestions` runs with the unanswered questions a read finds that the
+ * last read of the same plan did not have. The first read after opening a
+ * plan only sets what counts as known.
  */
 export function useWorkRecord(
   path: string | null,
-  onNewQuestions?: (path: string) => void,
+  onNewQuestions?: (path: string, questions: Question[]) => void,
 ): WorkRecord | null {
   const [record, setRecord] = useState<WorkRecord | null>(null);
   const onNewQuestionsRef = useRef(onNewQuestions);
@@ -28,10 +28,15 @@ export function useWorkRecord(
     const received = (next: WorkRecord | null) => {
       if (cancelled) return;
       const questions = next?.alignment?.questions ?? [];
-      const fresh = newQuestionIds(known, questions);
+      const fresh = new Set(newQuestionIds(known, questions));
       known = questions;
       setRecord(next);
-      if (fresh.length > 0) onNewQuestionsRef.current?.(path);
+      if (fresh.size > 0) {
+        onNewQuestionsRef.current?.(
+          path,
+          questions.filter((question) => fresh.has(question.id)),
+        );
+      }
     };
     // A record that cannot be read shows as no record rather than an error
     // over the plan. It leaves the known questions as they were.
