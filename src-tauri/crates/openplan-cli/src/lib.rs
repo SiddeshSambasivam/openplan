@@ -200,7 +200,7 @@ fn pending_line(event: &Event) -> String {
             "OpenPlan: the person pressed Build on {plan}. Answer the open comments, then post every question left with ask_questions, or add todos, set in-progress and start."
         ),
         Event::Answers { plan } => format!(
-            "OpenPlan: the person answered your questions on {plan}. Call read_plan to see the answers, then continue."
+            "OpenPlan: the person answered on {plan}. Call read_plan to see the answers, confirmations and corrections, then continue."
         ),
         Event::Status { plan, status } => format!("OpenPlan: {plan} is now {status}."),
     }
@@ -484,7 +484,7 @@ mod tests {
             format!(
                 "OpenPlan: a review with 2 comments arrived on auth. Call get_comments.\n\
                  {BUILD_SYNC}\n\
-                 OpenPlan: the person answered your questions on auth. Call read_plan to see the answers, then continue."
+                 OpenPlan: the person answered on auth. Call read_plan to see the answers, confirmations and corrections, then continue."
             )
         );
         assert_eq!(
