@@ -1526,14 +1526,22 @@ export default function App() {
 
   const handleRename = useCallback(
     (plan: PlanSummary, newTitle: string) => {
-      void renamePlan(plan.path, newTitle).then((newPath) => {
-        refreshPlans();
-        if (activeIdRef.current === plan.path || activeIdRef.current?.startsWith(plan.path)) {
-          openFilePaths([newPath]);
-        }
-      });
+      // A save puts back the metadata as it was read, so pending edits go
+      // first and the open plan is read again with its new title.
+      void flushSave()
+        .then(() => renamePlan(plan.path, newTitle))
+        .then(async () => {
+          refreshPlans();
+          if (activeIdRef.current === plan.path) setContent(await readTextFile(plan.path));
+        })
+        .catch((err) => notify(String(err)));
     },
-    [refreshPlans, openFilePaths],
+    [flushSave, refreshPlans, notify],
+  );
+
+  const renameOpenPlan = useCallback(
+    (newTitle: string) => activePlan && handleRename(activePlan, newTitle),
+    [activePlan, handleRename],
   );
 
   const handleRenameDocument = useCallback(
@@ -1906,6 +1914,11 @@ export default function App() {
         <Header
           mainView={mainView}
           title={title}
+          // A document inside a set shows its own name, which the plan's
+          // rename does not change.
+          onRenameTitle={
+            activePlan && activeDoc?.path === activePlan.path ? renameOpenPlan : undefined
+          }
           back={trail.length > 0 ? originLabel(trail[trail.length - 1]) : null}
           onBack={goBack}
           work={workShown && workOverlays && workRecord ? progress(workRecord) : null}

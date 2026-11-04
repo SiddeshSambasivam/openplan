@@ -345,8 +345,9 @@ export async function planDiff(path: string, revision: string): Promise<DiffLine
   return invoke<DiffLine[]>("plan_diff", { path, revision });
 }
 
-export async function renamePlan(path: string, newTitle: string): Promise<string> {
-  return invoke<string>("rename_plan", { path, newTitle });
+/** Rewrites a plan's title. Its id, file and folder stay as they are. */
+export async function renamePlan(path: string, newTitle: string): Promise<void> {
+  await invoke<null>("rename_plan", { path, newTitle });
 }
 
 /** Renames one document inside a set; returns the file's new path. */

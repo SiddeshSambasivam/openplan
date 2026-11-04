@@ -288,7 +288,7 @@ pub async fn rename_plan(
     path: String,
     new_title: String,
     state: tauri::State<'_, BaseState>,
-) -> Result<PathBuf, String> {
+) -> Result<(), String> {
     openplan_core::import::rename_plan(
         state.get()?,
         &openplan_core::settings::me(),
