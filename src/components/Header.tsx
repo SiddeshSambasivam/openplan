@@ -237,19 +237,19 @@ export function Header({
                 folder != null && "bg-accent text-accent-foreground",
               )}
             >
-              <span className="truncate">{folder ?? "All plans"}</span>
+              <span className="truncate">{folder ?? "No folder"}</span>
               <ChevronDown className="text-muted-foreground" />
             </TooltipButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuRadioGroup
-              // Radio values are strings, so "every plan" is the one value
-              // a folder name can never be.
+              // Radio values are strings, so "no folder" is the one value a
+              // folder name can never be.
               value={folder ?? ""}
               onValueChange={(next) => onSelectFolder(next === "" ? null : next)}
             >
               <DropdownMenuRadioItem value="" className={FILTER_ITEM}>
-                All plans
+                No folder
               </DropdownMenuRadioItem>
               {folders.map((name) => (
                 <DropdownMenuRadioItem key={name} value={name} className={FILTER_ITEM}>

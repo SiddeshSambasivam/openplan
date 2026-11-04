@@ -5,6 +5,7 @@
 //! loop over stdin covers it without an async runtime. Worth revisiting if
 //! the surface grows past tools.
 
+use crate::link::{Inbox, Link};
 use crate::work_tools;
 use openplan_core::base::Base;
 use openplan_core::import::now_iso;
@@ -17,7 +18,7 @@ use openplan_core::work::{self, TodoState, WorkRecord};
 use openplan_core::{comments, fs, library, settings, standards};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 const PROTOCOL: &str = "2025-06-18";
 
@@ -515,51 +516,6 @@ fn get_standards(role: Option<PersonRole>) -> Value {
     text_result(served, false)
 }
 
-/// What the app has sent this session, waiting for somewhere to put it.
-type Inbox = Arc<Mutex<Vec<Event>>>;
-
-/// Registers with the app if one is open, and keeps a request held there so
-/// anything it sends arrives without being asked for. Silence is the ordinary
-/// answer: with no app, every tool works exactly as it does on its own.
-fn join(client_name: &str, inbox: &Inbox) -> Option<local::Client> {
-    let client = local::connect(client_name)?;
-    let polling = client.clone();
-    let sink = inbox.clone();
-    std::thread::spawn(move || {
-        // Each read blocks in the app until there is something to say; an
-        // empty answer is how the end of the session arrives.
-        while let Some(polled) = polling.events() {
-            if polled.events.is_empty() {
-                return;
-            }
-            let wake = polled.wake.then(|| crate::wake_text(&polled.events)).flatten();
-            let Ok(mut waiting) = sink.lock() else { return };
-            waiting.extend(polled.events);
-            // Queued first, so the turn the wake starts finds the events.
-            drop(waiting);
-            if let Some(text) = wake {
-                wake_agent(&polling, text);
-            }
-        }
-    });
-    Some(client)
-}
-
-/// Starts the agent's turn and tells the app whether it did, on a thread of
-/// its own so the poll never waits on the inbox. A session with no inbox
-/// tells the app nothing, and its hooks deliver as they always have.
-#[cfg(unix)]
-fn wake_agent(client: &local::Client, text: String) {
-    let Some(inbox) = crate::wake::Inbox::from_env() else {
-        return;
-    };
-    let client = client.clone();
-    std::thread::spawn(move || client.woke(inbox.wake(&text).is_ok()));
-}
-
-#[cfg(not(unix))]
-fn wake_agent(_client: &local::Client, _text: String) {}
-
 /// The plan a successful call worked on, which is what puts this session on
 /// it. Filing counts: the session that filed a plan is the one that hears
 /// the review and the call to align.
@@ -680,8 +636,8 @@ fn call_tool(
 /// Serves until stdin closes, which is how the client says the session ended.
 pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result<(), String> {
     let mut author = "agent".to_string();
-    let mut session: Option<local::Client> = None;
-    let inbox: Inbox = Arc::new(Mutex::new(Vec::new()));
+    let mut link: Option<Arc<Link>> = None;
+    let inbox = Inbox::default();
     for line in input.lines() {
         let line = line.map_err(|e| e.to_string())?;
         if line.trim().is_empty() {
@@ -707,8 +663,15 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
                 {
                     author = author_from_client(name);
                 }
-                if session.is_none() {
-                    session = join(&author, &inbox);
+                if link.is_none() {
+                    link = local::app_path().ok().map(|app| {
+                        let started = Link::new(app, &author, inbox.clone());
+                        started.watch();
+                        started
+                    });
+                }
+                if let Some(link) = &link {
+                    link.ensure();
                 }
                 Ok(json!({
                     "protocolVersion": params.get("protocolVersion").and_then(Value::as_str).unwrap_or(PROTOCOL),
@@ -723,12 +686,15 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
             "tools/call" => {
                 let name = params.get("name").and_then(Value::as_str).unwrap_or("");
                 let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+                // A missed file change costs this one call at most.
+                if let Some(link) = &link {
+                    link.ensure();
+                }
+                let session = link.as_ref().and_then(|link| link.client());
                 call_tool(base, &author, session.as_ref(), name, &args).map(|mut reply| {
-                    if let Some(client) = &session {
+                    if let (Some(link), Some(plan)) = (&link, worked_on(name, &args)) {
                         if reply["isError"] != Value::Bool(true) {
-                            if let Some(plan) = worked_on(name, &args) {
-                                client.take_plan(&plan);
-                            }
+                            link.take_plan(&plan);
                         }
                     }
                     let comments_of = (name == "get_comments").then(|| args.get("id").and_then(Value::as_str)).flatten();
@@ -750,7 +716,7 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
         writeln!(output, "{reply}").map_err(|e| e.to_string())?;
         output.flush().map_err(|e| e.to_string())?;
     }
-    if let Some(client) = &session {
+    if let Some(client) = link.and_then(|link| link.client()) {
         client.end();
     }
     Ok(())
@@ -760,6 +726,7 @@ pub fn serve(base: &Base, input: impl BufRead, mut output: impl Write) -> Result
 mod tests {
     use super::*;
     use openplan_core::work::{Alignment, Answer, Question};
+    use std::sync::Mutex;
 
     fn aligned() -> WorkRecord {
         let mut record = WorkRecord::default();

@@ -1,6 +1,6 @@
 import type { PlanSummary } from "./planBase";
 
-/** The folder a view is filtered to, or null for every plan. */
+/** The folder a view shows, or null for the plans in no folder. */
 export type FolderFilter = string | null;
 
 /** Every folder any plan is in or the base keeps, once each, in alphabetical
@@ -24,7 +24,7 @@ export function filterByFolder(
   plans: PlanSummary[],
   folder: FolderFilter,
 ): PlanSummary[] {
-  if (folder == null) return plans;
+  if (folder == null) return plans.filter((plan) => plan.folders.length === 0);
   return plans.filter((plan) => plan.folders.some((name) => sameFolder(name, folder)));
 }
 

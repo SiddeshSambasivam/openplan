@@ -521,17 +521,17 @@ pub fn remove_app(path: &std::path::Path) {
 
 /// One session's end of the connection. Cloning it is how the poll runs on
 /// its own thread while the tools keep using the same session.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Client {
     port: u16,
     id: String,
 }
 
-/// Registers a session with the app, or `None` when no app is listening. A
-/// file left behind by an app that is gone fails the same way, since the
-/// handshake, not the file, is what proves anyone is there.
-pub fn connect(client_name: &str) -> Option<Client> {
-    let info = read_app(&app_path().ok()?)?;
+/// Registers a session with the app that `app` says is listening, or `None`
+/// when none is. A file left behind by an app that is gone fails the same
+/// way, since the handshake, not the file, is what proves anyone is there.
+pub fn connect(app: &std::path::Path, client_name: &str) -> Option<Client> {
+    let info = read_app(app)?;
     let body = format!("{{\"client\":{}}}", quoted(client_name));
     let reply = request(info.port, "POST", "/sessions", &body, Some(REPLY_TIMEOUT))?;
     Some(Client {

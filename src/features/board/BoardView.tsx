@@ -25,6 +25,7 @@ import {
   type StatusGroup,
 } from "@/lib/board";
 import type { CardDisplay } from "@/lib/cardDisplay";
+import type { FolderFilter } from "@/lib/folders";
 import { entrance, useMountedKeys } from "@/lib/motion";
 import { useNewPlans } from "@/lib/newPlans";
 import { BoardEmptyState } from "./BoardEmptyState";
@@ -35,6 +36,8 @@ import { PlanContextMenu, SELECTED_CARD, useSelectedMark } from "./PlanActions";
 
 interface BoardViewProps {
   plans: PlanSummary[];
+  /** The folder the plans are in, which the empty board names. */
+  folder: FolderFilter;
   summaries: ReviewSummary[];
   /** Live agent sessions by plan id. */
   sessions: Map<string, number>;
@@ -309,6 +312,7 @@ function HiddenColumns({
  * concerns the cards. */
 export const BoardView = memo(function BoardView({
   plans,
+  folder,
   summaries,
   sessions,
   progress,
@@ -329,7 +333,7 @@ export const BoardView = memo(function BoardView({
   const actions = { folders, onFoldersChange, onOpen, onComplete };
 
   if (plans.length === 0) {
-    return <BoardEmptyState />;
+    return <BoardEmptyState title={folder == null ? undefined : `No plans in ${folder}`} />;
   }
 
   // Finished work sits behind one Hidden control at the end of the board,
@@ -343,7 +347,9 @@ export const BoardView = memo(function BoardView({
   if (shownCount === 0) {
     const finished = plans.length;
     return (
-      <BoardEmptyState title="Nothing in progress">
+      <BoardEmptyState
+        title={folder == null ? "Nothing in progress" : `Nothing in progress in ${folder}`}
+      >
         <Button variant="outline" size="sm" onClick={() => setUnfolded(FOLDED)}>
           Show {finished} finished {finished === 1 ? "plan" : "plans"}
         </Button>

@@ -45,6 +45,7 @@ function render(plans: PlanSummary[], selected: string[]) {
       <SelectionArea actions={actions(plans, selected)}>
         <BoardView
           plans={plans}
+          folder={null}
           summaries={[]}
           sessions={new Map()}
           progress={new Map()}

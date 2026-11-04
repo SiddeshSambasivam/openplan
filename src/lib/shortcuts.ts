@@ -35,7 +35,7 @@ export const SHORTCUTS = [
     whileTyping: true,
   },
   { id: "board", label: "Board", keys: "mod+1", group: "Views" },
-  { id: "list", label: "All plans", keys: "mod+2", group: "Views" },
+  { id: "list", label: "List", keys: "mod+2", group: "Views" },
   { id: "forYou", label: "For you", keys: "mod+3", group: "Views" },
   {
     id: "plan",

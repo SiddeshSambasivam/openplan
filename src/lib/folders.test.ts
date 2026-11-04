@@ -77,8 +77,8 @@ describe("removeFolder", () => {
 describe("filterByFolder", () => {
   const plans = [plan("one", ["Search"]), plan("two", ["Infra", "Search"]), plan("loose", [])];
 
-  it("keeps every plan when no folder is chosen", () => {
-    expect(filterByFolder(plans, null)).toHaveLength(3);
+  it("keeps only the plans in no folder when no folder is chosen", () => {
+    expect(filterByFolder(plans, null).map((p) => p.id)).toEqual(["loose"]);
   });
 
   it("keeps the plans in one folder, whatever the case", () => {
