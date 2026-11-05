@@ -122,7 +122,12 @@ function Details({
   return (
     <>
       {question.context && (
-        <p className="mt-1 max-w-prose text-xs leading-relaxed text-muted-foreground">{question.context}</p>
+        <Markdown
+          content={question.context}
+          dark={view.dark}
+          media={view.media}
+          className="alignment-context mt-1.5 max-w-prose"
+        />
       )}
       {question.illustration && (
         <Markdown

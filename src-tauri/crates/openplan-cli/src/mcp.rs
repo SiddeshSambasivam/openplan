@@ -422,7 +422,7 @@ fn read_plan(base: &Base, args: &Value) -> Value {
         Some(entry) => match fs::read_to_string(&entry.path) {
             Ok(text) => {
                 let record = work::read(&entry.path).ok().flatten().unwrap_or_default();
-                text_result(format!("{text}{}", work_tools::alignment_note(&record)), false)
+                text_result(format!("{text}{}", work_tools::alignment_note(&record, entry.meta.plan_type.as_deref())), false)
             }
             Err(e) => text_result(e, true),
         },
@@ -549,7 +549,7 @@ fn news(events: &[Event]) -> String {
                 blocks.push(block.join("\n"));
             }
             Event::Answers { plan } => blocks.push(format!(
-                "The person answered your questions on the Alignment tab of {plan}. Call read_plan to see the answers, then continue."
+                "The person answered on the Alignment tab of {plan}. Call read_plan to see the answers, confirmations and corrections, then continue."
             )),
             Event::Status { plan, status } => blocks.push(format!("{plan} is now {status}.")),
         }
@@ -780,6 +780,7 @@ mod tests {
             asked_at: "x".to_string(),
             recorded_at: None,
             questions: Vec::new(),
+            understanding: Vec::new(),
         });
 
         assert!(guard(Status::Alignment, Status::InProgress, &record).is_err());
@@ -916,7 +917,7 @@ mod tests {
         }]);
 
         assert!(text.contains("Alignment tab") && text.contains("auth-refactor"), "{text}");
-        assert!(text.contains("read_plan"), "{text}");
+        assert!(text.contains("read_plan") && text.contains("confirmations and corrections"), "{text}");
     }
 
     #[test]
@@ -928,11 +929,11 @@ mod tests {
         waiting.answer = None;
         work::ask_questions(&mut record, vec![waiting]).unwrap();
 
-        let note = work_tools::alignment_note(&record);
+        let note = work_tools::alignment_note(&record, None);
 
         assert!(note.contains("- q1: Which tests? Answer: Agent decided."), "{note}");
         assert!(note.contains("- q2: Where does it live? Answer: Not answered yet."), "{note}");
-        assert_eq!(work_tools::alignment_note(&WorkRecord::default()), "");
+        assert_eq!(work_tools::alignment_note(&WorkRecord::default(), None), "");
     }
 
     #[test]

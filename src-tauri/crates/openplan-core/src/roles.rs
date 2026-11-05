@@ -43,8 +43,22 @@ pub struct Persona {
     pub focus: String,
 }
 
-/// The areas every plan needs an answer on, in the order they are named.
-pub const REQUIRED_AREAS: [&str; 3] = ["edge cases", "error handling", "scale"];
+/// The areas every plan type needs the person to confirm, in the order they
+/// are named.
+pub const EVERY_PLAN_AREAS: [&str; 3] = ["edge cases", "error handling", "scale"];
+
+/// What a feature plan needs confirmed. It holds every area there is, so each
+/// panel names an owner for each of these.
+pub const FEATURE_AREAS: [&str; 5] = ["entities", "states", "edge cases", "error handling", "scale"];
+
+/// The areas a plan of this type needs the person to confirm. A plan with no
+/// type, or one this build does not know, needs the ones every plan does.
+pub fn required_areas(plan_type: Option<&str>) -> &'static [&'static str] {
+    match plan_type.map(|t| t.trim().to_lowercase()).as_deref() {
+        Some("feature") => &FEATURE_AREAS,
+        _ => &EVERY_PLAN_AREAS,
+    }
+}
 
 /// Every role, in the order the cards show.
 pub fn all() -> &'static [PersonRolePanel] {
@@ -61,7 +75,8 @@ pub fn persona(role: &Role) -> Option<&'static Persona> {
 }
 
 /// What `get_standards` adds for a person who picked a role: who sits on
-/// their panel, and who owns each required area.
+/// their panel, and who owns each area any plan type requires. The standards
+/// are not about one plan, so the owners of feature-only areas show too.
 pub fn who_is_answering(role: PersonRole) -> String {
     let entry = panel_of(role);
     let mut section = format!(
@@ -91,11 +106,11 @@ fn table() -> &'static Table {
     })
 }
 
-/// "- Ada (`accessibility`), owns edge cases: keyboard, ..."
+/// "- Ada (`accessibility`), owns entities, states and edge cases: keyboard, ..."
 fn member_line(entry: &PersonRolePanel, role: &Role) -> String {
     let persona = persona(role).expect("every panel member has a persona");
     let owned: Vec<&str> =
-        REQUIRED_AREAS.into_iter().filter(|area| entry.owners.get(*area) == Some(role)).collect();
+        FEATURE_AREAS.into_iter().filter(|area| entry.owners.get(*area) == Some(role)).collect();
     let owns = if owned.is_empty() { String::new() } else { format!(", owns {}", spoken(&owned)) };
     format!(
         "- {} (`{}`){owns}: {}.\n",
@@ -158,10 +173,20 @@ mod tests {
     }
 
     #[test]
+    fn a_feature_plan_also_requires_entities_and_states() {
+        assert_eq!(required_areas(Some("feature")), ["entities", "states", "edge cases", "error handling", "scale"]);
+        assert_eq!(required_areas(Some(" Feature ")), FEATURE_AREAS);
+        for other in [Some("bug"), Some("migration"), Some("research"), Some("audit"), None] {
+            assert_eq!(required_areas(other), ["edge cases", "error handling", "scale"], "{other:?}");
+        }
+        assert!(EVERY_PLAN_AREAS.iter().all(|area| FEATURE_AREAS.contains(area)));
+    }
+
+    #[test]
     fn every_required_area_has_an_owner_on_the_panel() {
         for entry in all() {
-            assert_eq!(entry.owners.len(), REQUIRED_AREAS.len(), "{:?}", entry.id);
-            for area in REQUIRED_AREAS {
+            assert_eq!(entry.owners.len(), FEATURE_AREAS.len(), "{:?}", entry.id);
+            for area in FEATURE_AREAS {
                 let owner = entry.owners.get(area).unwrap_or_else(|| panic!("{:?} has no {area} owner", entry.id));
                 assert!(
                     entry.panel.contains(owner),
@@ -179,6 +204,7 @@ mod tests {
 
         assert_eq!(roles, ["design", "research", "accessibility", "engineering"]);
         assert_eq!(designer.owners["edge cases"], Role::Accessibility);
+        assert_eq!(designer.owners["entities"], Role::Accessibility);
         assert_eq!(panel_of(PersonRole::Other).panel, [Role::Product, Role::Engineering, Role::Design, Role::Oncall]);
     }
 
@@ -199,7 +225,7 @@ mod tests {
             "**Who is answering.** The person is a designer. Ask only from this panel:\n\
              - Iris (`design`): what people see and do.\n\
              - Noor (`research`): what we know about the people using it.\n\
-             - Ada (`accessibility`), owns edge cases: keyboard, screen readers and contrast.\n\
+             - Ada (`accessibility`), owns entities, states and edge cases: keyboard, screen readers and contrast.\n\
              - Theo (`engineering`), owns error handling and scale: how it is built and tested.\n\
              \n\
              Every reviewer asks in the field's own terms. \
@@ -219,12 +245,12 @@ mod tests {
                 let persona = persona(role).unwrap();
                 assert!(bullet.starts_with(&format!("- {} (`{}`)", persona.name, role.as_str())), "{bullet}");
             }
-            for area in REQUIRED_AREAS {
+            for area in FEATURE_AREAS {
                 assert_eq!(bullets.iter().filter(|bullet| bullet.contains(area)).count(), 1, "{area}: {section}");
             }
             assert_eq!(crate::standards::writing_faults(&section), Vec::<String>::new());
         }
-        assert!(who_is_answering(PersonRole::Founder).contains("owns edge cases, error handling and scale"));
+        assert!(who_is_answering(PersonRole::Founder).contains("owns entities, states, edge cases, error handling and scale"));
         assert!(who_is_answering(PersonRole::Other).contains("The person is in another field."));
     }
 

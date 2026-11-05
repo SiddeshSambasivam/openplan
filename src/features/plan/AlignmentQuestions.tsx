@@ -4,14 +4,16 @@ import { TooltipButton } from "@/components/TooltipButton";
 import {
   answeredCount,
   draftedAnswers,
+  draftedUnderstanding,
+  loadAlignmentDrafts,
   loadRailShown,
-  loadReplyDrafts,
   newestWaiting,
   nextWaiting,
+  saveAlignmentDrafts,
   saveRailShown,
-  saveReplyDrafts,
   type ReplyDraft,
   type ReplyDrafts,
+  type UnderstandingDrafts,
 } from "@/lib/alignmentDrafts";
 import { alignmentScore } from "@/lib/alignmentScore";
 import { readPanel } from "@/lib/personRoles";
@@ -20,6 +22,8 @@ import { PLATFORM, shortcutFor, useShortcuts } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import {
   answerQuestions,
+  confirmUnderstanding,
+  correctUnderstanding,
   DEFAULT_PANEL,
   persona,
   questionsByRound,
@@ -31,6 +35,7 @@ import {
   type Answer,
   type Question,
   type Role,
+  type UnderstandingDraft,
   type WorkRecord,
 } from "@/lib/work";
 import { AlignmentComposer, type ComposerLine } from "./AlignmentComposer";
@@ -38,6 +43,7 @@ import { AlignmentMessage, type MediaContext } from "./AlignmentMessage";
 import { AlignmentScoreCard } from "./AlignmentScoreCard";
 import { PersonaAvatar } from "./PersonaAvatar";
 import { RoleHint } from "./RoleHint";
+import { UnderstandingList } from "./UnderstandingList";
 import { WaitingBadge } from "./WaitingBadge";
 import { celebrate } from "./personaMotion";
 
@@ -48,6 +54,8 @@ export interface AlignmentContext extends MediaContext {
   id: string;
   /** The alignment target from settings. 0 means none. */
   alignmentTarget: number;
+  /** The plan's type, which decides the areas the person confirms. */
+  planType: string | null;
 }
 
 /** The last send: which questions went, and whether a session heard it. */
@@ -75,7 +83,9 @@ export function AlignmentQuestions({
   plan: AlignmentContext;
   children?: ReactNode;
 }) {
-  const [drafts, setDrafts] = useState<ReplyDrafts>(() => loadReplyDrafts(plan.id));
+  const [saved] = useState(() => loadAlignmentDrafts(plan.id));
+  const [drafts, setDrafts] = useState<ReplyDrafts>(saved.replies);
+  const [understandingDrafts, setUnderstandingDrafts] = useState<UnderstandingDrafts>(saved.understanding);
   const [tab, setTab] = useState<Tab>("everyone");
   const [railShown, setRailShown] = useState(loadRailShown);
   // The rail stays while it slides out, and the thread widens after.
@@ -95,7 +105,10 @@ export function AlignmentQuestions({
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const sendRef = useRef<HTMLButtonElement>(null);
   useEffect(() => void readPanel().then(setPanel), []);
-  useEffect(() => saveReplyDrafts(plan.id, drafts), [plan.id, drafts]);
+  useEffect(
+    () => saveAlignmentDrafts(plan.id, { replies: drafts, understanding: understandingDrafts }),
+    [plan.id, drafts, understandingDrafts],
+  );
   useEffect(() => saveRailShown(railShown), [railShown]);
   const toggleRail = () => {
     setRailLeaving(railShown);
@@ -105,7 +118,8 @@ export function AlignmentQuestions({
 
   const shown = written && written.from === record ? written.record : record;
   const questions = shown?.alignment?.questions ?? [];
-  if (questions.length === 0) {
+  const understanding = shown?.alignment?.understanding ?? [];
+  if (questions.length === 0 && understanding.length === 0) {
     return (
       <div className="alignment-thread min-h-0 flex-1 overflow-y-auto">
         <p className="mb-8 text-sm text-muted-foreground">No alignment yet.</p>
@@ -117,7 +131,10 @@ export function AlignmentQuestions({
 
   const answers = draftedAnswers(questions, drafts);
   const waiting = questions.filter((question) => !question.answer && !answers[question.id]);
-  const ready = Object.keys(answers).length;
+  const understood = draftedUnderstanding(understanding, understandingDrafts);
+  const ready = Object.keys(answers).length + understood.confirm.length + understood.correct.length;
+  const scoreWith = (drafted: Record<string, Answer>, understandingDrafted = understandingDrafts) =>
+    alignmentScore(questions, understanding, { answers: drafted, understanding: understandingDrafted }, plan.planType);
   const inTab = questions.filter((question) => tab === "everyone" || question.role === tab);
   // A question with a pick stays active, so words typed next become its note.
   const active =
@@ -126,27 +143,40 @@ export function AlignmentQuestions({
       : (inTab.find((question) => question.id === chosen && !question.answer) ??
         nextWaiting(inTab, drafts));
 
-  /** Writes the drafted answers and tells the agent. */
+  /** Writes the drafted confirmations, corrections and answers, then tells
+   * the agent once. */
   const submit = async () => {
     if (busy) return;
     if (ready === 0) {
-      setLine({ text: "Answer at least one question first." });
+      setLine({ text: "Answer a question or confirm an area first." });
       return;
     }
     setBusy(true);
     setLine(null);
     setMissing(false);
     const sending = Object.entries(answers).map(([id, answer]) => ({ id, answer }));
-    const result = await submitAnswers(plan, sending);
+    const result = await submitReplies(plan, sending, understood);
     setBusy(false);
     if (result.kind === "error") {
-      setLine({ text: `Your answers were not saved. ${result.message}`, error: true });
+      setLine({ text: `Your replies were not saved. ${result.message}`, error: true });
       return;
     }
     const ids = Object.keys(answers);
-    setWritten({ from: record, record: result.record });
+    const areas = [...understood.confirm, ...understood.correct.map((correction) => correction.area)];
+    if (result.record) setWritten({ from: record, record: result.record });
     setDrafts((old) => withoutKeys(old, ids));
+    setUnderstandingDrafts((old) => withoutKeys(old, areas));
     setSent({ ids, roles: rolesOf(questions.filter((q) => answers[q.id])), reached: result.reached });
+  };
+
+  /** A confirmation or correction waits as a draft until the person sends
+   * it. Everyone cheers when it is the last area left. */
+  const draftUnderstanding = (area: string, draft: UnderstandingDraft | null) => {
+    setSent(null);
+    setLine(null);
+    const next = draft ? { ...understandingDrafts, [area]: draft } : withoutKeys(understandingDrafts, [area]);
+    setUnderstandingDrafts(next);
+    if (draft && "confirm" in draft && scoreWith(answers, next).total === 100) celebrate();
   };
 
   const edit = (id: string, change: Partial<ReplyDraft>) => {
@@ -167,7 +197,8 @@ export function AlignmentQuestions({
     edit(question.id, { option });
     choose(question.id);
     if (!answers[question.id]) {
-      cheerFor(question, questions, { ...answers, [question.id]: { kind: "option", options: [option] } });
+      const next: Record<string, Answer> = { ...answers, [question.id]: { kind: "option", options: [option] } };
+      cheerFor(question, questions, next, scoreWith(next).total === 100);
       emitTourEvent("question-answered");
     }
   };
@@ -177,7 +208,7 @@ export function AlignmentQuestions({
   const reply = () => {
     if (!active) return;
     if (!answers[active.id]) return setMissing(true);
-    cheerFor(active, questions, answers);
+    cheerFor(active, questions, answers, scoreWith(answers).total === 100);
     emitTourEvent("question-answered");
     const after = nextWaiting(inTab, drafts, active.id);
     setChosen(after?.id ?? null);
@@ -216,10 +247,7 @@ export function AlignmentQuestions({
           waiting={waiting.length}
           onToggleRail={toggleRail}
         />
-        <AlignmentScoreCard
-          score={alignmentScore(questions, answers)}
-          target={plan.alignmentTarget}
-        />
+        <AlignmentScoreCard score={scoreWith(answers)} target={plan.alignmentTarget} />
       </div>
       <div className="flex min-h-0 flex-1 gap-3 @2xl:gap-5">
         {(railShown || railLeaving) && (
@@ -238,6 +266,15 @@ export function AlignmentQuestions({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
           <Thread latestId={newest?.id}>
             <RoleHint />
+            {tab === "everyone" && (
+              <UnderstandingList
+                understanding={understanding}
+                drafts={understandingDrafts}
+                planType={plan.planType}
+                onDraft={draftUnderstanding}
+                view={plan}
+              />
+            )}
             {inTab.length === 0 && tab !== "everyone" && <Note>{unusedRolesText([tab])}</Note>}
             {questionsByRound(inTab).map((group) => (
               <div key={group.round} className="flex flex-col gap-4">
@@ -532,8 +569,13 @@ function SentLine({ sent }: { sent: Sent }) {
 
 /** One persona hops once all of its questions have a reply, and every
  * persona once the plan is fully aligned. */
-function cheerFor(question: Question, questions: Question[], answers: Record<string, Answer>) {
-  if (alignmentScore(questions, answers).total === 100) return celebrate();
+function cheerFor(
+  question: Question,
+  questions: Question[],
+  answers: Record<string, Answer>,
+  fullyAligned: boolean,
+) {
+  if (fullyAligned) return celebrate();
   const role = question.role;
   if (role && questions.every((q) => q.role !== role || q.answer || answers[q.id])) celebrate(role);
 }
@@ -566,16 +608,20 @@ function withoutKeys<T>(record: Record<string, T>, keys: string[]): Record<strin
   return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.includes(key)));
 }
 
-/** Writes the answers, then tells the agent. A failed write comes back in
- * the person's words. A failed tell only means no session heard it now:
- * the agent reads the record on its next message. */
-async function submitAnswers(
+/** Writes the confirmations, the corrections and the answers, then tells
+ * the agent once. A failed write comes back in the person's words. A failed
+ * tell only means no session heard it now: the agent reads the record on
+ * its next message. */
+async function submitReplies(
   plan: AlignmentContext,
   answers: { id: string; answer: Answer }[],
-): Promise<{ kind: "sent"; reached: number; record: WorkRecord } | { kind: "error"; message: string }> {
-  let record: WorkRecord;
+  understood: { confirm: string[]; correct: { area: string; text: string }[] },
+): Promise<{ kind: "sent"; reached: number; record?: WorkRecord } | { kind: "error"; message: string }> {
+  let record: WorkRecord | undefined;
   try {
-    record = await answerQuestions(plan.path, answers);
+    if (understood.confirm.length > 0) record = await confirmUnderstanding(plan.path, understood.confirm);
+    if (understood.correct.length > 0) record = await correctUnderstanding(plan.path, understood.correct);
+    if (answers.length > 0) record = await answerQuestions(plan.path, answers);
   } catch (error) {
     return { kind: "error", message: errorText(error) };
   }

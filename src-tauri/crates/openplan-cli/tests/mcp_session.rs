@@ -148,6 +148,10 @@ fn an_agent_can_file_a_plan_and_read_it_back() {
     let posted_reply = posted["result"]["content"][0]["text"].as_str().unwrap();
     assert!(posted_reply.contains("q4"), "{posted}");
     assert!(posted_reply.contains(AIM_FOR_FULL_ALIGNMENT), "{posted}");
+    assert!(
+        posted_reply.ends_with("This plan still needs an understanding statement for entities, states, edge cases, error handling and scale."),
+        "a call from an agent that sends no statements is accepted, and told what is missing: {posted}"
+    );
     let answered_again = ask(&r##"{"jsonrpc":"2.0","id":47,"method":"tools/call","params":{"name":"ask_questions","arguments":{"id":"auth-refactor","questions":[
         {"id":"q1","aspect":"tests","question":"What has to be tested?","options":[{"id":"a","label":"Unit tests"}]}
     ]}}}"##.replace('\n', ""));

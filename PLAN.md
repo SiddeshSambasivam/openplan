@@ -1046,8 +1046,9 @@ on main with no PRs (q6).
       composer for a free-text answer
 - [x] R5.4 The standards and `ask_questions` tell agents to aim for 100 and settle
       edge cases, error handling and scale
-- [x] R5.5 New questions on the open plan switch it to the Alignment tab, and a
-      window in the background requests attention once until it is focused
+- [x] R5.5 New questions on the open plan show a notice in the top bar that names
+      who asked, with an Open control, and the tab stays where it is. A window in
+      the background requests attention once until it is focused
 
 Round 5 QA, on a release build with Claude Code connected:
 1. Answer round one of a new plan: the score reads 40 or so, not 80. A second
@@ -1057,8 +1058,9 @@ Round 5 QA, on a release build with Claude Code connected:
    target to 0 in Settings: Build works.
 3. Every question with options shows "Write my own" last. Pick it, type, press
    Enter: the reply shows as your own words.
-4. With the plan open on its Plan tab, have the agent post a round: the app
-   switches to the Alignment tab. With another app in front, have two sessions
+4. With the plan open on its Plan tab, have the agent post a round: the top bar
+   shows a notice naming who asked, with Open, and the Plan tab stays. With
+   another app in front, have two sessions
    post rounds: the Dock icon bounces once. Click OpenPlan, then post again from
    the background: it bounces once more.
 5. Idle cost (NFR-8): with the window in the background and nothing posting, CPU
@@ -1227,6 +1229,21 @@ Run on a release build, or `pnpm tauri dev` with the dev profile.
     in the folder: the board reads "Nothing in progress in <folder>". Pick "No
     folder": the unfiled plans are back. For you lists a filed plan's questions
     whatever folder is chosen. After the tour ends the board is on "No folder".
+13. Title (D1). On the plan page, edit the title and press Enter. The URL and the
+    plan's id stay the same, and the plan's card still shows the session.
+14. Notice (D2). With the plan open on its Plan tab, have the agent post a round.
+    The top bar names who asked, with Open, and the Plan tab stays. Open switches
+    to the Alignment tab.
+15. Context (D3). A question whose context runs to several paragraphs shows them
+    as paragraphs at body size, with any list and bold file names rendered.
+16. Understanding (D4 to D6). Ask the agent to align on a bug plan. The Alignment
+    tab opens with a row each for edge cases, error handling and scale. Confirm
+    one, correct another, then Send: the score card reads "1 of 3 areas
+    confirmed", and Build's tooltip names what is missing. The agent restates
+    the corrected area in its next round. Build turns on once all three are
+    confirmed.
+17. Feature areas (D7). A feature plan shows five rows: entities, states, edge
+    cases, error handling and scale. A bug plan shows three.
 
 ---
 
@@ -1394,7 +1411,7 @@ Run on a release build, or `pnpm tauri dev` with the dev profile.
 | 2026-10-29 | Name and email are trimmed; a blank one falls back to the git config; an email with whitespace or without text on both sides of an @ is refused | Sid (R3.3). The fallback keeps the existing `resolve_identity` order |
 | 2026-10-29 | Settings has a Profile section, opened by Edit profile in the avatar menu. The picture saves on pick, the name and email on Save, and each save replaces the app's identity at once | Sid (R3.3). One place to edit the profile, with no reload |
 | 2026-10-29 | Pull requests gain a `draft` state; a card shows the icon of the most advanced PR (merged, open, draft, closed), or a muted "no PR yet" icon only when the plan has a repo with a remote; merged uses a new `--merged` violet token | Sid (R2.6): one icon per state, as GitHub shows them. A plain folder never gets a PR, so the empty icon would mislead there |
-| 2026-10-29 | Alignment questions carry `context` (two to four sentences: why it matters, what the agent found) and options a `tradeoff`, both optional so old records read; `pr_body` prints the context only where the answer departs from the recommendation | Sid (R2.7): questions were too thin to answer well. The PR reviewer needs the reasoning only where the person overrode the agent |
+| 2026-10-29 | Alignment questions carry `context` (two to four sentences: why it matters, what the agent found) and options a `tradeoff`, both optional so old records read; `pr_body` prints the context only where the answer departs from the recommendation | Sid (R2.7): questions were too thin to answer well. The PR reviewer needs the reasoning only where the person overrode the agent. Superseded 2026-11-04, see below. |
 | 2026-10-29 | Plans are selected by a drag box from empty space, cmd+click, shift+click (adds the range, as Linear does) and cmd+a; a floating bar and a right-click menu act on the selection | Sid (R2.1). Folded groups are skipped by cmd+a and the box |
 | 2026-10-29 | Archive and delete of several plans commit once (`edit: archive N plans`, `delete: N plans`); delete is the person's only, refuses any path outside the base, a hidden component or a non-plan, and checks every path before removing anything; a folder change on several plans commits once per plan | Sid (R2.1, R2.3). One command per kind of bulk change keeps the Tauri surface small, and git history keeps a deleted plan restorable |
 | 2026-10-29 | Deleting asks twice in one dialog: the first press arms the button as "Confirm delete" for 4 seconds, the second deletes; focus starts on Cancel | Sid asked for double confirmation. A second dialog would ask the same question twice |
@@ -1417,9 +1434,9 @@ Run on a release build, or `pnpm tauri dev` with the dev profile.
 | 2026-10-31 | `read_plan` ends with each alignment question and its answer | An agent woken by answers given in the app needs to read them somewhere |
 | 2026-10-31 | The app reads unmerged PRs with the person's `gh` CLI on plan open, from a board Refresh control, and when a plan's last session leaves. When every PR reads merged it offers "All PRs merged. Mark completed?". It never completes a plan on its own | Sid (q5, q6, q15). The agent's reports go stale once its session ends. `gh` uses the person's own login and needs no stored secret. The person stays the one who completes (2026-10-28) |
 | 2026-10-31 | Alignment target setting, default 80, never gates Build | Sid's write-up recommends at least 80% and lets people set their own threshold |
-| 2026-10-31 | Supersedes the row above: Build is disabled while the score is below the target, and a target of 0 turns the gate off. The gate is on the button only. The server keeps refusing `set_status in-progress` while a question has no answer, and does not learn the score | Sid (R5.2): agents aim for 100, and Build opens at the target. The score and the target live in the app, and a Rust copy of the score could drift |
-| 2026-10-31 | The score only rises. Coverage is 80 times the settled areas over the required areas (edge cases, error handling, scale) plus every settled area. Each answer with a reason gives 5 points, up to 20. Every plan gets the new score, including plans already in alignment | Sid (R5.1, q3, q4): the score went from 80 to 48 when a second round arrived, because each asked area grew the denominator before it could be answered. A share of answers with a reason could also fall. The full question bank as denominator was rejected: 12 feature aspects would push agents past three questions a round |
-| 2026-10-31 | New unanswered questions on the open plan switch it to the Alignment tab. A window in the background calls `requestUserAttention` once, then not again until it is focused. No `openplan://` deep link | Sid (R5.5, q2, q5): Tauri's core window API needs no new dependency. One request per background period keeps several sessions from nagging. Nobody has checked whether Claude Code desktop opens custom-scheme links |
+| 2026-10-31 | Supersedes the row above: Build is disabled while the score is below the target, and a target of 0 turns the gate off. The gate is on the button only. The server keeps refusing `set_status in-progress` while a question has no answer, and does not learn the score | Sid (R5.2): agents aim for 100, and Build opens at the target. The score and the target live in the app, and a Rust copy of the score could drift. Superseded 2026-11-04, see below. |
+| 2026-10-31 | The score only rises. Coverage is 80 times the settled areas over the required areas (edge cases, error handling, scale) plus every settled area. Each answer with a reason gives 5 points, up to 20. Every plan gets the new score, including plans already in alignment | Sid (R5.1, q3, q4): the score went from 80 to 48 when a second round arrived, because each asked area grew the denominator before it could be answered. A share of answers with a reason could also fall. The full question bank as denominator was rejected: 12 feature aspects would push agents past three questions a round. Superseded 2026-11-04, see below. |
+| 2026-10-31 | New unanswered questions on the open plan switch it to the Alignment tab. A window in the background calls `requestUserAttention` once, then not again until it is focused. No `openplan://` deep link | Sid (R5.5, q2, q5): Tauri's core window API needs no new dependency. One request per background period keeps several sessions from nagging. Nobody has checked whether Claude Code desktop opens custom-scheme links. Superseded 2026-11-04, see below. |
 | 2026-10-31 | Every question with options ends with "Write my own" | Sid (R5.3, q1): the composer already took free text, but nothing on the question said so |
 | 2026-10-31 | **GATE 7 waived and Phase 8 (0.6.0, S3 builds and in-app updates) starts** | Sid, 2026-10-31: "Gate waived", after the rule was pointed out. Recorded per §2 Process. GATE 7 QA remains owed |
 | 2026-11-01 | **GATE 8 waived and Phase 9 (onboarding by role, agent setup, in-app tour) starts** | Sid, 2026-11-01: "Gate waived", after the rule was pointed out on Build. Recorded per §2 Process. GATE 7 and GATE 8 QA remain owed |
@@ -1440,6 +1457,12 @@ Run on a release build, or `pnpm tauri dev` with the dev profile.
 | 2026-11-04 | A folder is a place, not a tag: the board and the list show the plans in the chosen folder, or the plans in no folder when none is chosen; For you and Search look everywhere; the null folder row reads "No folder" and the list view "List" with no count; the folder picker says a plan in a folder shows only when that folder is chosen (supersedes the FR-22 "shows every plan by default" rule) | Sid, 2026-11-04 (R9.2): "If it was moved to a folder, it should not show in all plans." For you is an inbox, so a question on a filed plan must not hide behind a folder choice. Both "All plans" labels would have shown fewer plans than there are |
 | 2026-11-04 | Ending the tour restores the folder the person had before it, and both board empty states name the chosen folder | Onboarding set the board to Demo, the choice was saved across launches, and once every Demo plan was archived the board read "Nothing in progress" with no word about the filter while Recent listed a plan in progress. The Demo filter is part of the tour, not a choice the person made |
 | 2026-11-04 | The `openplan mcp` process keeps a session link that comes and goes with the app: it watches `app.json` with `notify` and reconnects when the app writes it, re-takes its plans, and checks the link on every tool call. `notify` joins the CLI crate at the version the app crate already uses | The process joined the app once at `initialize`, so after a restart the new port went unread and Send found nobody (9 processes alive, 1 connected on Sid's machine). Rejected: a retry loop with a sleep, which is the polling NFR-8 forbids, and registering from the app, which cannot reach stdio processes |
+| 2026-11-04 | Editing a plan's title on the plan page keeps its id, so the URL and the agent session stay with the plan (D1) | Sid's call (q1). A session holds the plan by id, so a rename that moved the file lost the session until the agent read the plan again under the new id. |
+| 2026-11-04 | New questions on the open plan show a notice in the top bar that names who asked, with an Open control, and the tab stays where it is (D2). Supersedes the 2026-10-31 tab switch | Sid's call (q2). The switch interrupted a review on the Plan tab. The badge and the notice carry the same information without moving anything. |
+| 2026-11-04 | A question's `context` is Markdown at body size, two to six sentences in this order: what the agent found, why it matters for the plan, then the option it recommends and why (D3). The field stays one string, so recorded questions still render. Supersedes the 2026-10-29 two to four sentence context | Sid's call. A long context read as one small grey wall of text |
+| 2026-11-04 | The alignment score is the share of required areas whose understanding statement the person confirmed (D4). The agent states two to four sentences per area, naming what would break if it were wrong. The person confirms or corrects each one, and a correction waits for a restatement. A record with answers and no statements keeps the answer count until the first statement arrives, and the score card names the rule it uses (D5). An agent on an older build may still call `ask_questions` without statements: the areas read "Not stated", and Build stays off until every required area is confirmed (D6). A target of 0 still turns the gate off. Supersedes the 2026-10-31 score rows | Sid's call. An answered question said nothing about whether the agent understood the answer. A statement the person confirms does |
+| 2026-11-04 | Feature plans require entities and states as well as edge cases, error handling and scale. Other plan types keep the three. A feature plan draws an entity table with an `erDiagram` and a `stateDiagram-v2` before round one. Each panel's owner of edge cases owns both (D7) | Sid's call. Edge cases hide in the transitions between states |
+| 2026-11-04 | The alignment budget stays under 15 minutes across every round. The agent states every required area in round one and asks at most three questions a round (D8) | Sid's call (q6). A person waiting on an idle agent for the next two statements costs more than reading five at once. |
 
 ---
 

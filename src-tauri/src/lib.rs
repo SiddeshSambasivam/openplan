@@ -342,6 +342,8 @@ pub fn run() {
             plans::comment_threads,
             plans::save_comment_threads,
             plans::answer_questions,
+            plans::confirm_understanding,
+            plans::correct_understanding,
             plans::plan_at_revision,
             plans::restore_plan_revision,
             pull_requests::refresh_pr_state,

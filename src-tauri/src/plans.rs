@@ -418,6 +418,36 @@ pub async fn answer_questions(
     Ok(record)
 }
 
+/// The person agrees with the agent's statement on each area, and gets the
+/// record back as written.
+#[tauri::command]
+pub async fn confirm_understanding(
+    path: String,
+    areas: Vec<String>,
+    state: tauri::State<'_, BaseState>,
+) -> Result<work::WorkRecord, String> {
+    let path = Path::new(&path);
+    let record = record_confirmations(path, areas, &settings::current_identity().name)?;
+    let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("plan");
+    let _ = repo::commit_all(&state.get()?.root, &settings::me(), &format!("confirm: {name}"));
+    Ok(record)
+}
+
+/// The person says what the agent got wrong on each area, and gets the
+/// record back as written.
+#[tauri::command]
+pub async fn correct_understanding(
+    path: String,
+    corrections: Vec<work::GivenCorrection>,
+    state: tauri::State<'_, BaseState>,
+) -> Result<work::WorkRecord, String> {
+    let path = Path::new(&path);
+    let record = record_corrections(path, corrections, &settings::current_identity().name)?;
+    let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("plan");
+    let _ = repo::commit_all(&state.get()?.root, &settings::me(), &format!("correct: {name}"));
+    Ok(record)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Revision {
@@ -579,6 +609,18 @@ fn record_answers(path: &Path, answers: Vec<work::GivenAnswer>, by: &str) -> Res
     work::modify(path, |record| work::answer_questions(record, answers, by))
 }
 
+fn record_confirmations(path: &Path, areas: Vec<String>, by: &str) -> Result<work::WorkRecord, String> {
+    work::modify(path, |record| work::confirm_understanding(record, areas, by))
+}
+
+fn record_corrections(
+    path: &Path,
+    corrections: Vec<work::GivenCorrection>,
+    by: &str,
+) -> Result<work::WorkRecord, String> {
+    work::modify(path, |record| work::correct_understanding(record, corrections, by))
+}
+
 /// Changes a plan's header and writes it back, returning the plan's id.
 fn rewrite_meta(path: &Path, change: impl FnOnce(&mut plan::PlanMeta)) -> Result<String, String> {
     let text = openplan_core::fs::read_to_string(path)?;
@@ -728,6 +770,28 @@ mod tests {
         let alignment = record.alignment.unwrap();
         assert_eq!(alignment.questions[0].answered_by.as_deref(), Some("Sid"));
         assert!(alignment.recorded_at.is_some());
+    }
+
+    #[test]
+    fn the_persons_confirmations_and_corrections_land_in_the_work_record_under_their_name() {
+        let path = a_plan_file("understanding", "---\ntitle: Auth refactor\nstatus: alignment\n---\n# Body\n");
+        let stated: Vec<work::NewUnderstanding> = serde_json::from_value(serde_json::json!([
+            { "area": "scale", "statement": "Hundreds of plans." },
+            { "area": "states", "statement": "Draft, then done." }
+        ]))
+        .unwrap();
+        work::modify(&path, |r| work::state_understanding(r, stated, "claude-code")).unwrap();
+        let corrections: Vec<work::GivenCorrection> =
+            serde_json::from_value(serde_json::json!([{ "area": "scale", "text": "Thousands." }])).unwrap();
+
+        record_confirmations(&path, vec!["states".into()], "Sid").unwrap();
+        let record = record_corrections(&path, corrections, "Sid").unwrap();
+
+        assert_eq!(work::read(&path).unwrap().unwrap(), record);
+        let understanding = record.alignment.unwrap().understanding;
+        assert_eq!(understanding[0].correction.as_ref().map(|c| c.by.as_str()), Some("Sid"));
+        assert_eq!(understanding[1].confirmed.as_ref().map(|c| c.by.as_str()), Some("Sid"));
+        assert!(record_confirmations(&path, vec!["entities".into()], "Sid").is_err());
     }
 
     #[test]

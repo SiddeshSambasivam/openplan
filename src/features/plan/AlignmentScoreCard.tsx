@@ -4,7 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { belowTarget, type AlignmentArea, type AlignmentScore } from "@/lib/alignmentScore";
+import {
+  belowTarget,
+  type AlignmentArea,
+  type AlignmentScore,
+  type UnderstandingState,
+} from "@/lib/alignmentScore";
 import { cn } from "@/lib/utils";
 import { persona } from "@/lib/work";
 import { PersonaAvatar } from "./PersonaAvatar";
@@ -16,11 +21,10 @@ const LEFT_HALF = "M29 53 A24 24 0 0 1 29 5";
 const RIGHT_HALF = "M29 5 A24 24 0 0 1 29 53";
 
 /** The alignment score on one line: a small ring, and how many areas are
- * settled. The areas and how the score adds up open from the count. A
- * `target` of 0 is no target. */
+ * confirmed, or settled while only answers count. The areas and how the
+ * score adds up open from the count. A `target` of 0 is no target. */
 export function AlignmentScoreCard({ score, target }: { score: AlignmentScore; target: number }) {
   const shown = useCountUp(score.total);
-  const settled = score.areas.filter((area) => area.settled).length;
   return (
     <section
       aria-label="Alignment score"
@@ -37,7 +41,7 @@ export function AlignmentScoreCard({ score, target }: { score: AlignmentScore; t
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="xs" className="-ml-1 font-normal text-muted-foreground">
-            {settled} of {score.counted} {score.counted === 1 ? "area" : "areas"} settled
+            {countLine(score)}
             <ChevronDown />
           </Button>
         </PopoverTrigger>
@@ -59,20 +63,30 @@ export function AlignmentScoreCard({ score, target }: { score: AlignmentScore; t
   );
 }
 
-/** How the score adds up, then a chip per area. */
+/** Which rule the score follows and how it adds up, then a chip per area. */
 export function ScoreDetails({ score }: { score: AlignmentScore }) {
-  const settled = score.areas.filter((area) => area.settled).length;
+  const byUnderstanding = score.rule === "understanding";
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-col gap-0.5 text-xs leading-normal text-muted-foreground">
-        <p>
-          {settled} of {score.counted} {score.counted === 1 ? "area" : "areas"} settled ·{" "}
-          {score.coverage} of 80
+        <p className="font-medium text-foreground">
+          {byUnderstanding
+            ? "Counts the areas you confirmed."
+            : "Counts answered areas until the agent states its understanding."}
         </p>
-        <p>
-          {score.reasoned} {score.reasoned === 1 ? "answer explains" : "answers explain"} why ·{" "}
-          {score.reasoning} of 20
-        </p>
+        {byUnderstanding ? (
+          <p>{countLine(score)}</p>
+        ) : (
+          <>
+            <p>
+              {countLine(score)} · {score.coverage} of 80
+            </p>
+            <p>
+              {score.reasoned} {score.reasoned === 1 ? "answer explains" : "answers explain"} why ·{" "}
+              {score.reasoning} of 20
+            </p>
+          </>
+        )}
       </div>
       <ul className="flex flex-wrap gap-1.5">
         {score.areas.map((area) => (
@@ -89,6 +103,7 @@ export function ScoreDetails({ score }: { score: AlignmentScore }) {
 }
 
 function AreaChip({ area }: { area: AlignmentArea }) {
+  if (area.understanding) return <UnderstandingChip area={area} state={area.understanding.state} />;
   if (area.settled) {
     return (
       <Chip tip="Settled" className="border-transparent bg-muted text-foreground">
@@ -106,6 +121,42 @@ function AreaChip({ area }: { area: AlignmentArea }) {
       {area.label}
     </Chip>
   );
+}
+
+/** An area by where the agent's statement on it stands. */
+function UnderstandingChip({ area, state }: { area: AlignmentArea; state: UnderstandingState }) {
+  if (state === "confirmed") {
+    return (
+      <Chip tip="Confirmed" className="border-transparent bg-muted text-foreground">
+        <span className="grid size-4 place-items-center rounded-full bg-success/15 text-success">
+          <Check className="size-2.5" strokeWidth={3} />
+        </span>
+        {area.label}
+      </Chip>
+    );
+  }
+  const { prefix, tip } = UNDERSTANDING_CHIPS[state];
+  return (
+    <Chip tip={tip} className={cn("pl-2.25", state === "not stated" && "border-dashed")}>
+      {prefix}: {area.name}
+    </Chip>
+  );
+}
+
+const UNDERSTANDING_CHIPS: Record<Exclude<UnderstandingState, "confirmed">, { prefix: string; tip: string }> = {
+  "not stated": { prefix: "Not stated", tip: "The agent has not said what it understands here yet." },
+  stated: { prefix: "To confirm", tip: "Confirm it or correct it at the top of this tab." },
+  corrected: { prefix: "Corrected", tip: "Waiting for the agent to restate it." },
+};
+
+/** "3 of 5 areas confirmed", or settled while only answers count. */
+function countLine(score: AlignmentScore): string {
+  if (score.rule === "understanding") {
+    const total = score.required.length;
+    return `${score.confirmed} of ${total} ${total === 1 ? "area" : "areas"} confirmed`;
+  }
+  const settled = score.areas.filter((area) => area.settled).length;
+  return `${settled} of ${score.counted} ${score.counted === 1 ? "area" : "areas"} settled`;
 }
 
 function Chip({ tip, className, children }: { tip: string; className?: string; children: ReactNode }) {

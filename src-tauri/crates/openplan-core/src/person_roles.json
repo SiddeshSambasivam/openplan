@@ -17,7 +17,7 @@
       "hint": "I build and ship the code",
       "who": "an engineer",
       "panel": ["product", "engineering", "design", "oncall"],
-      "owners": { "edge cases": "engineering", "error handling": "oncall", "scale": "oncall" }
+      "owners": { "entities": "engineering", "states": "engineering", "edge cases": "engineering", "error handling": "oncall", "scale": "oncall" }
     },
     {
       "id": "designer",
@@ -25,7 +25,7 @@
       "hint": "I shape what people see",
       "who": "a designer",
       "panel": ["design", "research", "accessibility", "engineering"],
-      "owners": { "edge cases": "accessibility", "error handling": "engineering", "scale": "engineering" }
+      "owners": { "entities": "accessibility", "states": "accessibility", "edge cases": "accessibility", "error handling": "engineering", "scale": "engineering" }
     },
     {
       "id": "product",
@@ -33,7 +33,7 @@
       "hint": "I decide what we build",
       "who": "a product manager",
       "panel": ["data", "support", "design", "engineering"],
-      "owners": { "edge cases": "support", "error handling": "engineering", "scale": "engineering" }
+      "owners": { "entities": "support", "states": "support", "edge cases": "support", "error handling": "engineering", "scale": "engineering" }
     },
     {
       "id": "lead",
@@ -41,7 +41,7 @@
       "hint": "I guide a team that builds",
       "who": "an engineering lead",
       "panel": ["engineering", "oncall", "security", "product"],
-      "owners": { "edge cases": "engineering", "error handling": "oncall", "scale": "oncall" }
+      "owners": { "entities": "engineering", "states": "engineering", "edge cases": "engineering", "error handling": "oncall", "scale": "oncall" }
     },
     {
       "id": "founder",
@@ -49,7 +49,7 @@
       "hint": "I do a bit of everything",
       "who": "a founder",
       "panel": ["product", "engineering", "design", "data"],
-      "owners": { "edge cases": "engineering", "error handling": "engineering", "scale": "engineering" }
+      "owners": { "entities": "engineering", "states": "engineering", "edge cases": "engineering", "error handling": "engineering", "scale": "engineering" }
     },
     {
       "id": "other",
@@ -57,7 +57,7 @@
       "hint": "I work in another field",
       "who": "in another field",
       "panel": ["product", "engineering", "design", "oncall"],
-      "owners": { "edge cases": "engineering", "error handling": "oncall", "scale": "oncall" }
+      "owners": { "entities": "engineering", "states": "engineering", "edge cases": "engineering", "error handling": "oncall", "scale": "oncall" }
     }
   ]
 }

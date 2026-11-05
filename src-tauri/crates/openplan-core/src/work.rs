@@ -68,6 +68,57 @@ pub struct Alignment {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recorded_at: Option<String>,
     pub questions: Vec<Question>,
+    /// The agent's statement per area, at most one each. Records from before
+    /// statements have none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub understanding: Vec<Understanding>,
+}
+
+/// What the agent understands about one area, and what would break if it
+/// were wrong. The person confirms it or corrects it. A correction waits for
+/// the agent to restate the area.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Understanding {
+    /// Trimmed, single spaced and lowercase, like `area_key`.
+    pub area: String,
+    pub statement: String,
+    pub by: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub round: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirmed: Option<Confirmation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correction: Option<Correction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Confirmation {
+    pub by: String,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Correction {
+    pub text: String,
+    pub by: String,
+    pub at: String,
+}
+
+/// One statement as the agent sends it.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct NewUnderstanding {
+    pub area: String,
+    pub statement: String,
+}
+
+/// The person's correction of one statement, given in the app.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct GivenCorrection {
+    pub area: String,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -450,6 +501,77 @@ pub fn answer_questions(
     Ok(())
 }
 
+/// Records the agent's statement for each area. A new statement for an area
+/// replaces the old one, and clears its confirmation and correction, since
+/// the person has not read it yet. Refused, with nothing written, when a
+/// statement is blank.
+pub fn state_understanding(
+    record: &mut WorkRecord,
+    statements: Vec<NewUnderstanding>,
+    by: &str,
+) -> Result<(), String> {
+    if let Some(blank) = statements.iter().find(|s| area_key(&s.area).is_empty() || s.statement.trim().is_empty()) {
+        return Err(format!("Say what you understand about {}.", blank.area.trim()));
+    }
+    let alignment = started(record);
+    let round = alignment.questions.iter().map(|q| q.round.unwrap_or(1)).max().unwrap_or(1);
+    for stated in statements {
+        let area = area_key(&stated.area);
+        alignment.understanding.retain(|u| u.area != area);
+        alignment.understanding.push(Understanding {
+            area,
+            statement: stated.statement.trim().to_string(),
+            by: by.to_string(),
+            round: Some(round),
+            confirmed: None,
+            correction: None,
+        });
+    }
+    Ok(())
+}
+
+/// The person agrees with the agent's statement on each area. Refused, with
+/// nothing written, when an area has no statement.
+pub fn confirm_understanding(record: &mut WorkRecord, areas: Vec<String>, by: &str) -> Result<(), String> {
+    check_stated(record, areas.iter().map(String::as_str))?;
+    let at = now_iso();
+    for area in &areas {
+        let understanding = stated_area(record, area);
+        understanding.confirmed = Some(Confirmation { by: by.to_string(), at: at.clone() });
+        understanding.correction = None;
+    }
+    Ok(())
+}
+
+/// The person says what the agent got wrong on each area. Refused, with
+/// nothing written, when an area has no statement or a correction is blank.
+pub fn correct_understanding(
+    record: &mut WorkRecord,
+    corrections: Vec<GivenCorrection>,
+    by: &str,
+) -> Result<(), String> {
+    if let Some(blank) = corrections.iter().find(|c| c.text.trim().is_empty()) {
+        return Err(format!("Say what the agent got wrong about {}.", blank.area.trim()));
+    }
+    check_stated(record, corrections.iter().map(|c| c.area.as_str()))?;
+    let at = now_iso();
+    for given in &corrections {
+        let understanding = stated_area(record, &given.area);
+        understanding.correction = Some(Correction {
+            text: given.text.trim().to_string(),
+            by: by.to_string(),
+            at: at.clone(),
+        });
+        understanding.confirmed = None;
+    }
+    Ok(())
+}
+
+/// The same area whatever its case and spacing.
+pub fn area_key(area: &str) -> String {
+    area.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
 /// Questions posted and still waiting for the person.
 pub fn pending_questions(record: &WorkRecord) -> usize {
     record
@@ -638,11 +760,7 @@ pub fn absorb_pr(record: &mut WorkRecord, url: &str) {
 /// question sent again under its id replaces its entry and keeps the round it
 /// was asked in. `recorded_at` says when every question last had an answer.
 fn merge_round(record: &mut WorkRecord, questions: Vec<Question>) {
-    let alignment = record.alignment.get_or_insert_with(|| Alignment {
-        asked_at: now_iso(),
-        recorded_at: None,
-        questions: Vec::new(),
-    });
+    let alignment = started(record);
     let round = alignment.questions.iter().map(|q| q.round.unwrap_or(1)).max().unwrap_or(0) + 1;
     for question in questions {
         match alignment.questions.iter_mut().find(|q| q.id == question.id) {
@@ -659,6 +777,35 @@ fn merge_round(record: &mut WorkRecord, questions: Vec<Question>) {
         }
     }
     stamp_recorded(alignment);
+}
+
+/// The record's alignment, begun now if nothing was asked or stated yet.
+fn started(record: &mut WorkRecord) -> &mut Alignment {
+    record.alignment.get_or_insert_with(|| Alignment {
+        asked_at: now_iso(),
+        recorded_at: None,
+        questions: Vec::new(),
+        understanding: Vec::new(),
+    })
+}
+
+/// Refuses the first area the agent has stated nothing about.
+fn check_stated<'a>(record: &WorkRecord, mut areas: impl Iterator<Item = &'a str>) -> Result<(), String> {
+    let understanding = record.alignment.as_ref().map_or(&[][..], |a| &a.understanding);
+    match areas.find(|area| !understanding.iter().any(|u| u.area == area_key(area))) {
+        Some(missing) => Err(format!("The agent has stated nothing about {} yet.", missing.trim())),
+        None => Ok(()),
+    }
+}
+
+/// Only after `check_stated` passed for `area`.
+fn stated_area<'a>(record: &'a mut WorkRecord, area: &str) -> &'a mut Understanding {
+    let key = area_key(area);
+    record
+        .alignment
+        .as_mut()
+        .and_then(|a| a.understanding.iter_mut().find(|u| u.area == key))
+        .expect("the area was checked")
 }
 
 fn stamp_recorded(alignment: &mut Alignment) {
@@ -769,6 +916,7 @@ mod tests {
                 asked_at: "x".to_string(),
                 recorded_at: None,
                 questions: vec![question("q1", Some(Answer::Agent {}))],
+                understanding: Vec::new(),
             }),
             ..WorkRecord::default()
         }
@@ -1530,5 +1678,134 @@ mod tests {
         let expected: Vec<_> = listed.iter().map(|p| p.prs.expected).collect();
         assert_eq!(expected, [true, false]);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn stated(items: &[(&str, &str)]) -> Vec<NewUnderstanding> {
+        items
+            .iter()
+            .map(|(area, statement)| NewUnderstanding { area: area.to_string(), statement: statement.to_string() })
+            .collect()
+    }
+
+    fn corrected(area: &str, text: &str) -> GivenCorrection {
+        GivenCorrection { area: area.to_string(), text: text.to_string() }
+    }
+
+    fn understanding_of<'a>(record: &'a WorkRecord, area: &str) -> &'a Understanding {
+        let alignment = record.alignment.as_ref().unwrap();
+        alignment.understanding.iter().find(|u| u.area == area).unwrap()
+    }
+
+    #[test]
+    fn an_understanding_statement_starts_the_alignment_and_takes_the_latest_round() {
+        let mut record = WorkRecord::default();
+
+        state_understanding(&mut record, stated(&[("  Edge   Cases ", "Two tabs can save at once.")]), "claude-code")
+            .unwrap();
+        ask_questions(&mut record, vec![question("q1", None)]).unwrap();
+        ask_questions(&mut record, vec![question("q2", None)]).unwrap();
+        state_understanding(&mut record, stated(&[("scale", "A base holds a few hundred plans.")]), "claude-code")
+            .unwrap();
+
+        let edge = understanding_of(&record, "edge cases");
+        assert_eq!(edge.statement, "Two tabs can save at once.");
+        assert_eq!(edge.by, "claude-code");
+        assert_eq!(edge.round, Some(1));
+        assert_eq!(understanding_of(&record, "scale").round, Some(2));
+        assert!(!is_aligned(&record));
+    }
+
+    #[test]
+    fn the_person_confirms_or_corrects_a_statement_and_each_clears_the_other() {
+        let mut record = WorkRecord::default();
+        state_understanding(&mut record, stated(&[("scale", "A few hundred plans.")]), "claude-code").unwrap();
+
+        correct_understanding(&mut record, vec![corrected("Scale", "Thousands.")], "Sid").unwrap();
+        let after_correction = understanding_of(&record, "scale");
+        let correction = after_correction.correction.as_ref().map(|c| (c.text.as_str(), c.by.as_str()));
+        assert_eq!(correction, Some(("Thousands.", "Sid")));
+        assert_eq!(after_correction.confirmed, None);
+
+        confirm_understanding(&mut record, vec!["scale".into()], "Sid").unwrap();
+        let after_confirmation = understanding_of(&record, "scale");
+        assert_eq!(after_confirmation.confirmed.as_ref().map(|c| c.by.as_str()), Some("Sid"));
+        assert_eq!(after_confirmation.correction, None);
+
+        correct_understanding(&mut record, vec![corrected("scale", "Thousands.")], "Sid").unwrap();
+        assert_eq!(understanding_of(&record, "scale").confirmed, None);
+    }
+
+    #[test]
+    fn a_restatement_replaces_the_statement_and_clears_the_confirmation_and_the_correction() {
+        let mut record = WorkRecord::default();
+        state_understanding(&mut record, stated(&[("scale", "A few hundred plans."), ("states", "Draft to done.")]), "codex")
+            .unwrap();
+        confirm_understanding(&mut record, vec!["states".into()], "Sid").unwrap();
+        correct_understanding(&mut record, vec![corrected("scale", "Thousands.")], "Sid").unwrap();
+
+        state_understanding(
+            &mut record,
+            stated(&[("scale", "Thousands of plans."), ("states", "Draft, alignment, done.")]),
+            "claude-code",
+        )
+        .unwrap();
+
+        let alignment = record.alignment.as_ref().unwrap();
+        assert_eq!(alignment.understanding.len(), 2);
+        for understanding in &alignment.understanding {
+            assert_eq!(understanding.confirmed, None, "{understanding:?}");
+            assert_eq!(understanding.correction, None, "{understanding:?}");
+            assert_eq!(understanding.by, "claude-code");
+        }
+        assert_eq!(understanding_of(&record, "scale").statement, "Thousands of plans.");
+    }
+
+    #[test]
+    fn confirming_or_correcting_an_area_with_no_statement_changes_nothing() {
+        let mut record = WorkRecord::default();
+        assert!(confirm_understanding(&mut record, vec!["scale".into()], "Sid").is_err());
+        state_understanding(&mut record, stated(&[("scale", "A few hundred plans.")]), "codex").unwrap();
+        let before = record.clone();
+
+        let confirm = confirm_understanding(&mut record, vec!["scale".into(), "entities".into()], "Sid").unwrap_err();
+        let correct =
+            correct_understanding(&mut record, vec![corrected("scale", "More."), corrected("states", "Fewer.")], "Sid")
+                .unwrap_err();
+
+        assert!(confirm.contains("entities"), "{confirm}");
+        assert!(correct.contains("states"), "{correct}");
+        assert_eq!(record, before);
+    }
+
+    #[test]
+    fn a_blank_statement_or_correction_is_refused() {
+        let mut record = WorkRecord::default();
+        assert!(state_understanding(&mut record, stated(&[("scale", "  ")]), "codex").is_err());
+        assert_eq!(record, WorkRecord::default());
+        state_understanding(&mut record, stated(&[("scale", "A few hundred plans.")]), "codex").unwrap();
+
+        let blank = correct_understanding(&mut record, vec![corrected("scale", " ")], "Sid");
+
+        assert!(blank.is_err());
+        assert_eq!(understanding_of(&record, "scale").correction, None);
+    }
+
+    #[test]
+    fn understanding_round_trips_with_the_wire_names_the_app_reads() {
+        let mut record = WorkRecord::default();
+        state_understanding(&mut record, stated(&[("scale", "A few hundred plans.")]), "codex").unwrap();
+        correct_understanding(&mut record, vec![corrected("scale", "More.")], "Sid").unwrap();
+
+        let json = serde_json::to_value(&record).unwrap();
+        let back: WorkRecord = serde_json::from_value(json.clone()).unwrap();
+
+        assert_eq!(back, record);
+        let written = &json["alignment"]["understanding"][0];
+        assert_eq!(written["area"], "scale");
+        assert_eq!(written["correction"]["text"], "More.");
+        assert!(written["correction"]["at"].is_string());
+        assert!(written.get("confirmed").is_none(), "{written}");
+        let older = serde_json::to_value(asked_but_not_recorded()).unwrap();
+        assert!(older["alignment"].get("understanding").is_none(), "{older}");
     }
 }
