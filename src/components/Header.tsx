@@ -84,6 +84,8 @@ interface HeaderProps {
   viewTools?: ReactNode;
   /** Word of a new version, shown on every view. */
   updateNotice?: ReactNode;
+  /** Word of questions an agent posted, shown on the plan page. */
+  questionsNotice?: ReactNode;
   doc: DocFile | null;
   wordCount: number | null;
   view: ViewMode;
@@ -140,6 +142,7 @@ export function Header({
   onSelectFolder,
   viewTools,
   updateNotice,
+  questionsNotice,
   doc,
   wordCount,
   view,
@@ -226,6 +229,7 @@ export function Header({
       </div>
 
       {updateNotice}
+      {onPlan && questionsNotice}
 
       {!onPlan && (
         <DropdownMenu>

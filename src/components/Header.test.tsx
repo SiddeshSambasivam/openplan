@@ -156,6 +156,15 @@ describe("Header", () => {
     expect(html).not.toContain("Click to rename");
   });
 
+  it("shows the questions notice on the plan page", () => {
+    const notice = <span>Theo asked a question</span>;
+
+    expect(bar({ mainView: "plan", title: "Plan a", plan: planA, questionsNotice: notice })).toContain(
+      "Theo asked a question",
+    );
+    expect(bar({ questionsNotice: notice })).not.toContain("Theo asked a question");
+  });
+
   it("saves the trimmed title on Enter", () => {
     expect(titleEditKey("Enter", "  Fresh name ")).toEqual({ save: "Fresh name" });
   });
