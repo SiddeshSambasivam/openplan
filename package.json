@@ -1,7 +1,7 @@
 {
   "name": "openplan",
   "private": true,
-  "version": "0.7.3",
+  "version": "0.8.0",
   "license": "Apache-2.0",
   "description": "One place to manage the plans you and your coding agents collaborate on",
   "type": "module",

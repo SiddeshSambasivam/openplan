@@ -2550,7 +2550,7 @@ dependencies = [
 
 [[package]]
 name = "openplan-app"
-version = "0.7.3"
+version = "0.8.0"
 dependencies = [
  "dirs 6.0.0",
  "notify",
@@ -2568,7 +2568,7 @@ dependencies = [
 
 [[package]]
 name = "openplan-cli"
-version = "0.7.3"
+version = "0.8.0"
 dependencies = [
  "dirs 6.0.0",
  "notify",
@@ -2579,7 +2579,7 @@ dependencies = [
 
 [[package]]
 name = "openplan-core"
-version = "0.7.3"
+version = "0.8.0"
 dependencies = [
  "dirs 6.0.0",
  "git2",
