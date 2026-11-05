@@ -79,6 +79,15 @@ Bugs also carry **Reproduction** (runnable, with the version and date it
 was verified on), **Root cause**, and **Blast radius**, including why nothing is
 visibly broken yet, when that is the case.
 
+Features also carry two sections, written before the first alignment round:
+
+- **Entities.** A table of the entities the change adds or changes, what each
+  one holds and how they relate, then a mermaid `erDiagram` of the same.
+- **States.** A mermaid `stateDiagram-v2` of every state the feature can be in
+  and every transition, each labelled with what triggers it.
+
+Draw them first because edge cases hide in the transitions.
+
 ## Decisions
 
 Consequential choices go in a decision log with stable IDs (`D1`, `D2`, and on),
@@ -140,32 +149,43 @@ person presses **Build**.
 
 ### Each review round
 
-Aim for an alignment score of 100. Keep asking, round by round, until every
-required area has an answer and the score reaches 100.
-The required areas are edge cases, error handling and scale.
-Answers that cover the areas give up to 80 points. Answers that say why give the
-last 20. The app keeps **Build** off until the score reaches the person's target,
-which is 80 by default.
+Aim for an alignment score of 100. Keep going, round by round, until
+the score reaches 100. The score is the share of required areas the person confirmed.
+A feature plan's required areas are entities, states, edge cases, error handling and scale.
+Every other plan's required areas are edge cases, error handling and scale.
+The app keeps **Build** off until the person has confirmed every one.
 
 1. Answer the review first. Revise the plan with `update_plan`, reply in every
    thread with `reply_comment`, and resolve each thread you acted on.
-2. Post one to three questions with `ask_questions`. Pick the ones the latest
-   feedback makes answerable. Skip what the plan or the code already answers,
-   unless it is a required area.
-3. When the plan or the code already settles a required area, still ask one
-   short question about it. Make the settled answer the recommended option.
-4. On a hard question, ask the person to say why. A note on an option or a
-   written answer counts as a reason, and reasons carry the last 20 points.
-5. Never pad a round with a question whose answer does not change the work.
-6. End your turn with a one-line pointer to the questions, for example "Two
+2. Send an `understanding` statement with `ask_questions` for every required
+   area the person has not confirmed. Write two to four sentences each: what
+   you understand, and what would break if you were wrong.
+   State every required area in round one. The person confirms each statement
+   or corrects it.
+3. When the person corrects an area, `read_plan` shows the correction. Restate
+   the area in the next round, alongside that round's questions. A new
+   statement replaces the old one, and the person reads it again.
+4. Post one to three questions with `ask_questions`, for the choices you cannot
+   make alone. Pick the ones the latest feedback makes answerable. Skip what the
+   plan or the code already answers.
+5. On a hard question, ask the person to say why. A note on an option or a
+   written answer gives the reason.
+6. Never pad a round with a question whose answer does not change the work.
+7. End your turn with a one-line pointer to the questions, for example "Two
    questions are waiting on the Alignment tab."
-7. Do not open a harness question prompt such as AskUserQuestion. The person may
+8. Do not open a harness question prompt such as AskUserQuestion. The person may
    answer in the app, and the app cannot close a harness prompt. Never ask in a
    plan comment either.
-8. The person answers on the plan's Alignment tab or by replying in the session.
+9. The person answers on the plan's Alignment tab or by replying in the session.
    Record each answer given in the session with `record_alignment`.
-9. Rounds merge by question id, so send only the new round. Leave `round` out.
-   The server stamps it.
+10. Rounds merge by question id, so send only the new round. Leave `round` out.
+    The server stamps it.
+
+A statement on scale, from a feature plan that adds a cache:
+
+```json
+{ "area": "scale", "statement": "The largest base we know holds 412 plans, and the cache keeps each plan's summary in memory, about 2 KB each. If bases reach tens of thousands of plans, launch would read every file and stall for seconds." }
+```
 
 ### On Build
 
@@ -194,17 +214,21 @@ The plan stays in progress, and the app flags it as needing an answer.
 3. Order the questions from easy to hard. The early ones confirm scope. The later
    ones ask the person to explain their reasoning, and a free-text answer is
    welcome there.
-4. Ask about error handling, edge cases and behaviour at scale on every plan.
-   These are the required areas, and each one needs an answer.
-5. Write each question as one direct sentence, and give it a `context` of two to
-   four sentences. The context says why the question matters for this plan and
-   what you found in the code or the plan that raised it. Name the files,
-   functions and numbers you found.
+4. Ask about a required area only when it holds a choice the statement cannot
+   settle. Otherwise the statement covers it.
+5. Write each question as one direct sentence, and give it a `context` in
+   Markdown. Write the context in this order:
+   1. What you found. One or two sentences that name the files, functions and
+      numbers you read.
+   2. Why that matters for this plan. One or two sentences.
+   3. The option you recommend and why, as the last sentence.
+
+   Keep it to two to six sentences in all. Short paragraphs, one list and bold
+   file names are fine.
 6. Offer at least two real options. Give every option a `consequence`, what
    happens if the person picks it, and a `tradeoff`, what it costs or gives up
    and when it is the right pick. One sentence each.
-7. Set `recommended` to one option, and end the `context` with one sentence on
-   why you recommend it.
+7. Set `recommended` to the option the `context` recommends.
 8. The person picks every answer. Never add an option that hands the choice back
    to you. The app adds "Write my own" to every question with options, so do not
    add a free-text option yourself.
@@ -219,7 +243,7 @@ from a feature plan that adds a cache:
 {
   "id": "q4", "role": "engineering", "aspect": "performance",
   "question": "Where does the plan cache live?",
-  "context": "`list_plans` in `library.rs` reads every plan file each time the board opens. The base has 412 plans, and the board takes 900 ms to open. I recommend memory because launch already reads the base once.",
+  "context": "`list_plans` in **library.rs** reads every plan file each time the board opens. The base has 412 plans, and the board takes 900 ms to open.\n\nThis plan adds the cache, so where it lives decides how fast the board opens after launch.\n\nI recommend memory because launch already reads the base once.",
   "illustration": "| | board opens in |\n|---|---|\n| today | 900 ms |\n| in memory | under 50 ms after launch |\n| on disk | under 50 ms always |",
   "options": [
     { "id": "a", "label": "In memory, filled on launch",
@@ -234,7 +258,8 @@ from a feature plan that adds a cache:
 ```
 
 When alignment is reopened, ask only about what changed since the last record. The
-target is under 15 minutes of the person's time across every round.
+target is under 15 minutes of the person's time across every round, statements
+included.
 
 ## Question bank
 
@@ -251,6 +276,8 @@ you find in the plan and the code, so the bank has none.
 | product | scope | Who gets this first, and what is left out? | every user at once · one group first · the people who asked for it |
 | design | UX | What does the user see while this runs and when it fails? | a progress state and a plain error · only the result · the same as the closest existing screen |
 | engineering | tests | What has to be tested before this merges? | unit tests on the new logic · unit tests plus one end-to-end test of the main flow · the existing tests are enough |
+| engineering | entities | Which entities does this add or change, and how do they relate? | one new entity owned by an existing one · a new field on an existing entity · a new entity shared by several |
+| engineering | states | Which states can this be in, and what moves it between them? | the states of the closest existing feature · a new state with its own transitions · no states, it runs in one step |
 | engineering | edge cases | What happens when the input is empty, too large or malformed? | reject it with a clear error · accept it and repair it · keep today's behaviour |
 | oncall | error handling | What happens when a step fails halfway? | retry, then show a plain error · roll back to the last good state · log it and carry on |
 | oncall | scale | How large a case must this handle without slowing down? | today's largest real case · ten times that · no target yet, measure after release |

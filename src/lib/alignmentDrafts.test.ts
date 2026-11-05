@@ -3,15 +3,18 @@ import {
   answeredCount,
   draftedAnswers,
   loadRailShown,
-  loadReplyDrafts,
+  draftedUnderstanding,
+  loadAlignmentDrafts,
   newestWaiting,
   nextWaiting,
   pickedChoice,
   saveRailShown,
-  saveReplyDrafts,
+  saveAlignmentDrafts,
+  type AlignmentDrafts,
+  type ReplyDrafts,
   WRITE_OWN,
 } from "./alignmentDrafts";
-import type { Question } from "./work";
+import type { Question, Understanding } from "./work";
 
 function memoryStorage(): Storage {
   const items = new Map<string, string>();
@@ -39,34 +42,54 @@ const question = (id: string, extra: Partial<Question> = {}): Question => ({
   ...extra,
 });
 
-describe("reply drafts in storage", () => {
+const replies = (items: ReplyDrafts): AlignmentDrafts => ({ replies: items, understanding: {} });
+
+describe("alignment drafts in storage", () => {
   it("keeps each plan's drafts apart across a reload", () => {
     const storage = memoryStorage();
-    saveReplyDrafts("p1", { q1: { option: "a", text: "Why not" } }, storage);
-    saveReplyDrafts("p2", { q1: { text: "Other plan" } }, storage);
+    saveAlignmentDrafts("p1", replies({ q1: { option: "a", text: "Why not" } }), storage);
+    saveAlignmentDrafts("p2", replies({ q1: { text: "Other plan" } }), storage);
 
-    expect(loadReplyDrafts("p1", storage)).toEqual({ q1: { option: "a", text: "Why not" } });
-    expect(loadReplyDrafts("p2", storage)).toEqual({ q1: { text: "Other plan" } });
+    expect(loadAlignmentDrafts("p1", storage)).toEqual(replies({ q1: { option: "a", text: "Why not" } }));
+    expect(loadAlignmentDrafts("p2", storage)).toEqual(replies({ q1: { text: "Other plan" } }));
+  });
+
+  it("keeps confirmations and corrections with the replies under the same key", () => {
+    const storage = memoryStorage();
+    const drafts: AlignmentDrafts = {
+      replies: { q1: { text: "Draft" } },
+      understanding: { scale: { confirm: true }, states: { correct: "Archived is a state too." } },
+    };
+
+    saveAlignmentDrafts("p1", drafts, storage);
+
+    expect(storage.length).toBe(1);
+    expect(loadAlignmentDrafts("p1", storage)).toEqual(drafts);
   });
 
   it("forgets a plan's drafts once none are left", () => {
     const storage = memoryStorage();
-    saveReplyDrafts("p1", { q1: { text: "Draft" } }, storage);
-    saveReplyDrafts("p1", {}, storage);
+    saveAlignmentDrafts("p1", replies({ q1: { text: "Draft" } }), storage);
+    saveAlignmentDrafts("p1", { replies: {}, understanding: {} }, storage);
 
     expect(storage.length).toBe(0);
   });
 
-  it("drops what it cannot read and keeps the rest, drafts saved before picks counted included", () => {
+  it("reads replies saved before confirmations, and drops what it cannot read", () => {
     const storage = memoryStorage();
     storage.setItem(
       "openplan:alignment-drafts:p1",
       JSON.stringify({ q1: { text: 3 }, q2: { option: "b", text: "", replied: false }, q3: null }),
     );
 
-    expect(loadReplyDrafts("p1", storage)).toEqual({ q2: { option: "b", text: "" } });
+    expect(loadAlignmentDrafts("p1", storage)).toEqual(replies({ q2: { option: "b", text: "" } }));
+    storage.setItem(
+      "openplan:alignment-drafts:p1",
+      JSON.stringify({ replies: {}, understanding: { scale: { confirm: "yes" }, states: { correct: 4 }, entities: { correct: "" } } }),
+    );
+    expect(loadAlignmentDrafts("p1", storage)).toEqual({ replies: {}, understanding: { entities: { correct: "" } } });
     storage.setItem("openplan:alignment-drafts:p1", "{not json");
-    expect(loadReplyDrafts("p1", storage)).toEqual({});
+    expect(loadAlignmentDrafts("p1", storage)).toEqual({ replies: {}, understanding: {} });
   });
 
   it("runs on without storage", () => {
@@ -80,8 +103,35 @@ describe("reply drafts in storage", () => {
       },
     } as Storage;
 
-    expect(loadReplyDrafts("p1", broken)).toEqual({});
-    expect(() => saveReplyDrafts("p1", { q1: { text: "x" } }, broken)).not.toThrow();
+    expect(loadAlignmentDrafts("p1", broken)).toEqual({ replies: {}, understanding: {} });
+    expect(() => saveAlignmentDrafts("p1", replies({ q1: { text: "x" } }), broken)).not.toThrow();
+  });
+});
+
+describe("draftedUnderstanding", () => {
+  const stated = (area: string, extra: Partial<Understanding> = {}): Understanding => ({
+    area,
+    statement: `About ${area}.`,
+    by: "claude-code",
+    ...extra,
+  });
+
+  it("sends a confirmation or a written correction for each stated area", () => {
+    const sending = draftedUnderstanding(
+      [stated("scale"), stated("states"), stated("entities"), stated("edge cases", { confirmed: { by: "Sid", at: "x" } })],
+      {
+        scale: { confirm: true },
+        states: { correct: " Archived is a state too. " },
+        entities: { correct: "  " },
+        "edge cases": { confirm: true },
+        "error handling": { confirm: true },
+      },
+    );
+
+    expect(sending).toEqual({
+      confirm: ["scale"],
+      correct: [{ area: "states", text: "Archived is a state too." }],
+    });
   });
 });
 

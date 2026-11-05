@@ -7,7 +7,9 @@ use openplan_core::base::Base;
 use openplan_core::library::PlanEntry;
 use openplan_core::plan::{self, Status};
 use openplan_core::roles::{self, PersonRole, PersonRolePanel};
-use openplan_core::work::{self, Answer, Decision, NewTodo, Pr, Question, Repo, Role, TodoState, WorkRecord};
+use openplan_core::work::{
+    self, Answer, Decision, NewTodo, NewUnderstanding, Pr, Question, Repo, Role, TodoState, Understanding, WorkRecord,
+};
 use openplan_core::fs;
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
@@ -18,10 +20,10 @@ pub fn tools() -> Vec<Value> {
     vec![
         json!({
             "name": "ask_questions",
-            "description": "Post alignment questions for the person, with no answers yet. The person answers on the plan's Alignment tab, or in the session. An answer can pick an option and carry a note with the person's reasoning. After posting, end your turn with one line that points the person to the questions. Record answers given in the session with record_alignment. Questions posted together are one round, and earlier rounds stay. Works while the plan is a draft, in alignment or in progress, and never changes its status. Add an illustration wherever a question is easier to see than to read. Aim for an alignment score of 100 and settle edge cases, error handling and scale, because Build stays off until the score reaches the person's target.",
+            "description": "Post alignment questions for the person, with no answers yet. The person answers on the plan's Alignment tab, or in the session. An answer can pick an option and carry a note with the person's reasoning. After posting, end your turn with one line that points the person to the questions. Record answers given in the session with record_alignment. Questions posted together are one round, and earlier rounds stay. Works while the plan is a draft, in alignment or in progress, and never changes its status. Add an illustration wherever a question is easier to see than to read. Send an understanding statement for every required area with your first round, and ask at most three questions a round. Aim for an alignment score of 100. The score counts the required areas whose statement the person confirmed, and Build stays off until every one is confirmed. A feature plan's required areas are entities, states, edge cases, error handling and scale. Other plans need edge cases, error handling and scale. Send questions as an empty list to restate a corrected area on its own.",
             "inputSchema": {
                 "type": "object",
-                "properties": { "id": id, "questions": questions_schema(false) },
+                "properties": { "id": id, "questions": questions_schema(false), "understanding": understanding_schema() },
                 "required": ["id", "questions"]
             }
         }),
@@ -30,7 +32,7 @@ pub fn tools() -> Vec<Value> {
             "description": "Record alignment questions with the person's answers. Record each round's questions as they are answered. Earlier rounds stay recorded, so there is no need to resend them. A question sent again under its id replaces the recorded one, which is how an answer given in the session to a question posted with ask_questions is recorded. Every question you send needs an answer. Fill each question's context and each option's consequence and tradeoff, so the plan page shows why it was asked and what each choice costs. A draft moves to alignment.",
             "inputSchema": {
                 "type": "object",
-                "properties": { "id": id, "questions": questions_schema(true) },
+                "properties": { "id": id, "questions": questions_schema(true), "understanding": understanding_schema() },
                 "required": ["id", "questions"]
             }
         }),
@@ -157,7 +159,7 @@ fn questions_schema(answered: bool) -> Value {
                 "description": "Who asks it: product is the product owner, engineering the tech lead, design the designer, oncall the on-call engineer, the person paged when it breaks, research the researcher, accessibility the accessibility reviewer, data the data analyst, security the security reviewer, and support the support lead. When get_standards has a Who is answering section, ask only from the panel it names."
             },
             "question": { "type": "string" },
-            "context": { "type": "string", "description": "Two to four sentences on why this question matters for this plan and what you found in the code or the plan that raised it. Name the files where they apply." },
+            "context": { "type": "string", "description": "Markdown, two to six sentences: what you found, naming the files, functions and numbers, then why it matters for this plan, then the option you recommend and why as the last sentence." },
             "illustration": { "type": "string", "description": "Markdown shown with the question: a mermaid diagram, a worked example, or a before and after" },
             "options": {
                 "type": "array",
@@ -187,6 +189,23 @@ fn questions_schema(answered: bool) -> Value {
         question["required"] = json!(["id", "aspect", "question", "options", "answer"]);
     }
     json!({ "type": "array", "items": question })
+}
+
+/// The `understanding` argument of both question tools. Optional, so a call
+/// from an older agent still records its questions.
+fn understanding_schema() -> Value {
+    json!({
+        "type": "array",
+        "description": "What you understand about each required area, two to four sentences each, naming what would break if you were wrong. State every required area in your first round.",
+        "items": {
+            "type": "object",
+            "properties": {
+                "area": { "type": "string", "description": "The required area, such as entities or scale" },
+                "statement": { "type": "string" }
+            },
+            "required": ["area", "statement"]
+        }
+    })
 }
 
 /// The `repos` argument, shared with `create_plan`.
@@ -219,27 +238,37 @@ pub fn record_alignment(base: &Base, author: &str, args: &Value) -> Value {
         Err(reply) => return reply,
     };
     let questions: Vec<Question> = match parse_list(args, "questions", &[("answeredBy", json!("user"))]) {
-        Ok(questions) if !questions.is_empty() => questions,
-        Ok(_) => return text_result("record_alignment needs the questions you asked.", true),
+        Ok(questions) => questions,
         Err(e) => return text_result(e, true),
     };
+    let statements = match parse_understanding(args) {
+        Ok(statements) => statements,
+        Err(e) => return text_result(e, true),
+    };
+    if questions.is_empty() && statements.is_empty() {
+        return text_result("record_alignment needs the questions you asked.", true);
+    }
     // No panel check: an answer to a question posted before the person
     // changed role still records.
     if let Err(e) = check_roles(&questions, None) {
         return text_result(e, true);
     }
     let recorded = change_record(&entry, |record| {
-        work::record_alignment(record, questions).map_err(|ids| {
-            format!(
-                "{} {} no answer. Record a question once the person answers it.",
-                listed(&ids),
-                if ids.len() == 1 { "has" } else { "have" }
-            )
-        })
+        if !questions.is_empty() {
+            work::record_alignment(record, questions).map_err(|ids| {
+                format!(
+                    "{} {} no answer. Record a question once the person answers it.",
+                    listed(&ids),
+                    if ids.len() == 1 { "has" } else { "have" }
+                )
+            })?;
+        }
+        work::state_understanding(record, statements, author)
     });
-    if let Err(e) = recorded {
-        return text_result(e, true);
-    }
+    let record = match recorded {
+        Ok(record) => record,
+        Err(e) => return text_result(e, true),
+    };
     let mut reply = format!("Recorded the alignment on {}.", entry.meta.id);
     if entry.meta.status == Status::Draft {
         if let Err(e) = move_plan(&entry, Status::Alignment) {
@@ -247,6 +276,7 @@ pub fn record_alignment(base: &Base, author: &str, args: &Value) -> Value {
         }
         reply.push_str(" It is now in alignment.");
     }
+    reply.push_str(&unstated_note(&record, entry.meta.plan_type.as_deref()));
     finish(base, author, "align", &entry, reply)
 }
 
@@ -267,20 +297,37 @@ pub fn ask_questions(base: &Base, author: &str, role: Option<PersonRole>, args: 
         );
     }
     let questions: Vec<Question> = match parse_list(args, "questions", &[]) {
-        Ok(questions) if !questions.is_empty() => questions,
-        Ok(_) => return text_result("ask_questions needs the questions to post.", true),
+        Ok(questions) => questions,
         Err(e) => return text_result(e, true),
     };
+    let statements = match parse_understanding(args) {
+        Ok(statements) => statements,
+        Err(e) => return text_result(e, true),
+    };
+    if questions.is_empty() && statements.is_empty() {
+        return text_result("ask_questions needs the questions to post.", true);
+    }
     if let Err(e) = check_roles(&questions, role.map(roles::panel_of)) {
         return text_result(e, true);
     }
-    let ids: Vec<String> = questions.iter().map(|q| q.id.clone()).collect();
-    if let Err(e) = change_record(&entry, |record| work::ask_questions(record, questions)) {
-        return text_result(e, true);
+    let mut posted: Vec<String> = questions.iter().map(|q| q.id.clone()).collect();
+    if !statements.is_empty() {
+        let areas: Vec<String> = statements.iter().map(|s| work::area_key(&s.area)).collect();
+        posted.push(format!("your understanding of {}", listed(&areas)));
     }
+    let record = match change_record(&entry, |record| {
+        if !questions.is_empty() {
+            work::ask_questions(record, questions)?;
+        }
+        work::state_understanding(record, statements, author)
+    }) {
+        Ok(record) => record,
+        Err(e) => return text_result(e, true),
+    };
     let reply = format!(
-        "Posted {} on {id}. End your turn with one line that points the person to them. Aim for an alignment score of 100 and settle edge cases, error handling and scale, because Build stays off until the score reaches the person's target.",
-        listed(&ids)
+        "Posted {} on {id}. End your turn with one line that points the person to them. Aim for an alignment score of 100. Build stays off until the person confirms your understanding of every required area.{}",
+        listed(&posted),
+        unstated_note(&record, entry.meta.plan_type.as_deref())
     );
     finish(base, author, "ask", &entry, reply)
 }
@@ -516,19 +563,34 @@ pub fn summary(body: &str) -> String {
     section.unwrap_or(lead).join("\n").trim().to_string()
 }
 
-/// The questions and the person's answers, for an agent reading the plan.
-/// Empty while nothing has been asked.
-pub fn alignment_note(record: &WorkRecord) -> String {
-    let Some(alignment) = record.alignment.as_ref().filter(|a| !a.questions.is_empty()) else {
+/// The questions and the person's answers, then the agent's statement on
+/// each area and what the person made of it, for an agent reading the plan.
+/// Empty while nothing has been asked or stated.
+pub fn alignment_note(record: &WorkRecord, plan_type: Option<&str>) -> String {
+    let Some(alignment) = record
+        .alignment
+        .as_ref()
+        .filter(|a| !a.questions.is_empty() || !a.understanding.is_empty())
+    else {
         return String::new();
     };
-    let mut out = "\n\nAlignment, from the plan's work record:\n".to_string();
-    for question in &alignment.questions {
-        let answer = match question.answer {
-            Some(_) => answer_line(question),
-            None => "Not answered yet.".to_string(),
-        };
-        out.push_str(&format!("- {}: {} Answer: {answer}\n", question.id, question.question));
+    let mut out = String::new();
+    if !alignment.questions.is_empty() {
+        out.push_str("\n\nAlignment, from the plan's work record:\n");
+        for question in &alignment.questions {
+            let answer = match question.answer {
+                Some(_) => answer_line(question),
+                None => "Not answered yet.".to_string(),
+            };
+            out.push_str(&format!("- {}: {} Answer: {answer}\n", question.id, question.question));
+        }
+    }
+    out.push_str("\n\nUnderstanding, from the plan's work record:\n");
+    for understanding in &alignment.understanding {
+        out.push_str(&format!("- {}: {}\n", understanding.area, understanding_line(understanding)));
+    }
+    for area in unstated(record, plan_type) {
+        out.push_str(&format!("- {area}: Not stated yet.\n"));
     }
     out
 }
@@ -556,6 +618,46 @@ fn answer_line(question: &Question) -> String {
         },
         None => "No answer.".to_string(),
     }
+}
+
+/// Where the area stands, then the statement, then the person's correction.
+fn understanding_line(understanding: &Understanding) -> String {
+    let statement = &understanding.statement;
+    match (&understanding.confirmed, &understanding.correction) {
+        (_, Some(correction)) => {
+            format!("Restate it. {statement} Corrected by {}: {}", correction.by, correction.text)
+        }
+        (Some(confirmed), None) => format!("Confirmed by {}. {statement}", confirmed.by),
+        (None, None) => format!("Waiting for the person. {statement}"),
+    }
+}
+
+/// The required areas the agent has stated nothing about, in order.
+fn unstated(record: &WorkRecord, plan_type: Option<&str>) -> Vec<String> {
+    let stated = record.alignment.as_ref().map_or(&[][..], |a| &a.understanding);
+    roles::required_areas(plan_type)
+        .iter()
+        .filter(|area| !stated.iter().any(|u| u.area == **area))
+        .map(|area| area.to_string())
+        .collect()
+}
+
+/// The sentence a question tool's reply ends with while a required area has
+/// no statement. Empty once every one has.
+fn unstated_note(record: &WorkRecord, plan_type: Option<&str>) -> String {
+    let missing = unstated(record, plan_type);
+    if missing.is_empty() {
+        return String::new();
+    }
+    format!(" This plan still needs an understanding statement for {}.", listed(&missing))
+}
+
+/// The statements in `args`, or none when the caller sent none.
+fn parse_understanding(args: &Value) -> Result<Vec<NewUnderstanding>, String> {
+    if args.get("understanding").is_none() {
+        return Ok(Vec::new());
+    }
+    parse_list(args, "understanding", &[])
 }
 
 /// Whether the answer is other than the recommended option. Why a question
@@ -718,6 +820,7 @@ mod tests {
                         ..question("q4", "Who may skip the guard?", Answer::Text { text: "Nobody.".to_string() })
                     },
                 ],
+                understanding: Vec::new(),
             }),
             decisions: vec![Decision {
                 id: "D1".to_string(),
@@ -809,7 +912,8 @@ mod tests {
         let tool = tools().into_iter().find(|t| t["name"] == "record_alignment").unwrap();
         let question = &schema_of("record_alignment")["properties"]["questions"]["items"];
 
-        assert!(question["properties"]["context"]["description"].is_string());
+        let context = question["properties"]["context"]["description"].as_str().unwrap();
+        assert!(context.contains("Markdown") && context.contains("recommend"), "{context}");
         assert!(question["properties"]["options"]["items"]["properties"]["tradeoff"]["description"].is_string());
         let description = tool["description"].as_str().unwrap();
         assert!(description.contains("context") && description.contains("tradeoff"), "{description}");
@@ -836,12 +940,175 @@ mod tests {
     }
 
     fn base_with_a_draft(name: &str) -> Base {
+        base_with_a_plan(name, "")
+    }
+
+    fn base_with_a_feature(name: &str) -> Base {
+        base_with_a_plan(name, "type: feature\n")
+    }
+
+    fn base_with_a_plan(name: &str, extra_meta: &str) -> Base {
         let dir = std::env::temp_dir().join(name);
         let _ = std::fs::remove_dir_all(&dir);
         let base = openplan_core::base::ensure_base(&dir).unwrap();
         openplan_core::repo::init(&base.root).unwrap();
-        std::fs::write(base.plans_dir().join("p.md"), "---\nid: p\ntitle: P\nstatus: draft\n---\n# P\n").unwrap();
+        let plan = format!("---\nid: p\ntitle: P\nstatus: draft\n{extra_meta}---\n# P\n");
+        std::fs::write(base.plans_dir().join("p.md"), plan).unwrap();
         base
+    }
+
+    fn understanding_on(base: &Base) -> Vec<work::Understanding> {
+        let record = work::read(&base.plans_dir().join("p.md")).unwrap().unwrap();
+        record.alignment.map(|a| a.understanding).unwrap_or_default()
+    }
+
+    fn with_understanding(mut args: Value, statements: &[(&str, &str)]) -> Value {
+        let items: Vec<Value> =
+            statements.iter().map(|(area, statement)| json!({ "area": area, "statement": statement })).collect();
+        args["understanding"] = Value::Array(items);
+        args
+    }
+
+    #[test]
+    fn a_call_without_understanding_is_accepted_and_names_every_area_still_to_state() {
+        let base = base_with_a_feature("openplan-cli-understanding-none");
+
+        let reply = ask_questions(&base, "claude-code", None, &asked_by("engineering"));
+
+        assert_eq!(reply["isError"], false, "{reply}");
+        assert!(
+            reply_text(&reply).ends_with(
+                " This plan still needs an understanding statement for entities, states, edge cases, error handling and scale."
+            ),
+            "{reply}"
+        );
+        assert!(understanding_on(&base).is_empty());
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn statements_sent_with_questions_are_recorded_and_the_reply_names_only_the_rest() {
+        let base = base_with_a_feature("openplan-cli-understanding-some");
+        let args = with_understanding(
+            asked_by("engineering"),
+            &[("entities", "A plan holds questions."), ("States", "Draft, then alignment.")],
+        );
+
+        let reply = ask_questions(&base, "claude-code", None, &args);
+
+        assert_eq!(reply["isError"], false, "{reply}");
+        assert!(
+            reply_text(&reply)
+                .ends_with(" This plan still needs an understanding statement for edge cases, error handling and scale."),
+            "{reply}"
+        );
+        let areas: Vec<String> = understanding_on(&base).into_iter().map(|u| u.area).collect();
+        assert_eq!(areas, ["entities", "states"]);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn once_every_required_area_is_stated_the_reply_adds_nothing() {
+        let base = base_with_a_draft("openplan-cli-understanding-all");
+        let args = with_understanding(
+            asked_by("engineering"),
+            &[("edge cases", "Two tabs."), ("error handling", "A failed write."), ("scale", "Hundreds.")],
+        );
+
+        let reply = ask_questions(&base, "claude-code", None, &args);
+
+        assert_eq!(reply["isError"], false, "{reply}");
+        assert!(!reply_text(&reply).contains("understanding statement"), "{reply}");
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_restatement_clears_the_persons_confirmation() {
+        let base = base_with_a_draft("openplan-cli-understanding-restate");
+        let first = with_understanding(asked_by("engineering"), &[("scale", "Hundreds.")]);
+        ask_questions(&base, "claude-code", None, &first);
+        work::modify(&base.plans_dir().join("p.md"), |r| work::confirm_understanding(r, vec!["scale".into()], "Sid"))
+            .unwrap();
+        assert!(understanding_on(&base)[0].confirmed.is_some());
+
+        let again = with_understanding(json!({ "id": "p", "questions": [] }), &[("scale", "Thousands.")]);
+        let reply = ask_questions(&base, "claude-code", None, &again);
+
+        assert_eq!(reply["isError"], false, "{reply}");
+        let scale = &understanding_on(&base)[0];
+        assert_eq!(scale.statement, "Thousands.");
+        assert_eq!(scale.confirmed, None);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_call_with_neither_questions_nor_statements_is_refused() {
+        let base = base_with_a_draft("openplan-cli-understanding-empty");
+
+        let reply = ask_questions(&base, "claude-code", None, &json!({ "id": "p", "questions": [] }));
+
+        assert_eq!(reply["isError"], true, "{reply}");
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn record_alignment_records_statements_beside_the_answers() {
+        let base = base_with_a_draft("openplan-cli-understanding-record");
+        let mut args = with_understanding(asked_by("engineering"), &[("scale", "Hundreds.")]);
+        args["questions"][0]["answer"] = json!({ "kind": "agent" });
+
+        let reply = record_alignment(&base, "claude-code", &args);
+
+        assert_eq!(reply["isError"], false, "{reply}");
+        assert!(
+            reply_text(&reply).ends_with(" This plan still needs an understanding statement for edge cases and error handling."),
+            "{reply}"
+        );
+        assert_eq!(understanding_on(&base)[0].by, "claude-code");
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn both_question_tools_ask_for_understanding_and_ask_questions_names_the_areas() {
+        for tool in ["ask_questions", "record_alignment"] {
+            let understanding = &schema_of(tool)["properties"]["understanding"];
+            let description = understanding["description"].as_str().unwrap();
+            assert!(description.contains("two to four sentences"), "{tool}: {description}");
+            assert!(description.contains("State every required area in your first round."), "{tool}: {description}");
+            assert_eq!(understanding["items"]["required"], json!(["area", "statement"]), "{tool}");
+        }
+        let tool = tools().into_iter().find(|t| t["name"] == "ask_questions").unwrap();
+        let description = tool["description"].as_str().unwrap();
+        assert!(description.contains("confirmed"), "{description}");
+        assert!(description.contains("entities, states, edge cases, error handling and scale"), "{description}");
+        assert!(!description.contains("settle edge cases"), "{description}");
+    }
+
+    #[test]
+    fn an_agent_reading_the_plan_sees_each_statement_and_the_persons_correction() {
+        let mut record = WorkRecord::default();
+        let stated = |area: &str, statement: &str| work::NewUnderstanding {
+            area: area.to_string(),
+            statement: statement.to_string(),
+        };
+        work::state_understanding(
+            &mut record,
+            vec![stated("entities", "A plan holds questions."), stated("states", "Draft, then done."), stated("scale", "Hundreds.")],
+            "claude-code",
+        )
+        .unwrap();
+        work::confirm_understanding(&mut record, vec!["entities".into()], "Sid").unwrap();
+        let correction = work::GivenCorrection { area: "scale".into(), text: "Thousands.".into() };
+        work::correct_understanding(&mut record, vec![correction], "Sid").unwrap();
+
+        let note = alignment_note(&record, Some("feature"));
+
+        assert!(note.contains("\n\nUnderstanding, from the plan's work record:\n"), "{note}");
+        assert!(note.contains("- entities: Confirmed by Sid. A plan holds questions.\n"), "{note}");
+        assert!(note.contains("- states: Waiting for the person. Draft, then done.\n"), "{note}");
+        assert!(note.contains("- scale: Restate it. Hundreds. Corrected by Sid: Thousands.\n"), "{note}");
+        assert!(note.contains("- edge cases: Not stated yet.\n"), "{note}");
+        assert!(!note.contains('\u{2014}'), "{note}");
     }
 
     fn asked_by(role: &str) -> Value {
@@ -926,11 +1193,12 @@ mod tests {
                 asked_at: "2026-10-28T09:00:00Z".to_string(),
                 recorded_at: None,
                 questions: vec![question("q1", "What has to be tested?", picked)],
+                understanding: Vec::new(),
             }),
             ..WorkRecord::default()
         };
 
-        let note = alignment_note(&record);
+        let note = alignment_note(&record, None);
 
         assert!(
             note.contains("- q1: What has to be tested? Answer: Unit and end-to-end tests. Note: Only on the main flows.\n"),

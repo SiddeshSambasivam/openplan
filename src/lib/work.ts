@@ -24,7 +24,26 @@ export interface Alignment {
   askedAt: string;
   recordedAt?: string;
   questions: Question[];
+  /** The agent's statement per area. Records from before statements have
+   * none. */
+  understanding?: Understanding[];
 }
+
+/** What the agent understands about one area, and what would break if it
+ * were wrong. The person confirms it or corrects it, and a correction waits
+ * for the agent to restate the area. */
+export interface Understanding {
+  /** Trimmed, single spaced and lowercase. */
+  area: string;
+  statement: string;
+  by: string;
+  round?: number;
+  confirmed?: { by: string; at: string };
+  correction?: { text: string; by: string; at: string };
+}
+
+/** What the person has drafted on one statement and not sent yet. */
+export type UnderstandingDraft = { confirm: true } | { correct: string };
 
 export interface Question {
   id: string;
@@ -133,6 +152,21 @@ export async function answerQuestions(
   answers: { id: string; answer: Answer }[],
 ): Promise<WorkRecord> {
   return invoke<WorkRecord>("answer_questions", { path, answers });
+}
+
+/** Writes the person's confirmation of each area's statement and returns
+ * the record as written. Nothing is written when an area has no statement. */
+export async function confirmUnderstanding(path: string, areas: string[]): Promise<WorkRecord> {
+  return invoke<WorkRecord>("confirm_understanding", { path, areas });
+}
+
+/** Writes the person's corrections and returns the record as written.
+ * Nothing is written when an area has no statement. */
+export async function correctUnderstanding(
+  path: string,
+  corrections: { area: string; text: string }[],
+): Promise<WorkRecord> {
+  return invoke<WorkRecord>("correct_understanding", { path, corrections });
 }
 
 /** Tells the plan's agent sessions the answers are in. Returns how many got

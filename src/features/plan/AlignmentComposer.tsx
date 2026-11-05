@@ -39,7 +39,7 @@ export function AlignmentComposer({
   /** Enter found neither a pick nor words. */
   missing: boolean;
   line: ComposerLine;
-  /** Answers drafted to send. */
+  /** Answers, confirmations and corrections drafted to send. */
   ready: number;
   busy: boolean;
   /** Says how to reply when no question is active and some still wait. */
@@ -87,7 +87,7 @@ export function AlignmentComposer({
           ref={sendRef}
           size="sm"
           shortcut="sendReview"
-          tooltip={ready === 0 ? "Answer a question first" : `Send ${answerCount(ready)} to the agent`}
+          tooltip={ready === 0 ? "Answer a question or confirm an area first" : `Send ${replyCount(ready)} to the agent`}
           tooltipSide="top"
           tooltipAlign="end"
           disabled={busy || ready === 0}
@@ -107,6 +107,6 @@ export function AlignmentComposer({
   );
 }
 
-function answerCount(count: number): string {
-  return `${count} ${count === 1 ? "answer" : "answers"}`;
+function replyCount(count: number): string {
+  return `${count} ${count === 1 ? "reply" : "replies"}`;
 }

@@ -241,7 +241,7 @@ describe("tour anchors", () => {
   });
 
   it("marks the score", () => {
-    const score = html(<AlignmentScoreCard score={alignmentScore([question], {})} target={80} />);
+    const score = html(<AlignmentScoreCard score={alignmentScore([question], [], { answers: {}, understanding: {} }, null)} target={80} />);
     expect(anchored(score, "score")).toBe(true);
   });
 

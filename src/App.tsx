@@ -773,7 +773,7 @@ export default function App() {
     if (questionsNoticeTab === "alignment") setQuestionsNotice(null);
   }, [questionsNoticeTab]);
   useEffect(() => setQuestionsNotice(null), [activePlan?.path]);
-  const aligned = canBuild(workRecord, preferences.alignmentTarget);
+  const aligned = canBuild(workRecord, preferences.alignmentTarget, activePlan?.type ?? null);
   const offerCompletion =
     activePlan != null && offersCompletion(activePlan.status, workRecord?.prs);
   const prState = usePrStateRefresh({
@@ -1949,7 +1949,7 @@ export default function App() {
           buildTooltip={
             activePlan?.demo && aligned
               ? "Shows the next stage. Agents never build a demo plan."
-              : buildTooltip(workRecord, preferences.alignmentTarget)
+              : buildTooltip(workRecord, preferences.alignmentTarget, activePlan?.type ?? null)
           }
           folders={knownFolders}
           folder={folder}
