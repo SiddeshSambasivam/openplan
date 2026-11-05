@@ -187,55 +187,32 @@ pub fn import_folder(
     Ok(outcomes)
 }
 
-/// Renames a plan: new title, new id, new place on disk. A set renames its
-/// folder; a single document renames its file. The body is untouched.
+/// Renames a plan by rewriting its title. The id, the file and the folder
+/// stay where they are, so anything that refers to the plan by id keeps
+/// finding it. The body is untouched.
 pub fn rename_plan(
     base: &Base,
     author: &Author,
     path: &Path,
     new_title: &str,
-) -> Result<std::path::PathBuf, String> {
+) -> Result<(), String> {
     let new_title = new_title.trim();
     if new_title.is_empty() {
         return Err("A plan needs a name.".to_string());
     }
-    let id = slugify(new_title);
-
-    // A set's entry document stands for the set; renaming it renames the folder.
-    let is_set_entry = path
-        .parent()
-        .and_then(library::set_entry)
-        .is_some_and(|entry| entry == path);
-
-    let (rename_from, rename_to, entry_inside) = if is_set_entry {
-        let folder = path.parent().unwrap();
-        let target = folder.parent().unwrap().join(&id);
-        let inside = target.join(path.file_name().unwrap());
-        (folder.to_path_buf(), target, inside)
-    } else {
-        let target = path
-            .parent()
-            .unwrap()
-            .join(format!("{id}.md"));
-        (path.to_path_buf(), target.clone(), target)
-    };
-    if rename_to.exists() && rename_to != rename_from {
-        return Err(format!("There is already a plan called {id}."));
+    let text = fs::read_to_string(path)?;
+    let mut parsed = plan::parse(&text, path);
+    if parsed.meta.title == new_title {
+        return Ok(());
     }
-
-    let old_id = {
-        let text = fs::read_to_string(path)?;
-        plan::parse(&text, path).meta.id
-    };
-    std::fs::rename(&rename_from, &rename_to)
-        .map_err(|e| format!("Couldn't rename: {e}"))?;
-    let text = fs::read_to_string(&entry_inside)?;
-    let mut parsed = plan::parse(&text, &entry_inside);
-    parsed.meta.id = id.clone();
-    parsed.meta.title = new_title.to_string();
-    fs::atomic_write(&entry_inside, &plan::serialize(&parsed))?;
-    repo::commit_all(&base.root, author, &format!("rename: {old_id} to {id}"))?;
-    Ok(entry_inside)
+    if let Some(folder) = set_folder_name(path) {
+        // A set is named by its folder; writing that keeps the id it already has.
+        parsed.meta.id = folder;
+    }
+    let old_title = std::mem::replace(&mut parsed.meta.title, new_title.to_string());
+    fs::atomic_write(path, &plan::serialize(&parsed))?;
+    repo::commit_all(&base.root, author, &format!("rename: {old_title} to {new_title}"))?;
+    Ok(())
 }
 
 /// Renames one document inside a set. The numeric prefix that gives a set
@@ -292,6 +269,15 @@ pub fn rename_document(
         &format!("rename: {old_stem} to {}", target.file_stem().unwrap().to_string_lossy()),
     )?;
     Ok(target)
+}
+
+/// The folder name of the set whose entry document this is, if it is one.
+fn set_folder_name(path: &Path) -> Option<String> {
+    let folder = path.parent()?;
+    if library::set_entry(folder)? != path {
+        return None;
+    }
+    Some(folder.file_name()?.to_string_lossy().into_owned())
 }
 
 #[cfg(test)]
@@ -366,36 +352,77 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
+    fn commits_touching(base: &Base, path: &Path) -> usize {
+        repo::history(&base.root, path.strip_prefix(&base.root).unwrap())
+            .unwrap()
+            .len()
+    }
+
     #[test]
-    fn renaming_a_plan_moves_it_and_keeps_its_text() {
+    fn renaming_a_plan_changes_its_title_and_nothing_else() {
         let base = temp_base("openplan-core-rename-file");
         let path = base.plans_dir().join("old-name.md");
         std::fs::write(&path, "---\nid: old-name\ntitle: Old name\n---\n# Old name\n\nbody\n").unwrap();
+        repo::commit_all(&base.root, &Author::user(), "init").unwrap();
 
-        let moved = rename_plan(&base, &Author::user(), &path, "Fresh name").unwrap();
+        rename_plan(&base, &Author::user(), &path, "  Fresh name  ").unwrap();
 
-        assert!(moved.ends_with("fresh-name.md"));
-        assert!(!path.exists());
-        let text = std::fs::read_to_string(&moved).unwrap();
-        assert!(text.contains("title: Fresh name"));
-        assert!(text.ends_with("body\n"), "the body moved untouched");
+        let text = std::fs::read_to_string(&path).unwrap();
+        let plan = plan::parse(&text, &path);
+        assert_eq!(plan.meta.title, "Fresh name");
+        assert_eq!(plan.meta.id, "old-name", "the id stays");
+        assert!(text.ends_with("body\n"), "the body is untouched");
+        assert_eq!(std::fs::read_dir(base.plans_dir()).unwrap().count(), 1, "nothing moved");
+        assert_eq!(commits_touching(&base, &path), 2, "one rename commit");
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
     #[test]
-    fn renaming_a_set_renames_its_folder() {
+    fn renaming_a_plan_to_its_own_title_writes_nothing() {
+        let base = temp_base("openplan-core-rename-same");
+        let path = base.plans_dir().join("same.md");
+        let original = "---\nid: same\ntitle: Same\n---\n# Same\n";
+        std::fs::write(&path, original).unwrap();
+        repo::commit_all(&base.root, &Author::user(), "init").unwrap();
+
+        rename_plan(&base, &Author::user(), &path, " Same ").unwrap();
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        assert_eq!(commits_touching(&base, &path), 1);
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn a_plan_needs_a_name() {
+        let base = temp_base("openplan-core-rename-empty");
+        let path = base.plans_dir().join("named.md");
+        std::fs::write(&path, "---\nid: named\ntitle: Named\n---\n# Named\n").unwrap();
+
+        let refused = rename_plan(&base, &Author::user(), &path, "   ");
+
+        assert_eq!(refused, Err("A plan needs a name.".to_string()));
+        let _ = std::fs::remove_dir_all(&base.root);
+    }
+
+    #[test]
+    fn renaming_a_set_keeps_its_folder() {
         let base = temp_base("openplan-core-rename-set");
         let folder = base.plans_dir().join("old-set");
         std::fs::create_dir_all(&folder).unwrap();
-        std::fs::write(folder.join("README.md"), "# Old set\n").unwrap();
+        let entry = folder.join("README.md");
+        std::fs::write(&entry, "# Old set\n").unwrap();
         std::fs::write(folder.join("01-a.md"), "# A\n").unwrap();
 
-        let moved =
-            rename_plan(&base, &Author::user(), &folder.join("README.md"), "New set").unwrap();
+        rename_plan(&base, &Author::user(), &entry, "New set").unwrap();
 
-        assert!(moved.ends_with("new-set/README.md"), "{moved:?}");
-        assert!(base.plans_dir().join("new-set/01-a.md").exists(), "documents came along");
-        assert!(!folder.exists());
+        let listed = crate::library::scan(&base);
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].meta.title, "New set");
+        assert_eq!(listed[0].meta.id, "old-set", "the id stays");
+        assert_eq!(listed[0].path, entry, "the folder stays");
+        assert_eq!(listed[0].documents.len(), 2);
+        let text = std::fs::read_to_string(&entry).unwrap();
+        assert!(text.contains("id: old-set\n"), "{text}");
         let _ = std::fs::remove_dir_all(&base.root);
     }
 
